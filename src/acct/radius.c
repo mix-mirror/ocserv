@@ -118,7 +118,6 @@ static void append_stats(rc_handle *rh, VALUE_PAIR **send, stats_st *stats)
 static void append_acct_standard(rc_handle *rh, const common_auth_info_st *ai, VALUE_PAIR **send)
 {
 	uint32_t i;
-	uint32_t custom_attr;
 
 	if (nas_identifier[0] != 0) {
 		if (rc_avpair_add(rh, send, PW_NAS_IDENTIFIER, nas_identifier, -1, 0) == NULL) {
@@ -186,8 +185,10 @@ static void append_acct_standard(rc_handle *rh, const common_auth_info_st *ai, V
 		return;
 	}
 	
-	if (rc_avpair_add(rh, send, PW_CONNECT_INFO, ai->user_agent, -1, 0) == NULL) {
-		return;
+	if (ai->user_agent[0] != 0) {
+	    if (rc_avpair_add(rh, send, PW_CONNECT_INFO, ai->user_agent, -1, 0) == NULL) {
+		    return;
+	    }
 	}
 
 	return;
