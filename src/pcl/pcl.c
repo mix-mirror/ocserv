@@ -382,7 +382,7 @@ static void co_runner(void)
 
 coroutine_t co_create(void (*func)(void *), void *data, void *stack, int size)
 {
-	int alloc = 0, r = CO_STK_COROSIZE;
+	int alloc = 0;
 	coroutine *co;
 
 	if ((size &= ~(sizeof(long) - 1)) < CO_MIN_SIZE)
