@@ -7,7 +7,7 @@
 #include <ccan/build_assert/build_assert.h>
 
 /* Stolen mostly from: lookup3.c, by Bob Jenkins, May 2006, Public Domain.
- * 
+ *
  * http://burtleburtle.net/bob/c/lookup3.c
  */
 

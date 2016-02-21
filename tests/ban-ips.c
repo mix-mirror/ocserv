@@ -130,7 +130,7 @@ int main()
 		exit(1);
 	}
 
-	/* check expiration of entries */ 
+	/* check expiration of entries */
 	sleep(s->config->min_reauth_time+1);
 
 	if (check_if_banned_str(s, "192.168.1.1") != 0) {

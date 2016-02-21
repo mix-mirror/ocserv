@@ -1,13 +1,13 @@
 #ifndef CCAN_TALLOC_H
 #define CCAN_TALLOC_H
-/* 
+/*
    Copyright (C) Andrew Tridgell 2004-2005
    Copyright (C) Stefan Metzmacher 2006
-   
+
      ** NOTE! The following LGPL license applies to the talloc
      ** library. This does NOT imply that all of Samba is released
      ** under the LGPL
-   
+
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
@@ -583,7 +583,7 @@ char *talloc_strndup(const void *t, const char *p, size_t n);
 char *talloc_asprintf(const void *t, const char *fmt, ...) PRINTF_FMT(2,3);
 
 /**
- * talloc_append_string - concatenate onto a tallocated string 
+ * talloc_append_string - concatenate onto a tallocated string
  * @orig: the tallocated string to append to
  * @append: the string to add, or NULL to add nothing.
  *
@@ -746,7 +746,7 @@ void talloc_set_name_const(const void *ptr, const char *name);
  *   ptr = talloc_size(context, size);
  *   talloc_set_name(ptr, fmt, ....);
  */
-void *talloc_named(const void *context, size_t size, 
+void *talloc_named(const void *context, size_t size,
 		   const char *fmt, ...) PRINTF_FMT(3,4);
 
 /**

@@ -296,7 +296,7 @@ add_env_val(char * buf, int buf_sz, char const * name)
     {
         size_t dir_len = strlen(dir_part);
         size_t nm_len  = strlen(name) + 1;
-        
+
         if (dir_len + nm_len >= (unsigned)buf_sz)
             return false;
         memcpy(buf, dir_part, dir_len);

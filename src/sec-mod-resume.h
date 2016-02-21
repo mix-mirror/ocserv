@@ -27,7 +27,7 @@ int handle_resume_delete_req(sec_mod_st* sec,
   			   const SessionResumeFetchMsg * req);
 
 int handle_resume_fetch_req(sec_mod_st* sec,
-  			   const SessionResumeFetchMsg * req, 
+  			   const SessionResumeFetchMsg * req,
   			   SessionResumeReplyMsg* rep);
 
 int handle_resume_store_req(sec_mod_st* sec,

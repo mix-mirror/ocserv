@@ -300,8 +300,8 @@ static int radius_auth_pass(void *ctx, const char *pass, unsigned pass_len)
 			} else if (vp->attribute == PW_DELEGATED_IPV6_PREFIX && vp->type == PW_TYPE_IPV6PREFIX) {
 				/* Delegated-IPv6-Prefix */
 				if (inet_ntop(AF_INET6, vp->strvalue, pctx->ipv6, sizeof(pctx->ipv6)) != NULL) {
-					memset(ipv6, 0, sizeof(ipv6)); 
-					memcpy(ipv6, vp->strvalue+2, vp->lvalue-2); 
+					memset(ipv6, 0, sizeof(ipv6));
+					memcpy(ipv6, vp->strvalue+2, vp->lvalue-2);
 					if (inet_ntop(AF_INET6, ipv6, pctx->ipv6, sizeof(pctx->ipv6)) != NULL) {
 						pctx->ipv6_subnet_prefix = (unsigned)(unsigned char)vp->strvalue[1];
 					}
@@ -309,8 +309,8 @@ static int radius_auth_pass(void *ctx, const char *pass, unsigned pass_len)
 			} else if (vp->attribute == PW_FRAMED_IPV6_PREFIX && vp->type == PW_TYPE_IPV6PREFIX) {
 				if (vp->lvalue > 2 && vp->lvalue <= 18) {
 					/* Framed-IPv6-Prefix */
-					memset(ipv6, 0, sizeof(ipv6)); 
-					memcpy(ipv6, vp->strvalue+2, vp->lvalue-2); 
+					memset(ipv6, 0, sizeof(ipv6));
+					memcpy(ipv6, vp->strvalue+2, vp->lvalue-2);
 					if (inet_ntop(AF_INET6, ipv6, txt, sizeof(txt)) != NULL) {
 						snprintf(route, sizeof(route), "%s/%u", txt, (unsigned)(unsigned char)vp->strvalue[1]);
 						append_route(pctx, vp->strvalue, vp->lvalue);

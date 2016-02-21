@@ -352,7 +352,7 @@ void send_stats_to_secmod(worker_st * ws, time_t now, unsigned discon_reason)
 			      (unsigned long)msg.bytes_out);
 		} else {
 			e = errno;
-			oclog(ws, LOG_WARNING, "could not send periodic stats to sec-mod: %s\n", strerror(e));	      
+			oclog(ws, LOG_WARNING, "could not send periodic stats to sec-mod: %s\n", strerror(e));
 		}
 	}
 }
@@ -1327,7 +1327,7 @@ static void set_socket_timeout(worker_st * ws, int fd)
  * should be set to %S_AUTH_COMPLETE or the client will be
  * disconnected.
  *
- * If the user is authenticate it handles the TCP and UDP VPN 
+ * If the user is authenticate it handles the TCP and UDP VPN
  * tunnels.
  *
  */

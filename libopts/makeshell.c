@@ -135,7 +135,7 @@ optionParseShell(tOptions * opts)
      */
     if (HAVE_GENSHELL_OPT(SCRIPT))
         open_out(GENSHELL_OPT_ARG(SCRIPT), opts->pzProgName);
-    
+
     emit_usage(opts);
     emit_setup(opts);
 
@@ -353,7 +353,7 @@ text_to_var(tOptions * opts, teTextTo which, tOptDesc * od)
 
 /**
  * capture usage text in shell variables.
- * 
+ *
  */
 static void
 emit_usage(tOptions * opts)
@@ -639,7 +639,7 @@ emit_match_expr(char const * name, tOptDesc * cod, tOptions * opts)
 
     if (max_match_ct >= sizeof(name_bf) - 1)
         goto leave;
-    
+
     {
         tOptDesc *  od = opts->pOptDesc;
         int         ct = opts->optCt;

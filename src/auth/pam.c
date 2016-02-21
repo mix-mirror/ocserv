@@ -58,7 +58,7 @@ enum {
 	PAM_S_COMPLETE,
 };
 
-static int ocserv_conv(int msg_size, const struct pam_message **msg, 
+static int ocserv_conv(int msg_size, const struct pam_message **msg,
 		struct pam_response **resp, void *uptr)
 {
 struct pam_ctx_st * pctx = uptr;
@@ -109,7 +109,7 @@ unsigned i;
 
 	*resp = pctx->replies;
 	pctx->replies = NULL;
-	return PAM_SUCCESS;  
+	return PAM_SUCCESS;
 }
 
 static void co_auth_user(void* data)
@@ -125,7 +125,7 @@ int pret;
 		pctx->cr_ret = pret;
 		goto wait;
 	}
-	
+
 	pret = pam_acct_mgmt(pctx->ph, 0);
 	if (pret == PAM_NEW_AUTHTOK_REQD) {
 		/* change password */
@@ -134,13 +134,13 @@ int pret;
 		pctx->changing = 1;
 		pret = pam_chauthtok(pctx->ph, PAM_CHANGE_EXPIRED_AUTHTOK);
 	}
-	
+
 	if (pret != PAM_SUCCESS) {
 		syslog(LOG_INFO, "PAM acct-mgmt error: %s", pam_strerror(pctx->ph, pret));
 		pctx->cr_ret = pret;
 		goto wait;
 	}
-	
+
 	pctx->state = PAM_S_COMPLETE;
 	pctx->cr_ret = PAM_SUCCESS;
 
@@ -185,7 +185,7 @@ struct pam_ctx_st * pctx;
 		pam_set_item(pctx->ph, PAM_RHOST, info->ip);
 
 	*ctx = pctx;
-	
+
 	return ERR_AUTH_CONTINUE;
 
 fail2:
@@ -231,7 +231,7 @@ size_t prompt_hash = 0;
 	pst->counter = pctx->passwd_counter;
 
 	/* differentiate password prompts, if the hash of the prompt
-	 * is different. 
+	 * is different.
 	 */
 	if (pctx->prev_prompt_hash != prompt_hash)
 		pctx->passwd_counter++;
@@ -264,7 +264,7 @@ struct pam_ctx_st * pctx = ctx;
 		syslog(LOG_AUTH, "PAM-auth pam_auth_pass: %s", pam_strerror(pctx->ph, pctx->cr_ret));
 		return ERR_AUTH_FAIL;
 	}
-	
+
 	if (pctx->state != PAM_S_COMPLETE)
 		return ERR_AUTH_CONTINUE;
 
@@ -293,13 +293,13 @@ int pret;
 		/*syslog(LOG_AUTH, "PAM-auth: pam_get_item(PAM_USER): %s", pam_strerror(pctx->ph, pret));*/
 		return -1;
 	}
-	
+
 	if (user != NULL) {
 		strlcpy(username, user, username_size);
 
 		return 0;
 	}
-	
+
 	return -1;
 }
 

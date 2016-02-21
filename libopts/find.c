@@ -381,7 +381,7 @@ opt_find_long(tOptions * opts, char const * opt_name, tOptState * state)
     if (nm_len <= 1) {
         if ((opts->fOptSet & OPTPROC_ERRSTOP) == 0)
             return FAILURE;
-        
+
         fprintf(stderr, zInvalOptName, opts->pzProgName, opt_name);
         (*opts->pUsageProc)(opts, EXIT_FAILURE);
         /* NOTREACHED */
@@ -426,7 +426,7 @@ opt_find_short(tOptions * pOpts, uint_t optValue, tOptState * pOptState)
                && (pRes->pz_Name != NULL)) {
                 if ((pOpts->fOptSet & OPTPROC_ERRSTOP) == 0)
                     return FAILURE;
-        
+
                 fprintf(stderr, zDisabledErr, pOpts->pzProgPath, pRes->pz_Name);
                 if (pRes->pzText != NULL)
                     fprintf(stderr, SET_OFF_FMT, pRes->pzText);
@@ -661,10 +661,10 @@ get_opt_arg(tOptions * opts, tOptState * o_st)
     if (  ((o_st->flags & OPTST_DISABLED) != 0)
        || (OPTST_GET_ARGTYPE(o_st->flags) == OPARG_TYPE_NONE))
         return get_opt_arg_none(opts, o_st);
-    
+
     if (o_st->flags & OPTST_ARG_OPTIONAL)
         return get_opt_arg_may( opts, o_st);
-    
+
     return get_opt_arg_must(opts, o_st);
 }
 

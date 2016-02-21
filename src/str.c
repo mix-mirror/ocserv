@@ -94,11 +94,11 @@ int ret;
 	ret = str_append_size(dest, data_size);
 	if (ret < 0)
 		return ret;
-	
+
 	memcpy(&dest->data[dest->length], data, data_size);
 	dest->length = data_size + dest->length;
 	dest->data[dest->length] = 0;
-	
+
 	return 0;
 }
 

@@ -30,7 +30,7 @@
 
 #ifdef HAVE_GSSAPI
 
-int der_decode(const uint8_t *der, unsigned der_size, uint8_t *out, unsigned *out_size, 
+int der_decode(const uint8_t *der, unsigned der_size, uint8_t *out, unsigned *out_size,
 	       char *realm, unsigned realm_size, int *error)
 {
 	int ret, len;
@@ -67,9 +67,9 @@ int der_decode(const uint8_t *der, unsigned der_size, uint8_t *out, unsigned *ou
 
 	ret = 0;
  cleanup:
-	asn1_delete_structure(&c2); 
+	asn1_delete_structure(&c2);
 	return ret;
-	
+
 }
 
 int der_encode_inplace(uint8_t *raw, unsigned *raw_size, unsigned max_size, int *error)
@@ -105,9 +105,9 @@ int der_encode_inplace(uint8_t *raw, unsigned *raw_size, unsigned max_size, int 
 
 	ret = 0;
  cleanup:
-	asn1_delete_structure(&c2); 
+	asn1_delete_structure(&c2);
 	return ret;
-	
+
 }
 
 #define BUF_SIZE 16*1024

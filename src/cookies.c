@@ -39,7 +39,7 @@
 #include <cookies.h>
 
 int decrypt_cookie(ProtobufCAllocator *pa, gnutls_datum_t *key,
-			uint8_t* cookie, unsigned cookie_size, 
+			uint8_t* cookie, unsigned cookie_size,
 			Cookie **msg)
 {
 gnutls_datum_t iv = { (void*)cookie, COOKIE_IV_SIZE };

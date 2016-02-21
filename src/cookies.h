@@ -36,7 +36,7 @@
 int encrypt_cookie(void *pool, gnutls_datum_t *key, const Cookie *msg,
         uint8_t** ecookie, unsigned *ecookie_size);
 int decrypt_cookie(ProtobufCAllocator *pa, gnutls_datum_t *key,
-			uint8_t *cookie, unsigned cookie_size, 
+			uint8_t *cookie, unsigned cookie_size,
 			Cookie **msg);
 
 #endif

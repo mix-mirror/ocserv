@@ -439,7 +439,7 @@ static void figure_auth_funcs(struct perm_cfg_st *config, char **auth, unsigned 
 				if (c_strncasecmp(auth[j], avail_auth_types[i].name, avail_auth_types[i].name_size) == 0) {
 					if (avail_auth_types[i].get_brackets_string)
 						config->auth[x].additional = avail_auth_types[i].get_brackets_string(config, auth[j]+avail_auth_types[i].name_size);
-				
+
 					config->auth[x].name = talloc_strdup(config, avail_auth_types[i].name);
 					fprintf(stderr, "Enabling '%s' as authentication method\n", avail_auth_types[i].name);
 
@@ -576,7 +576,7 @@ static void parse_kkdcp(struct cfg_st *config, char **urlfw, unsigned urlfw_size
 
 		kkdcp_realm->realm = talloc_strdup(config->kkdcp, realm);
 
-		freeaddrinfo(res);  
+		freeaddrinfo(res);
 		kkdcp->realms_size++;
 	}
 
@@ -988,7 +988,7 @@ size_t urlfw_size = 0;
 	if (config->network.ipv6_subnet_prefix == 0) {
 		config->network.ipv6_subnet_prefix = 128;
 	} else if (config->network.ipv6_prefix >= config->network.ipv6_subnet_prefix) {
-		fprintf(stderr, "The subnet prefix (%u) cannot be smaller or equal to network's (%u)\n", 
+		fprintf(stderr, "The subnet prefix (%u) cannot be smaller or equal to network's (%u)\n",
 				config->network.ipv6_subnet_prefix, config->network.ipv6_prefix);
 		exit(1);
 	}
@@ -1166,7 +1166,7 @@ int cmd_parser (void *pool, int argc, char **argv, struct perm_cfg_st** config)
 		exit(1);
 
 	optionProcess( &ocservOptions, argc, argv);
-  
+
 	if (HAVE_OPT(FOREGROUND))
 		(*config)->foreground = 1;
 

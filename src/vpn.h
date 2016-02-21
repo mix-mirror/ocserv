@@ -345,7 +345,7 @@ struct cfg_st {
 	unsigned use_occtl; /* whether support for the occtl tool will be enabled */
 
 	unsigned try_mtu; /* MTU discovery enabled */
-	unsigned cisco_client_compat; /* do not require client certificate, 
+	unsigned cisco_client_compat; /* do not require client certificate,
 	                               * and allow auth to complete in different
 	                               * TCP sessions. */
 	unsigned rate_limit_ms; /* if non zero force a connection every rate_limit milliseconds */
@@ -383,7 +383,7 @@ struct cfg_st {
 
 	bool gssapi_no_local_user_map;
 
-	/* known iroutes - only sent to the users who are not registering them 
+	/* known iroutes - only sent to the users who are not registering them
 	 */
 	char **known_iroutes;
 	size_t known_iroutes_size;

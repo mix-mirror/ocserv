@@ -53,11 +53,11 @@ void ip_entries_add(void *pool, const char* ip, unsigned ip_size)
 		max_ip_entries_size += 128;
 		ip_entries = talloc_realloc_size(pool, ip_entries, sizeof(ip_entries_st)*max_ip_entries_size);
 	}
-	
+
 	strlcpy(ip_entries[ip_entries_size].ip, ip, sizeof(ip_entries[ip_entries_size].ip));
 	ip_entries[ip_entries_size].ip_size = ip_size;
 	ip_entries_size++;
-	
+
 	return;
 }
 
@@ -74,6 +74,6 @@ unsigned i;
 				return strdup(ip_entries[i].ip);
 		}
 	}
-	
+
 	return NULL;
 }

@@ -290,7 +290,7 @@ static int check_user_group_status(sec_mod_st * sec, client_entry_st * e,
 	return 0;
 }
 
-/* Performs the required steps based on the result from the 
+/* Performs the required steps based on the result from the
  * authentication function (e.g. handle_auth_init).
  *
  * @cmd: the command received
@@ -814,7 +814,7 @@ int handle_sec_auth_init(int cfd, sec_mod_st *sec, const SecAuthInitMsg *req, pi
 	}
 
 	e->status = PS_AUTH_INIT;
-	seclog(sec, LOG_DEBUG, "auth init %sfor user '%s' "SESSION_STR" of group: '%s' from '%s'", 
+	seclog(sec, LOG_DEBUG, "auth init %sfor user '%s' "SESSION_STR" of group: '%s' from '%s'",
 	       req->tls_auth_ok?"(with cert) ":"",
 	       e->acct_info.username, e->acct_info.psid, e->acct_info.groupname, req->ip);
 

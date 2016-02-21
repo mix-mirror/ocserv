@@ -192,7 +192,7 @@ static int accept_user(main_server_st * s, struct proc_st *proc, unsigned cmd)
 	return ret;
 }
 
-/* Performs the required steps based on the result from the 
+/* Performs the required steps based on the result from the
  * authentication function (e.g. handle_auth_init).
  *
  * @cmd: the command received

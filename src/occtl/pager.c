@@ -35,7 +35,7 @@ static const char* get_pager(void)
 		pager = getenv("PAGER");
 	if (pager == NULL)
 		pager = OCCTL_PAGER;
-	
+
 	return pager;
 }
 
@@ -67,7 +67,7 @@ FILE* pager_start(cmd_params_st *params)
 		fprintf(stderr, "unable to start pager; check your $PAGER environment variable\n");
 		fp = stdout;
 	}
-	
+
 	return fp;
 }
 

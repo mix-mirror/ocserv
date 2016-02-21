@@ -80,7 +80,7 @@ static void print_gss_err(const char *where,
 }
 
 const gss_OID_desc spnego_mech = {6, (void *)"\x2b\x06\x01\x05\x05\x02"};
-const gss_OID_set_desc desired_mechs = { 
+const gss_OID_set_desc desired_mechs = {
 	.count = 1,
 	.elements = (gss_OID)&spnego_mech
 };

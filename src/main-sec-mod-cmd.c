@@ -440,13 +440,13 @@ int session_open(main_server_st * s, struct proc_st *proc, const uint8_t *cookie
 	ireq.sid.data = proc->sid;
 	ireq.sid.len = sizeof(proc->sid);
 
-	if (proc->ipv4 && 
+	if (proc->ipv4 &&
 	    human_addr2((struct sockaddr *)&proc->ipv4->rip, proc->ipv4->rip_len,
 	    str_ipv4, sizeof(str_ipv4), 0) != NULL) {
 		ireq.ipv4 = str_ipv4;
 	}
 
-	if (proc->ipv6 && 
+	if (proc->ipv6 &&
 	    human_addr2((struct sockaddr *)&proc->ipv6->rip, proc->ipv6->rip_len,
 	    str_ipv6, sizeof(str_ipv6), 0) != NULL) {
 		ireq.ipv6 = str_ipv6;

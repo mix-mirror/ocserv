@@ -67,7 +67,7 @@ int handle_commands_from_main(struct worker_st *ws)
 	/*int cmd_data_len;*/
 
 	memset(&cmd_data, 0, sizeof(cmd_data));
-	
+
 	iov[0].iov_base = &cmd;
 	iov[0].iov_len = 1;
 
@@ -76,14 +76,14 @@ int handle_commands_from_main(struct worker_st *ws)
 
 	iov[2].iov_base = cmd_data;
 	iov[2].iov_len = sizeof(cmd_data);
-	
+
 	memset(&hdr, 0, sizeof(hdr));
 	hdr.msg_iov = iov;
 	hdr.msg_iovlen = 3;
 
 	hdr.msg_control = control_un.control;
 	hdr.msg_controllen = sizeof(control_un.control);
-	
+
 	do {
 		ret = recvmsg( ws->cmd_fd, &hdr, 0);
 	} while(ret == -1 && errno == EINTR);
@@ -106,7 +106,7 @@ int handle_commands_from_main(struct worker_st *ws)
 	}
 
 	/*cmd_data_len = ret - 1;*/
-	
+
 	switch(cmd) {
 		case CMD_TERMINATE:
 			exit_worker(ws);
@@ -168,7 +168,7 @@ int handle_commands_from_main(struct worker_st *ws)
 			oclog(ws, LOG_ERR, "unknown CMD 0x%x", (unsigned)cmd);
 			exit_worker(ws);
 	}
-	
+
 	return 0;
 
 udp_fd_fail:
@@ -181,7 +181,7 @@ udp_fd_fail:
 }
 
 /* Completes the VPN device information.
- * 
+ *
  * Returns 0 on success.
  */
 int complete_vpn_info(worker_st * ws, struct vpn_st *vinfo)

@@ -36,7 +36,7 @@
 #include <str.h>
 #include "auth/pam.h"
 
-static int ocserv_conv(int msg_size, const struct pam_message **msg, 
+static int ocserv_conv(int msg_size, const struct pam_message **msg,
 		struct pam_response **resp, void *uptr)
 {
 	*resp = NULL;

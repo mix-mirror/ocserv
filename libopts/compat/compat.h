@@ -1,4 +1,4 @@
-/*  -*- Mode: C -*- 
+/*  -*- Mode: C -*-
  *
  *  compat.h is free software.
  *  This file is part of AutoGen and AutoOpts.

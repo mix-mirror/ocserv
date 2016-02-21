@@ -47,7 +47,7 @@ static int recv_resume_fetch_reply(worker_st *ws, int sd, gnutls_datum_t *sdata)
 	SessionResumeReplyMsg *resp;
 	PROTOBUF_ALLOCATOR(pa, ws);
 
-	ret = recv_msg16(ws, sd, RESUME_FETCH_REP, (void*)&resp, 
+	ret = recv_msg16(ws, sd, RESUME_FETCH_REP, (void*)&resp,
 		(unpack_func)session_resume_reply_msg__unpack, DEFAULT_SOCKET_TIMEOUT);
 	if (ret < 0) {
 		oclog(ws, LOG_ERR, "error receiving resumption reply (fetch)");
@@ -58,7 +58,7 @@ static int recv_resume_fetch_reply(worker_st *ws, int sd, gnutls_datum_t *sdata)
 		ret = -1;
 		goto cleanup;
 	}
-		
+
 	sdata->data = gnutls_malloc(resp->session_data.len);
 	if (sdata->data == NULL) {
 		ret = -1;
@@ -71,7 +71,7 @@ static int recv_resume_fetch_reply(worker_st *ws, int sd, gnutls_datum_t *sdata)
 	ret = 0;
 cleanup:
 	session_resume_reply_msg__free_unpacked(resp, &pa);
-	
+
 	return ret;
 }
 

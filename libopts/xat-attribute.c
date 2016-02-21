@@ -9,7 +9,7 @@
 // %omit-struct-type
 // %readonly-tables
 // %compare-strncmp
-// 
+//
 // %define slot-name               xat_name
 // %define hash-function-name      xat_attribute_hash
 // %define lookup-function-name    find_xat_attribute_name

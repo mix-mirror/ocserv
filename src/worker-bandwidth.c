@@ -46,16 +46,16 @@ size_t transferred_kb;
 
 		b->allowed_kb = MIN(t, b->kb_per_sec);
 		b->transferred_bytes = bytes;
-		
+
 		return 1;
 	}
-	
+
 	sum = b->transferred_bytes + bytes;
 	if (sum > b->allowed_kb*1000)
 		return 0; /* NO */
 
 	b->transferred_bytes = sum;
-	
+
 	return 1;
 }
 

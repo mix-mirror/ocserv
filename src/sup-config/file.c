@@ -147,7 +147,7 @@ static int handle_option(const tOptionValue* val)
 			return 1;
 		}
 	}
-	
+
 	return 0;
 }
 
@@ -269,7 +269,7 @@ unsigned j;
 	READ_RAW_NUMERIC("mobile-idle-timeout", msg->config->mobile_idle_timeout, msg->config->has_mobile_idle_timeout);
 	READ_RAW_NUMERIC("keepalive", msg->config->keepalive, msg->config->has_keepalive);
 	READ_RAW_NUMERIC("max-same-clients", msg->config->max_same_clients, msg->config->has_max_same_clients);
-	
+
 	/* net-priority will contain the actual priority + 1,
 	 * to allow having zero as uninitialized. */
 	READ_RAW_PRIO_TOS("net-priority", msg->config->net_priority, msg->config->has_net_priority);
@@ -289,7 +289,7 @@ unsigned j;
 	ret = 0;
  fail:
 	optionUnloadNested(pov);
-	
+
 	return ret;
 }
 

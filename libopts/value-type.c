@@ -9,7 +9,7 @@
 // %omit-struct-type
 // %readonly-tables
 // %compare-strncmp
-// 
+//
 // %define slot-name               vtp_name
 // %define hash-function-name      value_type_hash
 // %define lookup-function-name    find_value_type_name

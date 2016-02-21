@@ -334,7 +334,7 @@ optionProcess(tOptions * opts, int a_ct, char ** a_v)
 {
     if (! SUCCESSFUL(validate_struct(opts, a_v[0])))
         ao_bug(zbad_data_msg);
-    
+
     /*
      *  Establish the real program name, the program full path,
      *  and do all the presetting the first time thru only.

@@ -481,12 +481,12 @@ static void bogus_function(void) {
      extract the correct strings.  These strings are actually referenced
      by a field name in the genshelloptOptions structure noted in the
      comments below.  The literal text is defined in genshellopt_opt_strs.
-   
+
      NOTE: the strings below are segmented with respect to the source string
      genshellopt_opt_strs.  The strings above are handed off for translation
      at run time a paragraph at a time.  Consequently, they are presented here
      for translation a paragraph at a time.
-   
+
      ALSO: often the description for an option will reference another option
      by name.  These are set off with apostrophe quotes (I hope).  Do not
      translate option names.

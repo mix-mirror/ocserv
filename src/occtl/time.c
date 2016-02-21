@@ -41,7 +41,7 @@ void print_time_ival7(char output[MAX_TMPSTR_SIZE], time_t t1, time_t t2)
 		snprintf(output, MAX_TMPSTR_SIZE, "   ?   ");
 		return;
 	}
-	
+
 	if (t >= 48 * 60 * 60)
 		/* 2 days or more */
 		snprintf(output, MAX_TMPSTR_SIZE, _("%2ludays"), (long)t / (24 * 60 * 60));

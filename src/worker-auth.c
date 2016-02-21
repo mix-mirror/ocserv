@@ -727,7 +727,7 @@ static int recv_auth_reply(worker_st * ws, int sd, char **txt, unsigned *pcounte
 			ret = ERR_AUTH_FAIL;
 			goto cleanup;
 		}
-		
+
 		ws->cookie = talloc_memdup(ws, msg->cookie.data, msg->cookie.len);
 		if (ws->cookie) {
 			ws->cookie_size = msg->cookie.len;
@@ -771,7 +771,7 @@ int get_cert_info(worker_st * ws)
 			return -1;
 	}
 
-	/* this is superflous. Verification has already been performed 
+	/* this is superflous. Verification has already been performed
 	 * during handshake. */
 	cert = gnutls_certificate_get_peers(ws->session, &ncerts);
 

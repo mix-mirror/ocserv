@@ -55,14 +55,14 @@ void entries_add(void *pool, const char* user, unsigned user_size, unsigned id)
 		max_entries_size += 128;
 		entries = talloc_realloc_size(pool, entries, sizeof(uid_entries_st)*max_entries_size);
 	}
-	
+
 	entries[entries_size].user = talloc_strdup(pool, user);
 	entries[entries_size].user_size = user_size;
-	entries[entries_size].id_size = 
+	entries[entries_size].id_size =
 		snprintf(entries[entries_size].id, sizeof(entries[entries_size].id), "%u", id);
-	
+
 	entries_size++;
-	
+
 	return;
 }
 
@@ -79,7 +79,7 @@ unsigned i;
 				return strdup(entries[i].user);
 		}
 	}
-	
+
 	return NULL;
 }
 
@@ -97,6 +97,6 @@ unsigned i;
 			}
 		}
 	}
-	
+
 	return NULL;
 }

@@ -54,11 +54,11 @@ typedef void* (*unpack_func)(ProtobufCAllocator  *allocator,
                       size_t               len,
                       const uint8_t       *data);
 
-int send_socket_msg16(void *pool, int fd, uint8_t cmd, 
+int send_socket_msg16(void *pool, int fd, uint8_t cmd,
 		      int socketfd,
 		      const void* msg, pack_size_func get_size, pack_func pack);
 
-int send_socket_msg32(void *pool, int fd, uint8_t cmd, 
+int send_socket_msg32(void *pool, int fd, uint8_t cmd,
 		      int socketfd,
 		      const void* msg, pack_size_func get_size, pack_func pack);
 
@@ -76,7 +76,7 @@ int send_msg32(void *pool, int fd, uint8_t cmd,
 }
 
 
-int recv_socket_msg16(void *pool, int fd, uint8_t cmd, 
+int recv_socket_msg16(void *pool, int fd, uint8_t cmd,
   	    	      int *socketfd, void** msg, unpack_func, unsigned timeout);
 
 /* the timeout is in seconds */
@@ -124,7 +124,7 @@ void ms_sleep(unsigned ms)
   	tv.tv_nsec -= 1000000000;
   	tv.tv_sec++;
   }
-  
+
   nanosleep(&tv, NULL);
 }
 

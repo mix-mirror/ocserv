@@ -114,7 +114,7 @@ int disable_system_calls(struct worker_st *ws)
 		ret = -1;
 		goto fail;
 	}
-	
+
 	ret = 0;
 
 fail:

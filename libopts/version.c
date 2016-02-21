@@ -90,7 +90,7 @@ emit_copy_full(tOptions * o, FILE * fp)
 
     else
         emit_first_line(fp, o->pzUsageTitle, NULL, NULL);
-    
+
     if (HAS_pzPkgDataDir(o) && (o->pzPackager != NULL)) {
         fputc(NL, fp);
         fputs(o->pzPackager, fp);
@@ -119,7 +119,7 @@ emit_copy_note(tOptions * opts, FILE * fp)
 
     fputc(NL, fp);
     fprintf(fp, zao_ver_fmt, optionVersion());
-    
+
     if (HAS_pzPkgDataDir(opts) && (opts->pzPackager != NULL)) {
         fputc(NL, fp);
         fputs(opts->pzPackager, fp);

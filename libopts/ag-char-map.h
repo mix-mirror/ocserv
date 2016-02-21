@@ -49,15 +49,15 @@
 #endif /* HAVE_CONFIG_H */
 
 #if 0 /* mapping specification source (from autogen.map) */
-// 
+//
 // %guard
 // %file           ag-char-map.h
 // %backup
 // %optimize
-// 
+//
 // %comment -- see above
 // %
-// 
+//
 // newline         "\n"
 // nul-byte        "\x00"
 // dir-sep         "/\\"
@@ -68,14 +68,14 @@
 // plus            "+"
 // dollar          "$"
 // option-marker   "-"
-// 
+//
 // horiz-white     "\t "
 // alt-white       "\v\f\r\b"
 // whitespace      +horiz-white  +newline +alt-white
 // non-nl-white    +horiz-white  +alt-white
 // quote           "'\""
 // parentheses     "()"
-// 
+//
 // graphic         "!-~"
 // inversion       "~-"
 // oct-digit       "0-7"
@@ -92,7 +92,7 @@
 // name-sep        "[.]"
 // compound-name   +value-name   +name-sep +horiz-white
 // scheme-note     +parentheses  +quote
-// 
+//
 // unquotable      "!-~"         -"#,;<=>[\\]`{}?*" -quote -parentheses
 // end-xml-token   "/>"          +whitespace
 // plus-n-space    +plus         +whitespace

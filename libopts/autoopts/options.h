@@ -184,7 +184,7 @@ typedef union {
 /// initial number of option argument holders to allocate
 #define MIN_ARG_ALLOC_CT   6
 /// amount by which to increment the argument holder allocation.
-#define INCR_ARG_ALLOC_CT  8  
+#define INCR_ARG_ALLOC_CT  8
 /**
  * an argument list.  When an option appears multiple times and
  * the values get "stacked".  \a apzArgs  holds 8 pointers initially

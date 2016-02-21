@@ -26,7 +26,7 @@
 #include "../src/occtl/json.h"
 #include "../src/occtl/json.c"
 
-static char *strings[] = 
+static char *strings[] =
 {
 	"hello there",
 	"hi bro\n",
@@ -36,7 +36,7 @@ static char *strings[] =
 	"\tbig pile  \b\b of stuff\r\n"
 };
 
-static char *encoded_strings[] = 
+static char *encoded_strings[] =
 {
 	"hello there",
 	"hi bro\\u000a",

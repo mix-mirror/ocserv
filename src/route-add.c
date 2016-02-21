@@ -80,8 +80,8 @@ int ret, status = 0;
 }
 
 static
-int replace_cmd(struct main_server_st* s, proc_st *proc, 
-		char **cmd, const char* pattern, 
+int replace_cmd(struct main_server_st* s, proc_st *proc,
+		char **cmd, const char* pattern,
 		const char* route, const char* dev)
 {
 	str_st str;
@@ -155,7 +155,7 @@ int route_del(struct main_server_st* s, proc_st *proc, const char* route, const 
 	return route_adddel(s, proc, s->config->route_del_cmd, route, dev);
 }
 
-/* Executes the commands required to apply all the configured routes 
+/* Executes the commands required to apply all the configured routes
  * for this client locally.
  */
 int apply_iroutes(struct main_server_st* s, struct proc_st *proc)
@@ -181,7 +181,7 @@ fail:
 	return -1;
 }
 
-/* Executes the commands required to removed all the configured routes 
+/* Executes the commands required to removed all the configured routes
  * for this client.
  */
 void remove_iroutes(struct main_server_st* s, struct proc_st *proc)

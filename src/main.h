@@ -104,7 +104,7 @@ typedef struct proc_st {
 	int fd; /* the command file descriptor */
 	pid_t pid;
 	time_t udp_fd_receive_time; /* when the corresponding process has received a UDP fd */
-	
+
 	time_t conn_time; /* the time the user connected */
 
 	/* the tun lease this process has */
@@ -122,12 +122,12 @@ typedef struct proc_st {
 	uint8_t sid[SID_SIZE];
 	unsigned active_sid;
 
-	/* The DTLS session ID associated with the TLS session 
+	/* The DTLS session ID associated with the TLS session
 	 * it is either generated or restored from a cookie.
 	 */
 	uint8_t dtls_session_id[GNUTLS_MAX_SESSION_ID];
 	unsigned dtls_session_id_size; /* would act as a flag if session_id is set */
-	
+
 	/* The following are set by the worker process (or by a stored cookie) */
 	char username[MAX_USERNAME_SIZE]; /* the owner */
 	char groupname[MAX_GROUPNAME_SIZE]; /* the owner's group */
@@ -155,7 +155,7 @@ typedef struct proc_st {
 	uint64_t bytes_in;
 	uint64_t bytes_out;
 	uint32_t discon_reason; /* filled on session close */
-	
+
 	unsigned applied_iroutes; /* whether the iroutes in the config have been successfully applied */
 
 	/* The following we rely on talloc for deallocation */
@@ -186,13 +186,13 @@ struct proc_hash_db_st {
 typedef struct main_server_st {
 	struct cfg_st *config; /* pointer inside perm_config */
 	struct perm_cfg_st *perm_config;
-	
+
 	struct ip_lease_db_st ip_leases;
 
 	struct htable *ban_db;
 
 	tls_st *creds;
-	
+
 	uint8_t cookie_key[COOKIE_KEY_SIZE];
 	/* when we rotate keys, this is the previous one active for verification */
 	uint8_t prev_cookie_key[COOKIE_KEY_SIZE];
@@ -203,16 +203,16 @@ typedef struct main_server_st {
 	struct script_list_st script_list;
 	/* maps DTLS session IDs to proc entries */
 	struct proc_hash_db_st proc_table;
-	
+
 	char socket_file[_POSIX_PATH_MAX];
 	char full_socket_file[_POSIX_PATH_MAX];
 	pid_t sec_mod_pid;
 
 	struct sockaddr_un secmod_addr;
 	unsigned secmod_addr_len;
-	
+
 	unsigned active_clients;
-	/* updated on the cli_stats_msg from sec-mod. 
+	/* updated on the cli_stats_msg from sec-mod.
 	 * Holds the number of entries in secmod list of users */
 	unsigned secmod_client_entries;
 	unsigned tlsdb_entries;
@@ -250,7 +250,7 @@ int session_close(main_server_st * s, struct proc_st *proc);
 
 #else
 
-void 
+void
 __attribute__ ((format(printf, 4, 5)))
     _mslog(const main_server_st * s, const struct proc_st* proc,
     	int priority, const char *fmt, ...);
@@ -311,7 +311,7 @@ inline static void terminate_proc(main_server_st *s, proc_st *proc)
 void put_into_cgroup(main_server_st * s, const char* cgroup, pid_t pid);
 
 inline static
-int send_msg_to_worker(main_server_st* s, struct proc_st* proc, uint8_t cmd, 
+int send_msg_to_worker(main_server_st* s, struct proc_st* proc, uint8_t cmd,
 	    const void* msg, pack_size_func get_size, pack_func pack)
 {
 	mslog(s, proc, LOG_DEBUG, "sending message '%s' to worker", cmd_request_to_str(cmd));
@@ -319,7 +319,7 @@ int send_msg_to_worker(main_server_st* s, struct proc_st* proc, uint8_t cmd,
 }
 
 inline static
-int send_socket_msg_to_worker(main_server_st* s, struct proc_st* proc, uint8_t cmd, 
+int send_socket_msg_to_worker(main_server_st* s, struct proc_st* proc, uint8_t cmd,
 		int socketfd, const void* msg, pack_size_func get_size, pack_func pack)
 {
 	mslog(s, proc, LOG_DEBUG, "sending (socket) message %u to worker", (unsigned)cmd);

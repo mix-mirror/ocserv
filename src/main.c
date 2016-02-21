@@ -169,8 +169,8 @@ static void set_common_socket_options(int fd)
 	set_cloexec_flag (fd, 1);
 }
 
-static 
-int _listen_ports(void *pool, struct perm_cfg_st* config, 
+static
+int _listen_ports(void *pool, struct perm_cfg_st* config,
 		struct addrinfo *res, struct listen_list_st *list)
 {
 	struct addrinfo *ptr;
@@ -248,8 +248,8 @@ int _listen_ports(void *pool, struct perm_cfg_st* config,
 	return 0;
 }
 
-static 
-int _listen_unix_ports(void *pool, struct perm_cfg_st* config, 
+static
+int _listen_unix_ports(void *pool, struct perm_cfg_st* config,
 		       struct listen_list_st *list)
 {
 	int s, e, ret;
@@ -307,7 +307,7 @@ int _listen_unix_ports(void *pool, struct perm_cfg_st* config,
 /* Returns 0 on success or negative value on error.
  */
 static int
-listen_ports(void *pool, struct perm_cfg_st* config, 
+listen_ports(void *pool, struct perm_cfg_st* config,
 		struct listen_list_st *list)
 {
 	struct addrinfo hints, *res;
@@ -716,7 +716,7 @@ int sfd = -1;
 
 	/* check version */
 	if (buffer[0] == 22) {
-		mslog(s, NULL, LOG_DEBUG, "new DTLS session from %s (record v%u.%u, hello v%u.%u)", 
+		mslog(s, NULL, LOG_DEBUG, "new DTLS session from %s (record v%u.%u, hello v%u.%u)",
 			human_addr((struct sockaddr*)&cli_addr, cli_addr_size, tbuf, sizeof(tbuf)),
 			(unsigned int)buffer[1], (unsigned int)buffer[2],
 			(unsigned int)buffer[RECORD_PAYLOAD_POS], (unsigned int)buffer[RECORD_PAYLOAD_POS+1]);
@@ -724,7 +724,7 @@ int sfd = -1;
 
 	if (buffer[1] != 254 && (buffer[1] != 1 && buffer[2] != 0) &&
 		buffer[RECORD_PAYLOAD_POS] != 254 && (buffer[RECORD_PAYLOAD_POS] != 0 && buffer[RECORD_PAYLOAD_POS+1] != 0)) {
-		mslog(s, NULL, LOG_INFO, "%s: unknown DTLS record version: %u.%u", 
+		mslog(s, NULL, LOG_INFO, "%s: unknown DTLS record version: %u.%u",
 		      human_addr((struct sockaddr*)&cli_addr, cli_addr_size, tbuf, sizeof(tbuf)),
 		      (unsigned)buffer[1], (unsigned)buffer[2]);
 		goto fail;
@@ -807,7 +807,7 @@ int sfd = -1;
 
 		ret = send_socket_msg_to_worker(s, proc_to_send, CMD_UDP_FD,
 			sfd,
-			&msg, 
+			&msg,
 			(pack_size_func)udp_fd_msg__get_packed_size,
 			(pack_func)udp_fd_msg__pack);
 		if (ret < 0) {
@@ -1087,7 +1087,7 @@ fork_failed:
 			close(cmd_fd[0]);
 		} else { /* parent */
 			/* add_proc */
-			ctmp = new_proc(s, pid, cmd_fd[0], 
+			ctmp = new_proc(s, pid, cmd_fd[0],
 					&ws->remote_addr, ws->remote_addr_len,
 					&ws->our_addr, ws->our_addr_len,
 					ws->sid, sizeof(ws->sid));
@@ -1364,7 +1364,7 @@ int main(int argc, char** argv)
 	/* Main server loop */
 	ev_run (loop, 0);
 
-	/* try to clean-up everything allocated to ease checks 
+	/* try to clean-up everything allocated to ease checks
 	 * for memory leaks.
 	 */
 	remove(s->full_socket_file);

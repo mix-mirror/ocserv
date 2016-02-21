@@ -250,7 +250,7 @@ static int handle_exit_cmd(CONN_TYPE * conn, const char *arg, cmd_params_st *par
 	exit(0);
 }
 
-/* checks whether an input command of type "  list   users" maches 
+/* checks whether an input command of type "  list   users" maches
  * the given cmd (e.g., "list users"). If yes it executes func() and returns true.
  */
 static

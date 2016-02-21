@@ -644,7 +644,7 @@ static void reset_ipv4_addr(struct proc_st *proc)
 
 	if (proc->ipv4 == NULL || proc->ipv4->lip_len == 0)
 		return;
-	
+
 #if defined(SIOCDIFADDR) && !defined(__linux__)
 	fd = socket(AF_INET, SOCK_DGRAM, 0);
 

@@ -281,14 +281,14 @@ struct proc_st *old_proc;
 	return 0;
 }
 
-/* Checks for multiple users. 
- * 
+/* Checks for multiple users.
+ *
  * It returns a negative error code if more than the maximum allowed
  * users are found.
- * 
+ *
  * In addition this function will also check whether the cookie
  * used had been re-used before, and then disconnect the old session
- * (cookies are unique). 
+ * (cookies are unique).
  */
 int check_multiple_users(main_server_st *s, struct proc_st* proc)
 {

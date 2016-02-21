@@ -82,7 +82,7 @@ int get_config_handler(worker_st *ws, unsigned http_ver)
 	int ret;
 	struct stat st;
 
-	oclog(ws, LOG_HTTP_DEBUG, "requested config: %s", ws->req.url); 
+	oclog(ws, LOG_HTTP_DEBUG, "requested config: %s", ws->req.url);
 
 	cookie_authenticate_or_exit(ws);
 
@@ -91,7 +91,7 @@ int get_config_handler(worker_st *ws, unsigned http_ver)
 		response_404(ws, http_ver);
 		return -1;
 	}
-	
+
 	ret = stat(ws->user_config->xml_config_file, &st);
 	if (ret == -1) {
 		oclog(ws, LOG_INFO, "cannot load config file '%s'", ws->user_config->xml_config_file);
@@ -118,7 +118,7 @@ int get_config_handler(worker_st *ws, unsigned http_ver)
 
 int get_string_handler(worker_st *ws, unsigned http_ver)
 {
-	oclog(ws, LOG_HTTP_DEBUG, "requested fixed string: %s", ws->req.url); 
+	oclog(ws, LOG_HTTP_DEBUG, "requested fixed string: %s", ws->req.url);
 	if (!strcmp(ws->req.url, "/1/binaries/update.txt")) {
 		return send_string(ws, http_ver, "text/xml", VPN_VERSION,
 				   sizeof(VPN_VERSION) - 1);
@@ -133,7 +133,7 @@ int get_string_handler(worker_st *ws, unsigned http_ver)
 
 int get_dl_handler(worker_st *ws, unsigned http_ver)
 {
-	oclog(ws, LOG_HTTP_DEBUG, "requested downloader: %s", ws->req.url); 
+	oclog(ws, LOG_HTTP_DEBUG, "requested downloader: %s", ws->req.url);
 	return send_string(ws, http_ver, "application/x-shellscript", SH_SCRIPT,
 			   sizeof(SH_SCRIPT) - 1);
 }

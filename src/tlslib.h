@@ -36,7 +36,7 @@
 #  define ZERO_COPY
 # endif
 
-typedef struct 
+typedef struct
 {
 	struct htable *ht;
 	unsigned int entries;
