@@ -473,7 +473,13 @@ LIBS="$oldlibs"
 fi
 AM_CONDITIONAL(PCL, test "$with_local_pcl" = no)
 
-if test -f /usr/lib64/pam_wrapper/pam_matrix.so;then
+if test "$have_cwrap_pam" = yes; then
+	PKG_CHECK_VAR([CWRAP_PAM_MODULES], [pam_wrapper], [modules])
+fi
+
+if test -f $CWRAP_PAM_MODULES/pam_matrix.so;then
+	AC_SUBST([PAMWRAPDIR], [$CWRAP_PAM_MODULES])
+elif test -f /usr/lib64/pam_wrapper/pam_matrix.so;then
 	AC_SUBST([PAMWRAPDIR], [/usr/lib64/pam_wrapper])
 elif test -f /usr/lib/pam_wrapper/pam_matrix.so;then
 	AC_SUBST([PAMWRAPDIR], [/usr/lib/pam_wrapper])
