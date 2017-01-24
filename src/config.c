@@ -1153,6 +1153,13 @@ static void check_cfg(struct perm_cfg_st *perm_config)
 		exit(1);
 	}
 
+	if (perm_config->config->cert_req != 0 && perm_config->config->cert_user_oid != NULL) {
+		if (!isdigit(perm_config->config->cert_user_oid[0]) && strcmp(perm_config->config->cert_user_oid, "SAN(rfc822name)") != 0) {
+			fprintf(stderr, ERRSTR"the option 'cert-user-oid' has a unsupported value\n");
+			exit(1);
+		}
+	}
+	
 	if (perm_config->unix_conn_file != NULL && (perm_config->config->cert_req != 0)) {
 		if (perm_config->config->listen_proxy_proto == 0) {
 			fprintf(stderr, ERRSTR"the option 'listen-clear-file' cannot be combined with 'auth=certificate'\n");

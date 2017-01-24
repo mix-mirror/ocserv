@@ -451,7 +451,24 @@ int get_cert_names(worker_st * ws, const gnutls_datum_t * raw)
 	}
 
 	size = sizeof(ws->cert_username);
-	if (ws->config->cert_user_oid) {	/* otherwise certificate username is ignored */
+	if (strcmp(ws->config->cert_user_oid, "SAN(rfc822name)") == 0) {	/* check for RFC822Name */
+		i = 0;
+		for (i = 0; !(ret == GNUTLS_SAN_RFC822NAME); i++) {
+			ret =
+			    gnutls_x509_crt_get_subject_alt_name(crt, i,
+								 ws->
+								 cert_username,
+								 &size, NULL);
+			if (ret == GNUTLS_SAN_RFC822NAME) {
+				oclog(ws, LOG_INFO,
+				      "RFC822NAME retrieved with result (%s)",
+				      ws->cert_username);
+			}
+		}
+		if (ret != 0) {
+			ret = 1;
+		}
+	} else if (ws->config->cert_user_oid) {	/* otherwise certificate username is ignored */
 		ret =
 		    gnutls_x509_crt_get_dn_by_oid(crt,
 					  ws->config->cert_user_oid, 0,
