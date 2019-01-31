@@ -34,6 +34,11 @@ AM_CONDITIONAL(SKIP_MANPAGES, test "$skip_manpages" = yes)
 AM_MAINTAINER_MODE([enable])
 AX_CODE_COVERAGE
 
+if test $enable_code_coverage = "yes";then
+	AC_DEFINE([ENABLE_CODE_COVERAGE], [1],
+		  [ocserv is compiled with code coverage enabled (non-production)])
+fi
+
 AC_CHECK_TYPES([sighandler_t, sig_t, __sighandler_t],,,
 [#include <sys/types.h>
 #include <signal.h> ])

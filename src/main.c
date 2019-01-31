@@ -509,7 +509,9 @@ static void update_fd_limits(main_server_st *s, unsigned main)
 static void drop_privileges(main_server_st* s)
 {
 	int ret, e;
+#ifndef ENABLE_CODE_COVERAGE
 	struct rlimit rl;
+#endif
 
 	if (GETPCONFIG(s)->chroot_dir) {
 		ret = chdir(GETPCONFIG(s)->chroot_dir);
@@ -556,6 +558,7 @@ static void drop_privileges(main_server_st* s)
 		}
 	}
 
+#ifndef ENABLE_CODE_COVERAGE
 	update_fd_limits(s, 0);
 
 	rl.rlim_cur = 0;
@@ -566,6 +569,7 @@ static void drop_privileges(main_server_st* s)
 		mslog(s, NULL, LOG_ERR, "cannot enforce NPROC limit: %s\n",
 		       strerror(e));
 	}
+#endif
 }
 
 /* clears the server listen_list and proc_list. To be used after fork().
