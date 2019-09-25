@@ -46,6 +46,11 @@
 #define MAX_CPASS_SIZE 128
 #define HOTP_WINDOW 20
 
+/* Maximum number of groups for ocserv's password file. Unlike the other parts
+ * of the code (e.g., pam) which the system imposes no limit, here the format is
+ * fully under our control. */
+#define MAX_GROUPS 32
+
 struct plain_ctx_st {
 	char username[MAX_USERNAME_SIZE];
 	char cpass[MAX_CPASS_SIZE];	/* crypt() passwd */
