@@ -822,7 +822,9 @@ int handle_sec_auth_init(int cfd, sec_mod_st *sec, const SecAuthInitMsg *req, pi
 		strlcpy(e->cert_user_name, req->cert_user_name, sizeof(e->cert_user_name));
 	}
 
-	e->cert_group_names_size = MIN(MAX_GROUPS,req->n_cert_group_names);
+	e->cert_group_names_size = req->n_cert_group_names;
+	e->cert_group_names = talloc_array(e, char*, req->n_cert_group_names);
+
 	for (i=0;i<e->cert_group_names_size;i++) {
 		e->cert_group_names[i] = talloc_strdup(e, req->cert_group_names[i]);
 		if (e->cert_group_names[i] == NULL) {

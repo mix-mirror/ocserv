@@ -30,7 +30,6 @@
 #include "vhost.h"
 
 #define SESSION_STR "(session: %.6s)"
-#define MAX_GROUPS 32
 
 typedef struct sec_mod_st {
 	struct list_head *vconfig;
@@ -114,7 +113,7 @@ typedef struct client_entry_st {
 
 	/* saved during authentication; used after successful auth */
 	char req_group_name[MAX_GROUPNAME_SIZE]; /* the requested by the user group */
-	char *cert_group_names[MAX_GROUPS];
+	char **cert_group_names;
 	unsigned cert_group_names_size;
 	char cert_user_name[MAX_USERNAME_SIZE];
 

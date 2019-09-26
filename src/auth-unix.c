@@ -31,7 +31,7 @@
  * Returns -1 if the suggested group doesn't match one the groups, or
  * zero otherwise (an empty group is still success).
  */
-int get_user_auth_group(const char *username, const char *suggested,
+int get_user_auth_group(void *pool, const char *username, const char *suggested,
 			char *groupname, int groupname_size)
 {
 struct passwd * pwd;
@@ -44,23 +44,37 @@ unsigned found;
 	pwd = getpwnam(username);
 	if (pwd != NULL) {
 		if (suggested != NULL) {
-			gid_t groups[MAX_GROUPS];
-			int ngroups = sizeof(groups)/sizeof(groups[0]);
+			gid_t *groups = NULL;
+			int ngroups;
 			unsigned i;
 
+			ngroups = 0;
 			ret = getgrouplist(username, pwd->pw_gid, groups, &ngroups);
 			if (ret <= 0) {
 				return 0;
 			}
 
 			found = 0;
-			for (i=0;i<ngroups;i++) {
-				grp = getgrgid(groups[i]);
-				if (grp != NULL && strcmp(suggested, grp->gr_name) == 0) {
-					strlcpy(groupname, grp->gr_name, groupname_size);
-					found = 1;
-					break;
+
+			if (ngroups > 0) {
+				groups = talloc_array(pool, gid_t, ngroups);
+				if (groups == NULL)
+					return 0;
+
+				ret = getgrouplist(username, pwd->pw_gid, groups, &ngroups);
+				if (ret <= 0) {
+					return 0;
 				}
+
+				for (i=0;i<ngroups;i++) {
+					grp = getgrgid(groups[i]);
+					if (grp != NULL && strcmp(suggested, grp->gr_name) == 0) {
+						strlcpy(groupname, grp->gr_name, groupname_size);
+						found = 1;
+						break;
+					}
+				}
+				talloc_free(groups);
 			}
 
 			if (found == 0) {
@@ -82,16 +96,22 @@ unsigned found;
 void unix_group_list(void *pool, unsigned gid_min, char ***groupname, unsigned *groupname_size)
 {
 	struct group *grp;
+	unsigned ngroups = 0;
 
 	setgrent();
+	while((grp = getgrent()) != NULL) {
+		ngroups++;
+	}
+	endgrent();
 
 	*groupname_size = 0;
-	*groupname = talloc_size(pool, sizeof(char*)*MAX_GROUPS);
+	*groupname = talloc_array(pool, char*, ngroups);
 	if (*groupname == NULL) {
 		goto exit;
 	}
 
-	while((grp = getgrent()) != NULL && (*groupname_size) < MAX_GROUPS) {
+	setgrent();
+	while((grp = getgrent()) != NULL && (*groupname_size) < ngroups) {
 		if (grp->gr_gid >= gid_min) {
 			(*groupname)[(*groupname_size)] = talloc_strdup(*groupname, grp->gr_name);
 			if ((*groupname)[(*groupname_size)] == NULL)

@@ -1,4 +1,6 @@
 * Version 0.12.5 (unreleased)
+- In PAM authentication no longer impose an artificial limit on the maximum
+  number of groups a user can be assigned on (#219).
 - occtl: fixed json output of show status command. Introduced tests
   for checking its json output using yajl (#220).
 

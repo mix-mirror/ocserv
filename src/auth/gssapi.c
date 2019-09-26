@@ -284,7 +284,7 @@ static int gssapi_auth_group(void *ctx, const char *suggested, char *groupname, 
 {
 	struct gssapi_ctx_st *pctx = ctx;
 
-	return get_user_auth_group(pctx->username, suggested, groupname, groupname_size);
+	return get_user_auth_group(pctx, pctx->username, suggested, groupname, groupname_size);
 }
 
 static int gssapi_auth_user(void *ctx, char *username, int username_size)

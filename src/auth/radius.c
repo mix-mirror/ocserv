@@ -214,9 +214,10 @@ static void append_route(struct radius_ctx_st *pctx, const char *route, unsigned
 static void parse_groupnames(struct radius_ctx_st *pctx, const char *full)
 {
 	char *p, *p2;
-	unsigned i;
+	unsigned ngroups = 0;
 
 	pctx->groupnames_size = 0;
+	pctx->groupnames = NULL;
 
 	syslog(LOG_DEBUG, "radius-auth: found group string %s", full);
 	if (strncmp(full, "OU=", 3) == 0) {
@@ -226,21 +227,26 @@ static void parse_groupnames(struct radius_ctx_st *pctx, const char *full)
 		if (p == NULL)
 			return;
 
-		i = 0;
 		p2 = strsep(&p, ";");
 		while(p2 != NULL) {
-			pctx->groupnames[i++] = p2;
-			pctx->groupnames_size = i;
+			ngroups++;
+			pctx->groupnames = talloc_realloc(pctx, pctx->groupnames, char*, ngroups);
+			if (pctx->groupnames == NULL)
+				break;
+
+			pctx->groupnames[ngroups-1] = p2;
+			pctx->groupnames_size = ngroups;
 
 			trim_trailing_whitespace(p2);
 			syslog(LOG_DEBUG, "radius-auth: found group %s", p2);
 
 			p2 = strsep(&p, ";");
-
-			if (i == MAX_GROUPS)
-				break;
 		}
 	} else {
+		pctx->groupnames = talloc_array(pctx, char*, 1);
+		if (pctx->groupnames == NULL)
+			return;
+
 		pctx->groupnames[0] = talloc_strdup(pctx, full);
 		if (pctx->groupnames[0] == NULL)
 			return;
