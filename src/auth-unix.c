@@ -54,6 +54,8 @@ unsigned found;
 				return 0;
 			}
 
+			found = 0;
+
 			if (ngroups > 0) {
 				groups = talloc_array(pool, gid_t, ngroups);
 				if (groups == NULL)
@@ -63,18 +65,17 @@ unsigned found;
 				if (ret <= 0) {
 					return 0;
 				}
-			}
 
-			found = 0;
-			for (i=0;i<ngroups;i++) {
-				grp = getgrgid(groups[i]);
-				if (grp != NULL && strcmp(suggested, grp->gr_name) == 0) {
-					strlcpy(groupname, grp->gr_name, groupname_size);
-					found = 1;
-					break;
+				for (i=0;i<ngroups;i++) {
+					grp = getgrgid(groups[i]);
+					if (grp != NULL && strcmp(suggested, grp->gr_name) == 0) {
+						strlcpy(groupname, grp->gr_name, groupname_size);
+						found = 1;
+						break;
+					}
 				}
+				talloc_free(groups);
 			}
-			talloc_free(groups);
 
 			if (found == 0) {
 				syslog(LOG_AUTH,
