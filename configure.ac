@@ -600,10 +600,19 @@ fi
 
 AM_CONDITIONAL(ENABLE_LATENCY_SUPPORT,  test "x$have_latency_stats" = xyes)
 
-AC_CHECK_HEADERS([linux/netlink.h linux/rtnetlink.h linux/sock_diag.h linux/unix_diag.h], [sockdiag_header=yes], [sockdiag_header=no])
+dnl sock_diag
+AC_ARG_WITH(sock-diag,
+  AS_HELP_STRING([--without-sock-diag], [do not use the sock_diag netlink subsystem for adaptive rate limiting]),
+  test_for_sock_diag=$withval,
+  test_for_sock_diag=yes)
 
-if test "x$sockdiag_header" = xyes; then
-  AC_DEFINE([ENABLE_ADAPTIVE_RATE_LIMIT_SUPPORT], [1], [Enable adaptive rate limiting])
+enable_sock_diag=no
+if test "$test_for_sock_diag" = yes;then
+  AC_CHECK_HEADERS([linux/netlink.h linux/rtnetlink.h linux/sock_diag.h linux/unix_diag.h], [sockdiag_header=yes], [sockdiag_header=no])
+  if test "x$sockdiag_header" = xyes;then
+    enable_sock_diag=yes
+    AC_DEFINE([ENABLE_ADAPTIVE_RATE_LIMIT_SUPPORT], [1], [Enable adaptive rate limiting])
+  fi
 fi
 
 
@@ -718,39 +727,39 @@ chmod 640 tests/data/raddb/radiusd.conf
 
 AC_MSG_NOTICE([
 Summary of build options:
-  version:              ${VERSION}
-  Host type:            ${host}
-  Install prefix:       ${prefix}
-  Compiler:             ${CC}
-  CFlags:               ${CFLAGS}
-  CWrap testing:        ${have_cwrap}
-  CWrap PAM testing:    ${have_cwrap_pam}
-  CWrap NSS testing:    ${have_cwrap_nss}
+  version:                ${VERSION}
+  Host type:              ${host}
+  Install prefix:         ${prefix}
+  Compiler:               ${CC}
+  CFlags:                 ${CFLAGS}
+  CWrap testing:          ${have_cwrap}
+  CWrap PAM testing:      ${have_cwrap_pam}
+  CWrap NSS testing:      ${have_cwrap_nss}
 
-  PAM auth backend:     ${pam_enabled}
-  Radius auth backend:  ${radius_enabled}
-  GSSAPI auth backend:  ${enable_gssapi}
-  OIDC Auth backend:    ${enable_oidc_auth}
-  Anyconnect compat:    ${anyconnect_enabled}
-  TCP wrappers:         ${libwrap_enabled}
-  namespaces:           ${namespaces_enabled}
-  systemd:              ${systemd_enabled}
+  PAM auth backend:       ${pam_enabled}
+  Radius auth backend:    ${radius_enabled}
+  GSSAPI auth backend:    ${enable_gssapi}
+  OIDC Auth backend:      ${enable_oidc_auth}
+  Anyconnect compat:      ${anyconnect_enabled}
+  TCP wrappers:           ${libwrap_enabled}
+  namespaces:             ${namespaces_enabled}
+  systemd:                ${systemd_enabled}
   (socket activation)
-  worker isolation:     ${isolation}
-  Compression:          ${enable_compression}
-  LZ4 compression:      ${enable_lz4}
-  readline:             ${have_readline}
-  libnl3:               ${have_libnl3}
-  liboath:              ${have_liboath}
-  libgeoip:             ${have_geoip}
-  libmaxminddb:         ${have_maxmind}
-  glibc (sha2crypt):    ${have_glibc}
-  local talloc:         ${with_local_talloc}
-  local protobuf-c:     ${with_local_protobuf_c}
-  local PCL library:    ${with_local_pcl}
-  local llhttp:         ${with_local_llhttp}
-  seccomp trap:		${use_seccomp_trap}
-  capture latency stats ${have_latency_stats}
+  worker isolation:       ${isolation}
+  Compression:            ${enable_compression}
+  LZ4 compression:        ${enable_lz4}
+  readline:               ${have_readline}
+  libnl3:                 ${have_libnl3}
+  liboath:                ${have_liboath}
+  libgeoip:               ${have_geoip}
+  libmaxminddb:           ${have_maxmind}
+  glibc (sha2crypt):      ${have_glibc}
+  local talloc:           ${with_local_talloc}
+  local protobuf-c:       ${with_local_protobuf_c}
+  local PCL library:      ${with_local_pcl}
+  local llhttp:           ${with_local_llhttp}
+  seccomp trap:           ${use_seccomp_trap}
+  capture latency stats:  ${have_latency_stats}
 ])
 
 if test "${warn_leak}" = "yes";then
