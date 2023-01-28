@@ -47,7 +47,7 @@ AC_PATH_PROG(CTAGS, ctags, [:])
 AC_PATH_PROG(CSCOPE, cscope, [:])
 AC_CHECK_PROG([RONN], [ronn], [ronn], [:])
 
-if test x"$RONN" = "x:"; then
+if test x"$RONN" = "x:";then
 	AC_MSG_WARN([[
 ***
 *** ronn (ruby-ronn) was not found. Will not be able to generate manpages
@@ -80,14 +80,14 @@ PKG_CHECK_MODULES([LIBGNUTLS], [gnutls >= 3.3.0])
 
 warn_leak=no
 if $PKG_CONFIG --max-version=3.5.4 gnutls;then
-  if $PKG_CONFIG --atleast-version=3.3.99 gnutls || $PKG_CONFIG --max-version=3.3.24 gnutls; then
+  if $PKG_CONFIG --atleast-version=3.3.99 gnutls || $PKG_CONFIG --max-version=3.3.24 gnutls;then
     warn_leak=yes
     AC_DEFINE([GNUTLS_BROKEN_CERTIFICATE_SET_KEY], [1],
 		  [gnutls has a broken gnutls_certificate_set_key()])
   fi
 fi
 
-if ! $PKG_CONFIG --atleast-version=3.0 nettle; then
+if ! $PKG_CONFIG --atleast-version=3.0 nettle;then
 	AC_DEFINE([NETTLE_OLD_BASE64_API], [1],
 		  [nettle uses the pre-3.x base64 API])
 fi
@@ -117,7 +117,7 @@ PKG_CHECK_MODULES([LIBPROTOBUF_C], [libprotobuf-c],
 with_local_protobuf_c=no
 ,
 [AC_LIB_HAVE_LINKFLAGS(protobuf-c,, [#include <protobuf-c/protobuf-c.h>], [protobuf_c_message_pack(0,0);])
- if test x$ac_cv_libprotobuf_c = xyes; then
+ if test x$ac_cv_libprotobuf_c = xyes;then
   AC_SUBST([LIBPROTOBUF_C_LIBS], [$LIBPROTOBUF_C])
   with_local_protobuf_c=no
  else
@@ -133,7 +133,7 @@ fi
 AM_CONDITIONAL(LOCAL_PROTOBUF_C, test "x$with_local_protobuf_c" != xno)
 
 AC_LIB_HAVE_LINKFLAGS(ev,, [#include <ev.h>], [ev_run(0,0);])
-if test x$ac_cv_libev = xyes; then
+if test x$ac_cv_libev = xyes;then
 	AC_SUBST([LIBEV_LIBS], [$LIBEV])
 else
 	AC_MSG_ERROR([[***
@@ -182,7 +182,7 @@ if test "$no_test_for_talloc" != yes;then
 PKG_CHECK_MODULES([LIBTALLOC], [talloc],
 with_local_talloc=no,
 [AC_LIB_HAVE_LINKFLAGS(talloc,, [#include <talloc.h>], [talloc_size(0,0);])
- if test x$ac_cv_libtalloc = xyes; then
+ if test x$ac_cv_libtalloc = xyes;then
   AC_SUBST([LIBTALLOC_LIBS], [$LIBTALLOC])
   with_local_talloc=no
  else
@@ -209,7 +209,7 @@ AC_ARG_WITH(libnl,
 
 if test "$test_for_libnl" = yes;then
   PKG_CHECK_MODULES(LIBNL3, libnl-route-3.0 >= 3.1, [have_libnl3=yes], [have_libnl3=no])
-  if test "${have_libnl3}" = "yes"; then
+  if test "${have_libnl3}" = "yes";then
     AC_DEFINE(HAVE_LIBNL, 1, [have libnl])
   fi
 fi
@@ -246,13 +246,13 @@ have_readline=no
 AC_LIB_HAVE_LINKFLAGS(readline,, [
 #include <stdio.h>
 #include <readline/readline.h>], [rl_replace_line(0,0);])
-  if test x$ac_cv_libreadline = xyes; then
+  if test x$ac_cv_libreadline = xyes;then
     AC_SUBST(LIBREADLINE_LIBS, [$LIBREADLINE])
     AC_DEFINE(HAVE_ORIG_READLINE, 1, [have original readline])
     have_readline=yes
   else
     PKG_CHECK_MODULES(LIBREADLINE, libedit, [have_libedit=yes], [have_libedit=no])
-    if test "${have_libedit}" = "no"; then
+    if test "${have_libedit}" = "no";then
       AC_MSG_WARN([[***
 *** libreadline or editline was not found. occtl will not be built.
 ***]])
@@ -281,7 +281,7 @@ AC_LIB_HAVE_LINKFLAGS(c,, [
 #include <stdio.h>
 #include <gnu/libc-version.h>
 #include <stdio.h>], [ puts (gnu_get_libc_version ()); return 0; ])
-if test x$ac_cv_libc = xyes; then
+if test x$ac_cv_libc = xyes;then
   AC_DEFINE(TRY_SHA2_CRYPT, 1, [have original glibc])
   have_glibc=yes
 else
@@ -413,7 +413,7 @@ AC_CHECK_MEMBER([struct sockaddr.sa_len],
 AC_CHECK_FUNCS([setproctitle vasprintf clock_gettime isatty pselect ppoll getpeereid sigaltstack])
 AC_CHECK_FUNCS([strlcpy posix_memalign malloc_trim strsep])
 
-if [ test -z "$LIBWRAP" ];then
+if test -z "$LIBWRAP";then
 	libwrap_enabled="no"
 else
 	libwrap_enabled="yes"
@@ -425,10 +425,10 @@ AC_ARG_ENABLE(seccomp,
   AS_HELP_STRING([--disable-seccomp], [disable seccomp support]),
     seccomp_enabled=$enableval, seccomp_enabled=yes)
 
-if [ test "$seccomp_enabled" = "yes" ];then
+if test "$seccomp_enabled" = "yes";then
 AC_LIB_HAVE_LINKFLAGS(seccomp,, [#include <seccomp.h>
 ], [seccomp_init(0);])
- if [ test -z "$LIBSECCOMP" ];then
+ if test -z "$LIBSECCOMP";then
 	seccomp_enabled="no"
  else
 	seccomp_enabled="yes"
@@ -440,9 +440,9 @@ AC_ARG_ENABLE(systemd,
   AS_HELP_STRING([--disable-systemd], [disable systemd support]),
     systemd_enabled=$enableval, systemd_enabled=yes)
 
-if [ test "$systemd_enabled" = "yes" ];then
+if test "$systemd_enabled" = "yes";then
 AC_LIB_HAVE_LINKFLAGS(systemd,, [#include <systemd/sd-daemon.h>], [sd_listen_fds(0);])
- if [ test -z "$LIBSYSTEMD" ];then
+ if test -z "$LIBSYSTEMD";then
 	systemd_enabled="no"
  else
 	systemd_enabled="yes"
@@ -453,14 +453,14 @@ AC_ARG_ENABLE(namespaces,
   AS_HELP_STRING([--disable-namespaces], [disable namespaces support]),
     namespaces_enabled=$enableval, namespaces_enabled=yes)
 
-if [ test "$namespaces_enabled" = "yes" ];then
+if test "$namespaces_enabled" = "yes";then
 	AC_DEFINE([LINUX_NAMESPACES], [], [Enable Linux namespaces])
 fi
 
 AC_ARG_ENABLE(anyconnect-compat,
   AS_HELP_STRING([--disable-anyconnect-compat], [disable Anyconnect client compatibility (experimental)]),
     anyconnect_enabled=$enableval, anyconnect_enabled=yes)
-if [ test "$anyconnect_enabled" = "yes" ];then
+if test "$anyconnect_enabled" = "yes";then
 	AC_DEFINE([ANYCONNECT_CLIENT_COMPAT], [], [Enable Anyconnect compatibility])
 fi
 
@@ -471,7 +471,7 @@ AC_ARG_WITH(pager,
     pager_set=1
 )
 
-if [ test $pager_set = 0 ];then
+if test $pager_set = 0;then
 	AC_DEFINE_UNQUOTED([OCCTL_PAGER], ["less"], [The default pager for occtl])
 else
 	AC_DEFINE_UNQUOTED([OCCTL_PAGER], ["$occtl_pager"], [The default pager for occtl])
@@ -592,7 +592,7 @@ AC_ARG_ENABLE([latency-stats],
 
 have_latency_stats=no
 
-if test "x$enable_latency_stats" = xyes && test "x$net_tstamp_header" = xyes && test "x$scm_timestamping_defined" = xyes; then
+if test "x$enable_latency_stats" = xyes && test "x$net_tstamp_header" = xyes && test "x$scm_timestamping_defined" = xyes;then
   AC_DEFINE([CAPTURE_LATENCY_SUPPORT], [1], [Enable capturing latency stats])
   AC_LIB_HAVE_LINKFLAGS([m])
   have_latency_stats=yes
@@ -656,7 +656,7 @@ AC_DEFINE([INI_INLINE_COMMENT_PREFIXES], ["#"], [inih configuration])
 AC_DEFINE([INI_ALLOW_MULTILINE], [1], [inih configuration])
 AC_DEFINE([INI_MAX_LINE], [2048], [inih configuration])
 
-if test "$have_cwrap_pam" = yes; then
+if test "$have_cwrap_pam" = yes;then
 	m4_ifdef([PKG_CHECK_VAR], [PKG_CHECK_VAR([CWRAP_PAM_MODULES], [pam_wrapper], [modules])])
 
 	if test -f $CWRAP_PAM_MODULES/pam_matrix.so;then
@@ -687,7 +687,7 @@ AC_ARG_ENABLE([oidc-auth],
   [enable_oidc_auth=no]
 )
 
-if test "x$enable_oidc_auth" = xyes; then
+if test "x$enable_oidc_auth" = xyes;then
   AC_DEFINE([SUPPORT_OIDC_AUTH], 1, [Enable support for OpenID Connect auth])
   PKG_CHECK_MODULES([LIBCURL], [libcurl])
   PKG_CHECK_MODULES([CJOSE], [cjose])
