@@ -41,12 +41,13 @@
  * no session management.
  */
 
+#include "auth/pam.h"
+#include "auth-unix.h"
 #include <security/pam_appl.h>
 #include <sys/types.h>
 #include <pwd.h>
 #include <grp.h>
-#include "auth/pam.h"
-#include "auth-unix.h"
+#include <arpa/inet.h>
 
 #define PAM_STACK_SIZE (1024 * 1024)
 
@@ -148,8 +149,13 @@ static void co_auth_user(void *data)
 {
 	struct pam_ctx_st *pctx = data;
 	int pret;
+	static const char envname[] = "Framed-IP-Address";
+	const char *envval;
 
 	pctx->state = PAM_S_INIT;
+
+	/* Unset environment variables that may be set by pam_authenticate() */
+	unsetenv(envname);
 
 	pret = pam_authenticate(pctx->ph, 0);
 	if (pret != PAM_SUCCESS) {
@@ -157,6 +163,51 @@ static void co_auth_user(void *data)
 			  pctx->username, pam_strerror(pctx->ph, pret));
 		pctx->cr_ret = pret;
 		goto wait;
+	}
+
+	/*
+	 * As of release 2.0.0, the pam_radius module supports passing RADIUS
+	 * attributes as environment variables. Only the Framed-IP-Address attribute
+	 * is currently supported:
+	 * 	https://github.com/FreeRADIUS/pam_radius/pull/47
+	 * This is just a hack. We recommend explicitly using authentication RADIUS
+	 * authentication in ocserv, instead of misusing PAM authentication against
+	 * a RADIUS server.
+	 */
+	envval = getenv(envname);
+	if (envval) {
+		struct in_addr addr;
+
+		oc_syslog(LOG_DEBUG, "Get PAM environment variable: %s=%s\n",
+			  envname, envval);
+		switch (inet_pton(AF_INET, envval, &addr)) {
+		case 1:
+			if (addr.s_addr != 0xffffffff &&
+			    addr.s_addr != 0xfffffffe) {
+				/* According to RFC2865 the values above instruct the server
+				 * (fe) to assign an address from the pool of the server, and
+				 * (ff) to assign address as negotiated with the client.
+				 * We don't negotiate with clients.
+				 */
+				strncpy(pctx->ipv4, envval, MAX_IP_STR - 1);
+				oc_syslog(
+					LOG_DEBUG,
+					"Interpret PAM environment variable as a RADIUS attribute: %s=%s\n",
+					envname, envval);
+			}
+			break;
+		case 0:
+			oc_syslog(
+				LOG_NOTICE,
+				"PAM environment variable is not an IPv4 address: %s=%s\n",
+				envname, envval);
+			break;
+		default:
+			oc_syslog(LOG_NOTICE,
+				  "Cannot convert to an IPv4 address: %s\n",
+				  strerror(errno));
+			break;
+		}
 	}
 
 	pret = pam_acct_mgmt(pctx->ph, 0);
