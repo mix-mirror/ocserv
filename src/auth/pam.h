@@ -26,6 +26,8 @@
 
 #ifdef HAVE_PAM
 
+#include "common/common.h"
+
 #include <security/pam_appl.h>
 #include <str.h>
 #include <pcl.h>
@@ -43,6 +45,7 @@ struct pam_ctx_st {
 	str_st msg;
 	str_st prompt;
 	unsigned int sent_msg;
+	char ipv4[MAX_IP_STR];
 	struct pam_response *replies; /* for safety */
 	unsigned int state; /* PAM_S_ */
 	unsigned int passwd_counter;
