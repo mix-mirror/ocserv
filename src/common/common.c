@@ -223,12 +223,12 @@ unsigned int discon_reason_to_log_level(unsigned int reason)
 
 ssize_t force_write(int sockfd, const void *buf, size_t len)
 {
-	int left = len;
-	int ret;
+	ssize_t left = len;
 	const uint8_t *p = buf;
 
 	while (left > 0) {
-		ret = write(sockfd, p, left);
+		ssize_t ret = write(sockfd, p, left);
+
 		if (ret == -1) {
 			if (errno != EAGAIN && errno != EINTR)
 				return ret;
@@ -247,12 +247,12 @@ ssize_t force_write(int sockfd, const void *buf, size_t len)
 
 ssize_t force_read(int sockfd, void *buf, size_t len)
 {
-	int left = len;
-	int ret;
+	ssize_t left = len;
 	uint8_t *p = buf;
 
 	while (left > 0) {
-		ret = read(sockfd, p, left);
+		ssize_t ret = read(sockfd, p, left);
+
 		if (ret == -1) {
 			if (errno != EAGAIN && errno != EINTR)
 				return ret;
@@ -273,13 +273,16 @@ ssize_t force_read(int sockfd, void *buf, size_t len)
 
 ssize_t force_read_timeout(int sockfd, void *buf, size_t len, unsigned sec)
 {
-	int left = len;
-	int ret;
+	ssize_t left = len;
 	uint8_t *p = buf;
 	struct pollfd pfd;
 
 	while (left > 0) {
+		ssize_t ret;
+
 		if (sec > 0) {
+			int ret;
+
 			pfd.fd = sockfd;
 			pfd.events = POLLIN;
 			pfd.revents = 0;

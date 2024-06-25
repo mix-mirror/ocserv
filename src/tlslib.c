@@ -222,7 +222,7 @@ static ssize_t _cstp_recv_packet(worker_st *ws, void *data, size_t data_size)
 
 ssize_t cstp_recv_packet(worker_st *ws, gnutls_datum_t *data, void **p)
 {
-	int ret;
+	ssize_t ret;
 #ifdef ZERO_COPY
 	gnutls_packet_t packet = NULL;
 
