@@ -297,7 +297,16 @@ int icmp_ping6(main_server_st *s, struct sockaddr_in6 *addr1)
 
 #if defined(SOL_RAW) && defined(IPV6_CHECKSUM)
 	sockopt = offsetof(struct icmp6_hdr, icmp6_cksum);
-	setsockopt(pingsock, SOL_RAW, IPV6_CHECKSUM, &sockopt, sizeof(sockopt));
+	e = setsockopt(pingsock, SOL_RAW, IPV6_CHECKSUM, &sockopt,
+		       sizeof(sockopt));
+	if (e < 0) {
+		/* checksum should be enabled by default and setting this
+		 * option might fail anyway.
+		 */
+		e = errno;
+		mslog(s, NULL, LOG_INFO, "setsockopt(RAW_CHECKSUM) failed: %s",
+		      strerror(e));
+	}
 #endif
 	while (sendto(pingsock, packet1, DEFDATALEN + sizeof(struct icmp6_hdr),
 		      0, (struct sockaddr *)addr1, sizeof(*addr1) == -1) &&
