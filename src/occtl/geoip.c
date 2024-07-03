@@ -77,8 +77,12 @@ void geo_ipv4_lookup(struct in_addr ip, char **country, char **city, char **coor
 			return;
 		}
 		p = pGeoIP_country_name_by_id(gi, country_id);
-		if (p)
+		if (p) {
 			*country = strdup(p);
+			if (!*country) {
+				return;
+			}
+		}
 
 		pGeoIP_delete(gi);
 	}
@@ -89,8 +93,11 @@ void geo_ipv4_lookup(struct in_addr ip, char **country, char **city, char **coor
 
 		gir = pGeoIP_record_by_ipnum(gi, ip.s_addr);
 
-		if (gir && gir->city)
+		if (gir && gir->city) {
 			*city = strdup(gir->city);
+			if (!*city)
+				return;
+		}
 
 		if (gir && gir->longitude != 0 && gir->longitude != 0)
 			if (asprintf(coord, "%f,%f", gir->latitude, gir->longitude) < 0)
@@ -104,8 +111,11 @@ void geo_ipv4_lookup(struct in_addr ip, char **country, char **city, char **coor
 
 			gir = pGeoIP_record_by_ipnum(gi, ip.s_addr);
 
-			if (gir && gir->city)
+			if (gir && gir->city) {
 				*city = strdup(gir->city);
+				if (!*city)
+					return;
+			}
 
 			if (gir && gir->longitude != 0 && gir->longitude != 0)
 				if (asprintf(coord, "%f,%f", gir->latitude, gir->longitude) < 0)
@@ -135,8 +145,11 @@ void geo_ipv6_lookup(struct in6_addr *ip, char **country, char **city, char **co
 			return;
 		}
 		p = pGeoIP_country_name_by_id(gi, country_id);
-		if (p)
+		if (p) {
 			*country = strdup(p);
+			if (!*country)
+				return;
+		}
 
 		pGeoIP_delete(gi);
 	}
@@ -147,8 +160,11 @@ void geo_ipv6_lookup(struct in6_addr *ip, char **country, char **city, char **co
 
 		gir = pGeoIP_record_by_ipnum_v6(gi, (geoipv6_t)*ip);
 
-		if (gir && gir->city)
+		if (gir && gir->city) {
 			*city = strdup(gir->city);
+			if (!*city)
+				return;
+		}
 
 		if (gir && gir->longitude != 0 && gir->longitude != 0)
 			if (asprintf(coord, "%f,%f", gir->latitude, gir->longitude) < 0)
@@ -162,8 +178,11 @@ void geo_ipv6_lookup(struct in6_addr *ip, char **country, char **city, char **co
 
 			gir = pGeoIP_record_by_ipnum_v6(gi, (geoipv6_t)*ip);
 
-			if (gir && gir->city)
+			if (gir && gir->city) {
 				*city = strdup(gir->city);
+				if (!*city)
+					return;
+			}
 
 			if (gir && gir->longitude != 0 && gir->longitude != 0)
 				if (asprintf(coord, "%f,%f", gir->latitude, gir->longitude) < 0)
