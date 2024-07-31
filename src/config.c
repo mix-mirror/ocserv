@@ -1640,6 +1640,9 @@ static void check_cfg(vhost_cfg_st *vhost, vhost_cfg_st *defvhost,
 		}
 	}
 
+	if (vhost->perm_config.udp_port == 0 && defvhost)
+		vhost->perm_config.udp_port = defvhost->perm_config.udp_port;
+
 	if (vhost->perm_config.cert_size == 0 ||
 	    vhost->perm_config.key_size == 0) {
 		fprintf(stderr,
