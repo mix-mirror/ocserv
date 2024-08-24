@@ -1154,7 +1154,11 @@ static void listen_watcher_cb (EV_P_ ev_io *w, int revents)
 			{
 				char path[_POSIX_PATH_MAX];
 				size_t path_length;
+#if defined(__FreeBSD__)
+				path_length = readlink("/proc/curproc/file", path, sizeof(path)-1);
+#else
 				path_length = readlink("/proc/self/exe", path, sizeof(path)-1);
+#endif
 				if (path_length == -1) {
 					mslog(s, NULL, LOG_ERR, "readlink failed %s", strerror(ret));
 					exit(EXIT_FAILURE);
