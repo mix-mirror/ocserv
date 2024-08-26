@@ -1157,7 +1157,7 @@ static void listen_watcher_cb (EV_P_ ev_io *w, int revents)
 			if (!set_env_from_ws(s))
 				exit(EXIT_FAILURE);
 
-#if defined(PROC_FS_SUPPORTED)
+#if defined(PROC_FS_SUPPORTED) || defined(__FreeBSD__)
 			{
 				char path[_POSIX_PATH_MAX];
 				size_t path_length;
