@@ -262,13 +262,25 @@ static int setup_dtls_psk_keys(gnutls_session_t session, struct worker_st *ws)
 		cipher = gnutls_cipher_get(ws->session);
 		mac = gnutls_mac_get(ws->session);
 
-		snprintf(prio_string, sizeof(prio_string), "%s:"VERS_STRING":-CIPHER-ALL:-MAC-ALL:-KX-ALL:+PSK:+VERS-DTLS-ALL:+%s:+%s",
-			 WSCONFIG(ws)->priorities, gnutls_mac_get_name(mac), gnutls_cipher_get_name(cipher));
+		ret = snprintf(prio_string, sizeof(prio_string),
+		               "%s:"VERS_STRING":-CIPHER-ALL:-MAC-ALL:-KX-ALL:+PSK:+VERS-DTLS-ALL:+%s:+%s",
+		               WSCONFIG(ws)->priorities, gnutls_mac_get_name(mac), gnutls_cipher_get_name(cipher));
 	} else {
 		/* if we haven't an associated session, enable all ciphers we would have enabled
 		 * otherwise for TLS. */
-		snprintf(prio_string, sizeof(prio_string), "%s:"VERS_STRING":-KX-ALL:+PSK:+VERS-DTLS-ALL",
-			 WSCONFIG(ws)->priorities);
+		ret = snprintf(prio_string, sizeof(prio_string),
+		               "%s:"VERS_STRING":-KX-ALL:+PSK:+VERS-DTLS-ALL",
+		               WSCONFIG(ws)->priorities);
+	}
+	if (ret < 0) {
+		oclog(ws, LOG_ERR, "could not prepare DTLS priority list: %s",
+		      strerror(errno));
+		return -1;
+	}
+	else if (ret >= sizeof(prio_string)) {
+		oclog(ws, LOG_ERR, "could not prepare DTLS priority list: too long (%d > %zu)",
+		      ret, sizeof(prio_string) - 1);
+		return -1;
 	}
 
 	ret =
