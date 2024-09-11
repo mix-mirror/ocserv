@@ -247,7 +247,7 @@ int get_psk_key(gnutls_session_t session,
 static int setup_dtls_psk_keys(gnutls_session_t session, struct worker_st *ws)
 {
 	int ret;
-	char prio_string[256];
+	char prio_string[2048] = { 0 };
 	gnutls_mac_algorithm_t mac;
 	gnutls_cipher_algorithm_t cipher;
 
