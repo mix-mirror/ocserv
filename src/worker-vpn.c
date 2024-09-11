@@ -1497,8 +1497,10 @@ static int dtls_mainloop(worker_st * ws, struct dtls_st * dtls, struct timespec 
 	case UP_SETUP:
 		ret = setup_dtls_connection(ws, dtls);
 		if (ret < 0) {
-			ret = -1;
-			goto cleanup;
+			oclog(ws, LOG_ERR, "unable to set up DTLS channel - proceeding without it");
+			dtls->udp_state = UP_DISABLED;
+			ev_io_stop(worker_loop, &dtls->io);
+			break;
 		}
 
 		gnutls_dtls_set_mtu(dtls->dtls_session, ws->link_mtu - ws->dtls_proto_overhead);
