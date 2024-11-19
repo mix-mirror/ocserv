@@ -67,6 +67,13 @@
 #include <sockdiag.h>
 #include <namespace.h>
 
+#ifdef __FreeBSD__
+#include <sys/param.h>
+#include <sys/queue.h>
+#include <sys/sysctl.h>
+#include <libprocstat.h>
+#endif
+
 #ifdef HAVE_GSSAPI
 # include <libtasn1.h>
 
@@ -1150,11 +1157,25 @@ static void listen_watcher_cb (EV_P_ ev_io *w, int revents)
 			if (!set_env_from_ws(s))
 				exit(EXIT_FAILURE);
 
-#if defined(PROC_FS_SUPPORTED)
+#if defined(PROC_FS_SUPPORTED) || defined(__FreeBSD__)
 			{
 				char path[_POSIX_PATH_MAX];
 				size_t path_length;
+#if defined(__FreeBSD__)
+				unsigned int n;
+				struct procstat* procstat = procstat_open_sysctl();
+				struct kinfo_proc* procs = procstat ? procstat_getprocs(procstat, KERN_PROC_PID, getpid(), &n) : NULL;
+				if ( procs )
+						procstat_getpathname(procstat, procs, path, sizeof(path)-1);
+				free(procs);
+				procstat_close(procstat);
+#elif defined(__NetBSD__)
+				path_length = readlink("/proc/curproc/exe", path, sizeof(path)-1);
+#elif defined(__DragonFly__)
+				path_length = readlink("/proc/curproc/file", path, sizeof(path)-1);
+#else
 				path_length = readlink("/proc/self/exe", path, sizeof(path)-1);
+#endif
 				if (path_length == -1) {
 					mslog(s, NULL, LOG_ERR, "readlink failed %s", strerror(ret));
 					exit(EXIT_FAILURE);
