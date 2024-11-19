@@ -247,7 +247,7 @@ int get_psk_key(gnutls_session_t session,
 static int setup_dtls_psk_keys(gnutls_session_t session, struct worker_st *ws)
 {
 	int ret;
-	char prio_string[256];
+	char prio_string[2048] = { 0 };
 	gnutls_mac_algorithm_t mac;
 	gnutls_cipher_algorithm_t cipher;
 
@@ -262,13 +262,25 @@ static int setup_dtls_psk_keys(gnutls_session_t session, struct worker_st *ws)
 		cipher = gnutls_cipher_get(ws->session);
 		mac = gnutls_mac_get(ws->session);
 
-		snprintf(prio_string, sizeof(prio_string), "%s:"VERS_STRING":-CIPHER-ALL:-MAC-ALL:-KX-ALL:+PSK:+VERS-DTLS-ALL:+%s:+%s",
-			 WSCONFIG(ws)->priorities, gnutls_mac_get_name(mac), gnutls_cipher_get_name(cipher));
+		ret = snprintf(prio_string, sizeof(prio_string),
+		               "%s:"VERS_STRING":-CIPHER-ALL:-MAC-ALL:-KX-ALL:+PSK:+VERS-DTLS-ALL:+%s:+%s",
+		               WSCONFIG(ws)->priorities, gnutls_mac_get_name(mac), gnutls_cipher_get_name(cipher));
 	} else {
 		/* if we haven't an associated session, enable all ciphers we would have enabled
 		 * otherwise for TLS. */
-		snprintf(prio_string, sizeof(prio_string), "%s:"VERS_STRING":-KX-ALL:+PSK:+VERS-DTLS-ALL",
-			 WSCONFIG(ws)->priorities);
+		ret = snprintf(prio_string, sizeof(prio_string),
+		               "%s:"VERS_STRING":-KX-ALL:+PSK:+VERS-DTLS-ALL",
+		               WSCONFIG(ws)->priorities);
+	}
+	if (ret < 0) {
+		oclog(ws, LOG_ERR, "could not prepare DTLS priority list: %s",
+		      strerror(errno));
+		return -1;
+	}
+	else if (ret >= sizeof(prio_string)) {
+		oclog(ws, LOG_ERR, "could not prepare DTLS priority list: too long (%d > %zu)",
+		      ret, sizeof(prio_string) - 1);
+		return -1;
 	}
 
 	ret =
@@ -1497,8 +1509,10 @@ static int dtls_mainloop(worker_st * ws, struct dtls_st * dtls, struct timespec 
 	case UP_SETUP:
 		ret = setup_dtls_connection(ws, dtls);
 		if (ret < 0) {
-			ret = -1;
-			goto cleanup;
+			oclog(ws, LOG_ERR, "unable to set up DTLS channel - proceeding without it");
+			dtls->udp_state = UP_DISABLED;
+			ev_io_stop(worker_loop, &dtls->io);
+			break;
 		}
 
 		gnutls_dtls_set_mtu(dtls->dtls_session, ws->link_mtu - ws->dtls_proto_overhead);
