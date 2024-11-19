@@ -49,7 +49,7 @@ EXTRA_DIST = certs/ca-key.pem certs/ca.pem ns.sh common.sh certs/server-cert.pem
 	certs/user-cert.tmpl data/test-camouflage.config data/test-camouflage-norealm.config \
 	data/radius-multi-group.config data/test-group-cert.config data/session-timeout.config \
 	data/idle-timeout.config data/test-occtl.config data/vhost-traffic.config random-net.sh \
-	random-net2.sh data/defvhost-traffic.config
+	random-net2.sh data/defvhost-traffic.config data/test-long-dtls-prio.config
 
 xfail_scripts =
 dist_check_SCRIPTS =  ocpasswd-test
@@ -68,7 +68,7 @@ dist_check_SCRIPTS += haproxy-connect test-iroute test-multi-cookie test-pass-sc
 	apple-ios ipv6-iface test-namespace-listen disconnect-user disconnect-user2 \
 	ping-leases test-ban-local test-client-bypass-protocol ipv6-small-net test-camouflage \
 	test-camouflage-norealm vhost-traffic defvhost-traffic session-timeout test-occtl \
-	no-ipv6-ocv3
+	no-ipv6-ocv3 test-long-dtls-prio
 
 if RADIUS_ENABLED
 dist_check_SCRIPTS += radius-group radius-multi-group radius-otp
