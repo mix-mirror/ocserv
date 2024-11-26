@@ -926,7 +926,7 @@ static void terminate_server(main_server_st * s)
 
 	gettime(&start);
 	while ((ret=waitpid(-1, NULL, WNOHANG)) >= 0 && remain > 0) {
-		if (ret > 0 && remain > 0)
+		if (ret > 0)
 			remain--;
 
 		gettime(&now);
