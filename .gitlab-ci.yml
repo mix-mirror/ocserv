@@ -11,11 +11,10 @@ variables:
   FEDORA_BUILD: buildenv-fedora41
   UBUNTU16_BUILD: buildenv-ubuntu
   UBUNTU20_BUILD: buildenv-ubuntu20
-  UBUNTU22_BUILD: buildenv-ubuntu22
+  UBUNTU24_BUILD: buildenv-ubuntu24
   CENTOS8_BUILD: buildenv-centos8
   CENTOS9_BUILD: buildenv-centos9
   CENTOS7_BUILD: buildenv-centos7
-  CENTOS6_BUILD: buildenv-centos6
   MINIMALCONFIG: "--without-protobuf --without-libtalloc-prefix --without-libnl --without-maxmind --without-geoip --without-libreadline-prefix --without-liboath --without-libc-prefix --without-pam --without-radius --without-libcrypt-prefix --without-utmp --without-libutil-prefix --without-libwrap --without-libwrap-prefix --without-libseccomp-prefix --without-libsystemd-prefix --without-llhttp --without-lz4 --without-gssapi --without-pcl-lib --disable-rpath --disable-seccomp --disable-anyconnect-compat --disable-compression"
   JOBS: 2
 
@@ -95,19 +94,16 @@ Ubuntu20.04:
       - ./*.log
       - ./tests/*.log
 
-Ubuntu22.04:
+Ubuntu24.04:
   stage: testing
-  image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$UBUNTU22_BUILD
+  image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$UBUNTU24_BUILD
   script:
   - git submodule update --init
   - autoreconf -fvi
   - ./configure --enable-oidc-auth --enable-latency-stats
   - make -j$JOBS
   - export MALLOC_CHECK_=3
-# There is an issue with gssapi on this version of Ubuntu. While
-# the package exists, it doesn't work as openssl doesn't support
-# md4. See https://bugs.launchpad.net/ubuntu/+source/gss-ntlmssp/+bug/1995915
-  - make check -j$JOBS XFAIL_TESTS="test-gssapi"
+  - make check -j$JOBS
   tags:
   - saas-linux-small-amd64
   except:
