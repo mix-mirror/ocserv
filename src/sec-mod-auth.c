@@ -956,8 +956,8 @@ int handle_sec_auth_init(int cfd, sec_mod_st *sec, const SecAuthInitMsg *req,
 		strlcpy(e->acct_info.user_agent, req->user_agent,
 			sizeof(e->acct_info.user_agent));
 
-	
-	bool username_confidential = req->auth_type & CONFIDENTIAL_USER_NAME_AUTH_TYPES;
+	bool username_confidential = req->auth_type &
+				     CONFIDENTIAL_USER_NAME_AUTH_TYPES;
 
 #ifdef HAVE_PAM
 	if ((req->auth_type & AUTH_TYPE_PAM) == AUTH_TYPE_PAM) {
