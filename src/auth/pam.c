@@ -250,7 +250,8 @@ static int pam_auth_init(void **ctx, void *pool, void *vctx,
 		co_call(pctx->cr);
 
 		if (pctx->cr_ret != PAM_SUCCESS) {
-			oc_syslog(LOG_NOTICE, "PAM-auth pam_auth_msg: %s", pam_strerror(pctx->ph, pctx->cr_ret));
+			oc_syslog(LOG_NOTICE, "PAM-auth pam_auth_msg: %s",
+				  pam_strerror(pctx->ph, pctx->cr_ret));
 			return ERR_AUTH_FAIL;
 		}
 
@@ -408,7 +409,7 @@ static void pam_group_list(void *pool, void *_additional, char ***groupname,
 
 const struct auth_mod_st pam_auth_funcs = { .type = AUTH_TYPE_PAM |
 						    AUTH_TYPE_USERNAME_PASS,
-						.vhost_init = pam_vhost_init,
+					    .vhost_init = pam_vhost_init,
 					    .auth_init = pam_auth_init,
 					    .auth_deinit = pam_auth_deinit,
 					    .auth_msg = pam_auth_msg,
