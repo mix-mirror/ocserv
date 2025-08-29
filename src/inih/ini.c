@@ -164,6 +164,7 @@ int ini_parse_stream(ini_reader reader, void* stream, ini_handler handler,
         lineno++;
 
         /* If line exceeded INI_MAX_LINE bytes, discard till end of line. */
+        [[clang::suppress]]
         if (offset == max_line - 1 && line[offset - 1] != '\n') {
             while (reader(abyss, sizeof(abyss), stream) != NULL) {
                 if (!error)
