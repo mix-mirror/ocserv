@@ -1040,7 +1040,8 @@ int handle_list_iroutes_cmd(struct unix_ctx *ctx, const char *arg,
 			print_list_entries(out, params, "iRoutes",
 					   rep->user[i]->iroutes,
 					   rep->user[i]->n_iroutes, 0);
-			print_end_block(out, params, i < (rep->n_user - 1) ? 1 : 0);
+			print_end_block(out, params,
+					i < (rep->n_user - 1) ? 1 : 0);
 		}
 		print_end_array_block(out, params);
 	}
