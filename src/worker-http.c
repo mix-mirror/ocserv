@@ -350,6 +350,8 @@ static void header_value_check(struct worker_st *ws, struct http_req_st *req)
 		memcpy(req->hostname, value, value_length);
 		req->hostname[value_length] = 0;
 
+		strip_domain(req->hostname);
+
 		/* check validity */
 		if (!valid_hostname(req->hostname)) {
 			oclog(ws, LOG_HTTP_DEBUG,

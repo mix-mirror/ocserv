@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <arpa/inet.h>
 
 unsigned int valid_hostname(const char *host)
 {
@@ -39,4 +40,21 @@ unsigned int valid_hostname(const char *host)
 		p++;
 	}
 	return 1;
+}
+
+void strip_domain(char *host)
+{
+	char *dot;
+	struct in_addr addr;
+
+	if (host == NULL || host[0] == '.')
+		return;
+
+	/* do not strip if it's an IPv4 address */
+	if (inet_pton(AF_INET, host, &addr) == 1)
+		return;
+
+	dot = strchr(host, '.');
+	if (dot)
+		*dot = '\0';
 }

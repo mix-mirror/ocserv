@@ -1,5 +1,6 @@
 * Version 1.4.1 (unreleased)
 - occtl: Fix column misalignment in ban command outputs
+- Handle dotted client hostnames (e.g., .local) by stripping the domain suffix
 
 
 * Version 1.4.0 (released 2026-01-04)

@@ -378,6 +378,7 @@ void http_req_reset(worker_st *ws);
 void http_req_init(worker_st *ws);
 
 unsigned int valid_hostname(const char *host);
+void strip_domain(char *host);
 
 url_handler_fn http_get_url_handler(const char *url);
 url_handler_fn http_post_url_handler(worker_st *ws, const char *url);
