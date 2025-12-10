@@ -511,6 +511,8 @@ static void method_top(method_ctx *ctx, int cfd, uint8_t *msg,
 	method_list_users(ctx, cfd, msg, msg_size);
 }
 
+#define IS_BANNED(main, entry) (entry->score >= GETCONFIG(main)->max_ban_score)
+
 static int append_ban_info(method_ctx *ctx, BanListRep *list,
 			   struct ban_entry_st *e)
 {
@@ -533,8 +535,7 @@ static int append_ban_info(method_ctx *ctx, BanListRep *list,
 	rep->ip.len = e->ip.size;
 	rep->score = e->score;
 
-	if (GETCONFIG(s)->max_ban_score > 0 &&
-	    e->score >= GETCONFIG(s)->max_ban_score) {
+	if (GETCONFIG(s)->max_ban_score > 0 && IS_BANNED(s, e)) {
 		rep->expires = e->expires;
 		rep->has_expires = 1;
 	}
@@ -546,22 +547,20 @@ static void method_list_banned(method_ctx *ctx, int cfd, uint8_t *msg,
 			       unsigned int msg_size)
 {
 	BanListRep rep = BAN_LIST_REP__INIT;
-	struct ban_entry_st *e = NULL;
 	struct htable *db = ctx->s->ban_db;
-	int ret;
 	struct htable_iter iter;
+	int ret;
 
 	mslog(ctx->s, NULL, LOG_DEBUG, "ctl: list-banned-ips");
 
-	e = htable_first(db, &iter);
-	while (e != NULL) {
+	for (ban_entry_st *e = htable_first(db, &iter); e != NULL;
+	     e = htable_next(db, &iter)) {
 		ret = append_ban_info(ctx, &rep, e);
 		if (ret < 0) {
 			mslog(ctx->s, NULL, LOG_ERR,
 			      "error appending ban info to reply");
 			return;
 		}
-		e = htable_next(db, &iter);
 	}
 
 	ret = send_msg(ctx->pool, cfd, CTL_CMD_LIST_BANNED_REP, &rep,

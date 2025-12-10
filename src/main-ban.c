@@ -99,7 +99,6 @@ void main_ban_db_deinit(main_server_st *s)
 unsigned int main_ban_db_elems(main_server_st *s)
 {
 	struct htable *db = s->ban_db;
-	ban_entry_st *t;
 	struct htable_iter iter;
 	time_t now = time(NULL);
 	unsigned int banned = 0;
@@ -107,12 +106,10 @@ unsigned int main_ban_db_elems(main_server_st *s)
 	if (db == NULL || GETCONFIG(s)->max_ban_score == 0)
 		return 0;
 
-	t = htable_first(db, &iter);
-	while (t != NULL) {
-		if (t->expires > now && IS_BANNED(s, t)) {
+	for (ban_entry_st *e = htable_first(db, &iter); e != NULL;
+	     e = htable_next(db, &iter)) {
+		if (e->expires > now && IS_BANNED(s, e))
 			banned++;
-		}
-		t = htable_next(db, &iter);
 	}
 	return banned;
 }
