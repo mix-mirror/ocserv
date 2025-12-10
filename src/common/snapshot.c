@@ -71,13 +71,14 @@ static snapshot_entry_t *snapshot_find(struct snapshot_t *snapshot,
 {
 	struct htable_iter iter;
 	size_t hash = snapshot_hash_filename(filename);
-	snapshot_entry_t *entry = htable_firstval(&snapshot->ht, &iter, hash);
 
-	while (entry != NULL) {
+	for (snapshot_entry_t *entry =
+		     htable_firstval(&snapshot->ht, &iter, hash);
+	     entry != NULL;
+	     entry = htable_nextval(&snapshot->ht, &iter, hash)) {
 		if (strcmp(entry->name, filename) == 0) {
 			break;
 		}
-		entry = htable_nextval(&snapshot->ht, &iter, hash);
 	}
 	return entry;
 }
@@ -170,13 +171,12 @@ cleanup:
 void snapshot_terminate(struct snapshot_t *snapshot)
 {
 	struct htable_iter iter;
-	snapshot_entry_t *entry = htable_first(&snapshot->ht, &iter);
 
-	while (entry != NULL) {
+	for (snapshot_entry_t *entry = htable_first(&snapshot->ht, &iter);
+	     entry != NULL; entry = htable_next(&snapshot->ht, &iter)) {
 		htable_delval(&snapshot->ht, &iter);
 		close(entry->fd);
 		talloc_free(entry);
-		entry = htable_next(&snapshot->ht, &iter);
 	}
 }
 
@@ -309,10 +309,9 @@ size_t snapshot_entry_count(struct snapshot_t *snapshot)
 {
 	struct htable_iter iter;
 	size_t count = 0;
-	snapshot_entry_t *entry = htable_first(&snapshot->ht, &iter);
 
-	while (entry != NULL) {
-		entry = htable_next(&snapshot->ht, &iter);
+	for (snapshot_entry_t *entry = htable_first(&snapshot->ht, &iter);
+	     entry != NULL; entry = htable_next(&snapshot->ht, &iter)) {
 		count++;
 	}
 

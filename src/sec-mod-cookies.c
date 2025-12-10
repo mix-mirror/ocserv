@@ -46,7 +46,6 @@ void handle_secm_list_cookies_reply(void *pool, int fd, sec_mod_st *sec)
 {
 	SecmListCookiesReplyMsg msg = SECM_LIST_COOKIES_REPLY_MSG__INIT;
 	struct htable *db = sec->client_db;
-	client_entry_st *t;
 	struct htable_iter iter;
 	CookieIntMsg *cookies;
 	int ret;
@@ -71,10 +70,10 @@ void handle_secm_list_cookies_reply(void *pool, int fd, sec_mod_st *sec)
 		return;
 	}
 
-	t = htable_first(db, &iter);
-	while (t != NULL) {
+	for (client_entry_st *t = htable_first(db, &iter); t != NULL;
+	     t = htable_next(db, &iter)) {
 		if IS_CLIENT_ENTRY_EXPIRED (sec, t, now)
-			goto cont;
+			continue;
 
 		if (msg.n_cookies >= db->elems)
 			break;
@@ -108,9 +107,6 @@ void handle_secm_list_cookies_reply(void *pool, int fd, sec_mod_st *sec)
 
 		msg.cookies[msg.n_cookies] = &cookies[msg.n_cookies];
 		msg.n_cookies++;
-
-cont:
-		t = htable_next(db, &iter);
 	}
 
 	ret = send_msg(

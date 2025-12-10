@@ -288,7 +288,6 @@ static int radius_auth_pass(void *ctx, const char *pass, unsigned int pass_len)
 	uint32_t service;
 	char route[72];
 	char txt[64];
-	VALUE_PAIR *vp;
 	int ret;
 
 	/* send Access-Request */
@@ -422,9 +421,7 @@ static int radius_auth_pass(void *ctx, const char *pass, unsigned int pass_len)
 		uint32_t ipv4;
 		uint8_t ipv6[16];
 
-		vp = recvd;
-
-		while (vp != NULL) {
+		for (VALUE_PAIR *vp = recvd; vp != NULL; vp = vp->next) {
 			if (vp->attribute == PW_SERVICE_TYPE &&
 			    vp->lvalue != PW_FRAMED) {
 				oc_syslog(
@@ -572,15 +569,12 @@ static int radius_auth_pass(void *ctx, const char *pass, unsigned int pass_len)
 #endif
 					(unsigned int)vp->type);
 			}
-			vp = vp->next;
 		}
 
 		ret = 0;
 		goto cleanup;
 	} else if (ret == CHALLENGE_RC) {
-		vp = recvd;
-
-		while (vp != NULL) {
+		for (VALUE_PAIR *vp = recvd; vp != NULL; vp = vp->next) {
 			if (vp->attribute == PW_STATE &&
 			    vp->type == PW_TYPE_STRING) {
 				/* State */
@@ -595,7 +589,6 @@ static int radius_auth_pass(void *ctx, const char *pass, unsigned int pass_len)
 					pctx->passwd_counter, vp->strvalue);
 				ret = ERR_AUTH_CONTINUE;
 			}
-			vp = vp->next;
 		}
 
 		/* PW_STATE or PW_REPLY_MESSAGE is empty or MAX_CHALLENGES limit exceeded */
