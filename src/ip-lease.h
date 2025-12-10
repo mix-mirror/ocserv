@@ -27,7 +27,7 @@
 #include <ccan/hash/hash.h>
 #include <main.h>
 
-struct ip_lease_st {
+typedef struct ip_lease_st {
 	/* In IPv4 this is the same as rip, in IPv6
 	 * that's the network address */
 	struct sockaddr_storage sig;
@@ -41,7 +41,7 @@ struct ip_lease_st {
 	unsigned int prefix; /* in ipv6 */
 
 	struct ip_lease_db_st *db;
-};
+} ip_lease_st;
 
 void ip_lease_deinit(struct ip_lease_db_st *db);
 void ip_lease_init(struct ip_lease_db_st *db);

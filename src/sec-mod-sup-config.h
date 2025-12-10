@@ -41,11 +41,11 @@ inline static const char *sup_config_name(unsigned int s)
 /* The get_sup_config() should read any additional configuration for
  * proc->username/proc->groupname and save it in proc->config.
  */
-struct config_mod_st {
+typedef struct config_mod_st {
 	int (*get_sup_config)(struct cfg_st *perm_config,
 			      client_entry_st *entry, SecmSessionReplyMsg *msg,
 			      void *pool);
-};
+} config_mod_st;
 
 void sup_config_init(sec_mod_st *sec);
 

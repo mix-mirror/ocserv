@@ -77,12 +77,12 @@
 static void radius_vhost_init(void **_vctx, void *pool, void *additional)
 {
 	radius_cfg_st *config = additional;
-	struct radius_vhost_ctx *vctx;
+	struct radius_vhost_ctx_st *vctx;
 
 	if (config == NULL)
 		goto fail;
 
-	vctx = talloc_zero(pool, struct radius_vhost_ctx);
+	vctx = talloc_zero(pool, struct radius_vhost_ctx_st);
 	if (vctx == NULL)
 		goto fail;
 
@@ -113,7 +113,7 @@ fail:
 
 static void radius_vhost_deinit(void *_vctx)
 {
-	struct radius_vhost_ctx *vctx = _vctx;
+	struct radius_vhost_ctx_st *vctx = _vctx;
 
 	if (vctx->rh != NULL)
 		rc_destroy(vctx->rh);
@@ -124,7 +124,7 @@ static int radius_auth_init(void **ctx, void *pool, void *_vctx,
 {
 	struct radius_ctx_st *pctx;
 	char *default_realm;
-	struct radius_vhost_ctx *vctx = _vctx;
+	struct radius_vhost_ctx_st *vctx = _vctx;
 
 	if (info->username == NULL || info->username[0] == 0) {
 		oc_syslog(LOG_NOTICE, "radius-auth: no username present");

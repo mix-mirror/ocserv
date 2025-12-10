@@ -41,13 +41,13 @@
 #define CS_AES128_GCM "OC-DTLS1_2-AES128-GCM"
 #define CS_AES256_GCM "OC-DTLS1_2-AES256-GCM"
 
-struct known_urls_st {
+typedef struct known_urls_st {
 	const char *url;
 	unsigned int url_size;
 	unsigned int partial_match;
 	url_handler_fn get_handler;
 	url_handler_fn post_handler;
-};
+} known_urls_st;
 
 #define LL(x, y, z) { x, sizeof(x) - 1, 0, y, z }
 #define LL_DIR(x, y, z) { x, sizeof(x) - 1, 1, y, z }

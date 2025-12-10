@@ -47,12 +47,12 @@
 static void acct_radius_vhost_init(void **_vctx, void *pool, void *additional)
 {
 	radius_cfg_st *config = additional;
-	struct radius_vhost_ctx *vctx;
+	struct radius_vhost_ctx_st *vctx;
 
 	if (config == NULL)
 		goto fail;
 
-	vctx = talloc_zero(pool, struct radius_vhost_ctx);
+	vctx = talloc_zero(pool, struct radius_vhost_ctx_st);
 	if (vctx == NULL)
 		goto fail;
 
@@ -83,7 +83,7 @@ fail:
 
 static void acct_radius_vhost_deinit(void *_vctx)
 {
-	struct radius_vhost_ctx *vctx = _vctx;
+	struct radius_vhost_ctx_st *vctx = _vctx;
 
 	if (vctx->rh != NULL)
 		rc_destroy(vctx->rh);
@@ -111,7 +111,7 @@ static void append_stats(rc_handle *rh, VALUE_PAIR **send, stats_st *stats)
 	rc_avpair_add(rh, send, PW_ACCT_OUTPUT_GIGAWORDS, &uout, -1, 0);
 }
 
-static void append_acct_standard(struct radius_vhost_ctx *vctx, rc_handle *rh,
+static void append_acct_standard(struct radius_vhost_ctx_st *vctx, rc_handle *rh,
 				 const common_acct_info_st *ai,
 				 VALUE_PAIR **send)
 {
@@ -183,7 +183,7 @@ static void radius_acct_session_stats(void *_vctx, unsigned int auth_method,
 	int ret;
 	uint32_t status_type;
 	VALUE_PAIR *send = NULL, *recvd = NULL;
-	struct radius_vhost_ctx *vctx = _vctx;
+	struct radius_vhost_ctx_st *vctx = _vctx;
 
 	status_type = PW_STATUS_ALIVE;
 
@@ -219,7 +219,7 @@ static int radius_acct_open_session(void *_vctx, unsigned int auth_method,
 	int ret;
 	uint32_t status_type;
 	VALUE_PAIR *send = NULL, *recvd = NULL;
-	struct radius_vhost_ctx *vctx = _vctx;
+	struct radius_vhost_ctx_st *vctx = _vctx;
 
 	status_type = PW_STATUS_START;
 
@@ -269,7 +269,7 @@ static void radius_acct_close_session(void *_vctx, unsigned int auth_method,
 	int ret;
 	uint32_t status_type;
 	VALUE_PAIR *send = NULL, *recvd = NULL;
-	struct radius_vhost_ctx *vctx = _vctx;
+	struct radius_vhost_ctx_st *vctx = _vctx;
 
 	status_type = PW_STATUS_STOP;
 

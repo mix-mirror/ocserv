@@ -38,14 +38,14 @@
 
 #include "log.h"
 
-struct gssapi_vhost_ctx_st {
+typedef struct gssapi_vhost_ctx_st {
 	gss_cred_id_t creds;
 	gss_OID_set oids;
 	unsigned int no_local_map;
 	time_t ticket_freshness_secs;
-};
+} gssapi_vhost_ctx_st;
 
-struct gssapi_ctx_st {
+typedef struct gssapi_ctx_st {
 	char username[MAX_USERNAME_SIZE];
 	gss_ctx_id_t gssctx;
 
@@ -53,7 +53,7 @@ struct gssapi_ctx_st {
 	gss_buffer_desc msg;
 
 	struct gssapi_vhost_ctx_st *vctx;
-};
+} gssapi_ctx_st;
 
 /* Taken from openconnect's gssapi */
 static void print_gss_err(const char *where, gss_OID mech, OM_uint32 err_maj,

@@ -711,13 +711,13 @@ static vhost_cfg_st *vhost_add(void *pool, struct list_head *head,
 	return vhost;
 }
 
-struct ini_ctx_st {
+typedef struct ini_ctx_st {
 	struct list_head *head;
 	unsigned int reload;
 	unsigned int is_worker;
 	const char *file;
 	void *pool;
-};
+} ini_ctx_st;
 
 #define WARN_ON_VHOST_ONLY(vname, oname)                                      \
 	({                                                                    \

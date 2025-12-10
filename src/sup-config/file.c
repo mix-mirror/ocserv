@@ -81,11 +81,11 @@
 		talloc_free(tmp_tf);                   \
 	}
 
-struct ini_ctx_st {
+typedef struct ini_ctx_st {
 	SecmSessionReplyMsg *msg;
 	const char *file;
 	void *pool;
-};
+} ini_ctx_st;
 
 static int group_cfg_ini_handler(void *_ctx, const char *section,
 				 const char *name, const char *_value)

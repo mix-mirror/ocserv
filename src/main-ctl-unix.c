@@ -552,7 +552,7 @@ static void method_list_banned(method_ctx *ctx, int cfd, uint8_t *msg,
 
 	mslog(ctx->s, NULL, LOG_DEBUG, "ctl: list-banned-ips");
 
-	for (struct ban_entry_st *e = htable_first(db, &iter); e != NULL;
+	for (ban_entry_st *e = htable_first(db, &iter); e != NULL;
 	     e = htable_next(db, &iter)) {
 		ret = append_ban_info(ctx, &rep, e);
 		if (ret < 0) {
@@ -866,10 +866,10 @@ static void method_disconnect_user_id(method_ctx *ctx, int cfd, uint8_t *msg,
 	}
 }
 
-struct ctl_watcher_st {
+typedef struct ctl_watcher_st {
 	int fd;
 	struct ev_io ctl_cmd_io;
-};
+} ctl_watcher_st;
 
 static void ctl_cmd_wacher_cb(EV_P_ ev_io *w, int revents)
 {

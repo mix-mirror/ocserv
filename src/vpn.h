@@ -148,7 +148,7 @@ extern int syslog_open;
 #define MAX_CIPHERSUITE_NAME 64
 #define SID_SIZE 32
 
-struct vpn_st {
+typedef struct vpn_st {
 	char name[IFNAMSIZ];
 	char *ipv4_netmask;
 	char *ipv4_network;
@@ -174,7 +174,7 @@ struct vpn_st {
 
 	char **nbns;
 	size_t nbns_size;
-};
+} vpn_st;
 
 #define MAX_AUTH_METHODS 4
 #define MAX_KRB_REALMS 16
@@ -213,7 +213,7 @@ typedef struct kkdcp_st {
 	unsigned int realms_size;
 } kkdcp_st;
 
-struct cfg_st {
+typedef struct cfg_st {
 	unsigned int is_dyndns;
 	unsigned int listen_proxy_proto;
 	unsigned int stats_report_time;
@@ -366,9 +366,9 @@ struct cfg_st {
 	bool camouflage;
 	char *camouflage_secret;
 	char *camouflage_realm;
-};
+} cfg_st;
 
-struct perm_cfg_st {
+typedef struct perm_cfg_st {
 	/* gets reloaded */
 	struct cfg_st *config;
 
@@ -422,7 +422,7 @@ struct perm_cfg_st {
 
 	/* attic, where old config allocated values are stored */
 	struct list_head attic;
-};
+} perm_cfg_st;
 
 typedef struct attic_entry_st {
 	struct list_node list;

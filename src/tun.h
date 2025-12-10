@@ -25,12 +25,12 @@
 #include <string.h>
 #include <ccan/list/list.h>
 
-struct tun_lease_st {
+typedef struct tun_lease_st {
 	char name[IFNAMSIZ];
 
 	/* this is used temporarily. */
 	int fd;
-};
+} tun_lease_st;
 
 ssize_t tun_write(int sockfd, const void *buf, size_t len);
 ssize_t tun_read(int sockfd, void *buf, size_t len);

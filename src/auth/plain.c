@@ -43,7 +43,7 @@
 #define MAX_CPASS_SIZE 128
 #define HOTP_WINDOW 20
 
-struct plain_ctx_st {
+typedef struct plain_ctx_st {
 	char username[MAX_USERNAME_SIZE];
 	char cpass[MAX_CPASS_SIZE]; /* crypt() passwd */
 
@@ -55,7 +55,7 @@ struct plain_ctx_st {
 	unsigned int failed; /* non-zero if the username is wrong */
 
 	const struct plain_cfg_st *config;
-};
+} plain_ctx_st;
 
 static void plain_vhost_init(void **vctx, void *pool, void *additional)
 {

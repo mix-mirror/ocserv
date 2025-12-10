@@ -23,20 +23,20 @@
 #include <main.h>
 #include <common.h>
 
-struct find_ip_st {
+typedef struct find_ip_st {
 	struct sockaddr_storage *sockaddr;
 	unsigned int sockaddr_size;
 	unsigned int found_ips;
-};
+} find_ip_st;
 
-struct find_dtls_id_st {
+typedef struct find_dtls_id_st {
 	const uint8_t *dtls_id;
 	unsigned int dtls_id_size;
-};
+} find_dtls_id_st;
 
-struct find_sid_st {
+typedef struct find_sid_st {
 	const uint8_t *sid;
-};
+} find_sid_st;
 
 static size_t rehash_ip(const void *_p, void *unused)
 {

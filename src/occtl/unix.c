@@ -79,11 +79,11 @@ static uint8_t msg_map[] = {
 	[CTL_CMD_UNBAN_IP] = CTL_CMD_UNBAN_IP_REP,
 };
 
-struct cmd_reply_st {
+typedef struct cmd_reply_st {
 	unsigned int cmd;
 	uint8_t *data;
 	unsigned int data_size;
-};
+} cmd_reply_st;
 
 static void free_reply(struct cmd_reply_st *rep)
 {

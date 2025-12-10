@@ -65,7 +65,7 @@ int cmd_parser(void *pool, int argc, char **argv, struct list_head *head,
 
 #define MINIMUM_USERS_PER_SEC_MOD 500
 
-struct listener_st {
+typedef struct listener_st {
 	ev_io io;
 	struct list_node list;
 	int fd;
@@ -76,14 +76,14 @@ struct listener_st {
 	int family;
 	int protocol;
 	ev_timer resume_accept;
-};
+} listener_st;
 
-struct listen_list_st {
+typedef struct listen_list_st {
 	struct list_head head;
 	unsigned int total;
-};
+} listen_list_st;
 
-struct script_wait_st {
+typedef struct script_wait_st {
 	/* must be first so that this structure can behave as ev_child */
 	struct ev_child ev_child;
 
@@ -91,7 +91,7 @@ struct script_wait_st {
 
 	pid_t pid;
 	struct proc_st *proc;
-};
+} script_wait_st;
 
 /* Each worker process maps to a unique proc_st structure.
  */
@@ -190,36 +190,36 @@ inline static void kill_proc(proc_st *proc)
 	proc->pid_killed = 1;
 }
 
-struct ip_lease_db_st {
+typedef struct ip_lease_db_st {
 	struct htable ht;
-};
+} ip_lease_db_st;
 
-struct proc_list_st {
+typedef struct proc_list_st {
 	struct list_head head;
 	unsigned int total;
-};
+} proc_list_st;
 
-struct script_list_st {
+typedef struct script_list_st {
 	struct list_head head;
-};
+} script_list_st;
 
-struct proc_hash_db_st {
+typedef struct proc_hash_db_st {
 	struct htable *db_ip;
 	struct htable *db_dtls_ip;
 	struct htable *db_dtls_id;
 	struct htable *db_sid;
 	unsigned int total;
-};
+} proc_hash_db_st;
 
 #if defined(CAPTURE_LATENCY_SUPPORT)
-struct latency_stats_st {
+typedef struct latency_stats_st {
 	uint64_t median_total;
 	uint64_t rms_total;
 	uint64_t sample_count;
-};
+} latency_stats_st;
 #endif
 
-struct main_stats_st {
+typedef struct main_stats_st {
 	uint64_t session_timeouts; /* sessions with timeout */
 	uint64_t session_idle_timeouts; /* sessions with idle timeout */
 	uint64_t session_errors; /* sessions closed with error */
@@ -245,7 +245,7 @@ struct main_stats_st {
 	struct latency_stats_st current_latency_stats;
 	struct latency_stats_st delta_latency_stats;
 #endif
-};
+} main_stats_st;
 
 typedef struct sec_mod_instance_st {
 	struct main_server_st *server;

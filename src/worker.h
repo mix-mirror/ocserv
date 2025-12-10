@@ -128,7 +128,7 @@ typedef struct dtls_ciphersuite_st {
 extern asn1_node _kkdcp_pkix1_asn;
 #endif
 
-struct http_req_st {
+typedef struct http_req_st {
 	char url[256];
 
 	str_st header;
@@ -166,7 +166,7 @@ struct http_req_st {
 
 	char *authorization;
 	unsigned int authorization_size;
-};
+} http_req_st;
 
 typedef struct dtls_transport_ptr {
 	int fd;
