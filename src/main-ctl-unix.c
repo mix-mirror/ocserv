@@ -546,7 +546,6 @@ static void method_list_banned(method_ctx *ctx, int cfd, uint8_t *msg,
 			       unsigned int msg_size)
 {
 	BanListRep rep = BAN_LIST_REP__INIT;
-	struct ban_entry_st *e = NULL;
 	struct htable *db = ctx->s->ban_db;
 	int ret;
 	struct htable_iter iter;
@@ -554,15 +553,14 @@ static void method_list_banned(method_ctx *ctx, int cfd, uint8_t *msg,
 
 	mslog(ctx->s, NULL, LOG_DEBUG, "ctl: list-banned-ips");
 
-	e = htable_first(db, &iter);
-	while (e != NULL) {
+	for (struct ban_entry_st *e = htable_first(db, &iter); e != NULL;
+	     e = htable_next(db, &iter)) {
 		ret = append_ban_info(ctx, &rep, e, now);
 		if (ret < 0) {
 			mslog(ctx->s, NULL, LOG_ERR,
 			      "error appending ban info to reply");
 			return;
 		}
-		e = htable_next(db, &iter);
 	}
 
 	ret = send_msg(ctx->pool, cfd, CTL_CMD_LIST_BANNED_REP, &rep,

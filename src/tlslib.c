@@ -421,11 +421,10 @@ void tls_cache_init(void *pool, tls_sess_db_st *db)
 
 void tls_cache_deinit(tls_sess_db_st *db)
 {
-	tls_cache_st *cache;
 	struct htable_iter iter;
 
-	cache = htable_first(db->ht, &iter);
-	while (cache != NULL) {
+	for (tls_cache_st *cache = htable_first(db->ht, &iter); cache != NULL;
+	     cache = htable_next(db->ht, &iter)) {
 		if (cache->session_data_size > 0) {
 			safe_memset(cache->session_data, 0,
 				    cache->session_data_size);
@@ -433,8 +432,6 @@ void tls_cache_deinit(tls_sess_db_st *db)
 			cache->session_id_size = 0;
 		}
 		talloc_free(cache);
-
-		cache = htable_next(db->ht, &iter);
 	}
 	htable_clear(db->ht);
 	db->entries = 0;

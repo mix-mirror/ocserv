@@ -49,16 +49,13 @@ static void ip_from_seed(uint8_t *seed, unsigned int seed_size, void *ip,
 
 void ip_lease_deinit(struct ip_lease_db_st *db)
 {
-	struct ip_lease_st *cache;
 	struct htable_iter iter;
 
-	cache = htable_first(&db->ht, &iter);
-	while (cache != NULL) {
+	for (struct ip_lease_st *cache = htable_first(&db->ht, &iter);
+	     cache != NULL; cache = htable_next(&db->ht, &iter)) {
 		/* disable the destructor */
 		cache->db = NULL;
 		talloc_free(cache);
-
-		cache = htable_next(&db->ht, &iter);
 	}
 	htable_clear(&db->ht);
 }

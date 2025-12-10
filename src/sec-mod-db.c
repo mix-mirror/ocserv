@@ -178,17 +178,15 @@ static void clean_entry(sec_mod_st *sec, client_entry_st *e)
 void cleanup_client_entries(sec_mod_st *sec)
 {
 	struct htable *db = sec->client_db;
-	client_entry_st *t;
 	struct htable_iter iter;
 	time_t now = time(NULL);
 
-	t = htable_first(db, &iter);
-	while (t != NULL) {
+	for (client_entry_st *t = htable_first(db, &iter); t != NULL;
+	     t = htable_next(db, &iter)) {
 		if IS_CLIENT_ENTRY_EXPIRED_FULL (sec, t, now, 1) {
 			htable_delval(db, &iter);
 			clean_entry(sec, t);
 		}
-		t = htable_next(db, &iter);
 	}
 }
 

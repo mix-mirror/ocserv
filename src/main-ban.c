@@ -97,7 +97,6 @@ void main_ban_db_deinit(main_server_st *s)
 unsigned int main_ban_db_elems(main_server_st *s)
 {
 	struct htable *db = s->ban_db;
-	ban_entry_st *t;
 	struct htable_iter iter;
 	time_t now = time(NULL);
 	unsigned int banned = 0;
@@ -105,12 +104,11 @@ unsigned int main_ban_db_elems(main_server_st *s)
 	if (db == NULL || GETCONFIG(s)->max_ban_score == 0)
 		return 0;
 
-	t = htable_first(db, &iter);
-	while (t != NULL) {
+	for (ban_entry_st *t = htable_first(db, &iter); t != NULL;
+	     t = htable_next(db, &iter)) {
 		if (t->expires > now && IS_BANNED(s, t)) {
 			banned++;
 		}
-		t = htable_next(db, &iter);
 	}
 	return banned;
 }
@@ -344,21 +342,19 @@ unsigned int check_if_banned(main_server_st *s, struct sockaddr_storage *addr,
 void cleanup_banned_entries(main_server_st *s)
 {
 	struct htable *db = s->ban_db;
-	ban_entry_st *t;
 	struct htable_iter iter;
 	time_t now = time(NULL);
 
 	if (db == NULL)
 		return;
 
-	t = htable_first(db, &iter);
-	while (t != NULL) {
+	for (ban_entry_st *t = htable_first(db, &iter); t != NULL;
+	     t = htable_next(db, &iter)) {
 		if (now >= t->expires &&
 		    now > t->last_reset + GETCONFIG(s)->ban_reset_time) {
 			htable_delval(db, &iter);
 			talloc_free(t);
 		}
-		t = htable_next(db, &iter);
 	}
 }
 

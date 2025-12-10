@@ -41,14 +41,14 @@
 
 int handle_resume_delete_req(sec_mod_st *sec, const SessionResumeFetchMsg *req)
 {
-	tls_cache_st *cache;
 	struct htable_iter iter;
 	size_t key;
 
 	key = hash_any(req->session_id.data, req->session_id.len, 0);
 
-	cache = htable_firstval(sec->tls_db.ht, &iter, key);
-	while (cache != NULL) {
+	for (tls_cache_st *cache = htable_firstval(sec->tls_db.ht, &iter, key);
+	     cache != NULL;
+	     cache = htable_nextval(sec->tls_db.ht, &iter, key)) {
 		if (req->session_id.len == cache->session_id_size &&
 		    memcmp(req->session_id.data, cache->session_id,
 			   req->session_id.len) == 0) {
@@ -60,8 +60,6 @@ int handle_resume_delete_req(sec_mod_st *sec, const SessionResumeFetchMsg *req)
 			sec->tls_db.entries--;
 			return 0;
 		}
-
-		cache = htable_nextval(sec->tls_db.ht, &iter, key);
 	}
 
 	return 0;
@@ -70,7 +68,6 @@ int handle_resume_delete_req(sec_mod_st *sec, const SessionResumeFetchMsg *req)
 int handle_resume_fetch_req(sec_mod_st *sec, const SessionResumeFetchMsg *req,
 			    SessionResumeReplyMsg *rep)
 {
-	tls_cache_st *cache;
 	struct htable_iter iter;
 	size_t key;
 
@@ -78,8 +75,9 @@ int handle_resume_fetch_req(sec_mod_st *sec, const SessionResumeFetchMsg *req,
 
 	key = hash_any(req->session_id.data, req->session_id.len, 0);
 
-	cache = htable_firstval(sec->tls_db.ht, &iter, key);
-	while (cache != NULL) {
+	for (tls_cache_st *cache = htable_firstval(sec->tls_db.ht, &iter, key);
+	     cache != NULL;
+	     cache = htable_nextval(sec->tls_db.ht, &iter, key)) {
 		if (req->session_id.len == cache->session_id_size &&
 		    memcmp(req->session_id.data, cache->session_id,
 			   req->session_id.len) == 0) {
@@ -110,8 +108,6 @@ int handle_resume_fetch_req(sec_mod_st *sec, const SessionResumeFetchMsg *req,
 				return 0;
 			}
 		}
-
-		cache = htable_nextval(sec->tls_db.ht, &iter, key);
 	}
 
 	return 0;
@@ -178,14 +174,13 @@ int handle_resume_store_req(sec_mod_st *sec,
 
 void expire_tls_sessions(sec_mod_st *sec)
 {
-	tls_cache_st *cache;
 	struct htable_iter iter;
 	time_t now, exp;
 
 	now = time(NULL);
 
-	cache = htable_first(sec->tls_db.ht, &iter);
-	while (cache != NULL) {
+	for (tls_cache_st *cache = htable_first(sec->tls_db.ht, &iter);
+	     cache != NULL; cache = htable_next(sec->tls_db.ht, &iter)) {
 		gnutls_datum_t d;
 
 		d.data = (void *)cache->session_data;
@@ -203,6 +198,5 @@ void expire_tls_sessions(sec_mod_st *sec)
 			talloc_free(cache);
 			sec->tls_db.entries--;
 		}
-		cache = htable_next(sec->tls_db.ht, &iter);
 	}
 }
