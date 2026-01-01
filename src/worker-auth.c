@@ -317,7 +317,7 @@ int get_auth_handler2(worker_st *ws, unsigned int http_ver, const char *pmsg,
 	} else {
 		/* Username / Groups Form */
 		if (pmsg == NULL)
-			pmsg = "Please enter your username.";
+			pmsg = "Please enter your username and password.";
 
 		ret = str_append_str(&str, login_start);
 		if (ret < 0) {
