@@ -13,6 +13,7 @@ variables:
   UBUNTU22_BUILD: buildenv-ubuntu22
   CENTOS8_BUILD: buildenv-centos8
   CENTOS9_BUILD: buildenv-centos9
+  CENTOS10_BUILD: buildenv-centos10
   MINIMALCONFIG: "--without-protobuf --without-libtalloc-prefix --without-libnl --without-maxmind --without-geoip --without-libreadline-prefix --without-liboath --without-libc-prefix --without-pam --without-radius --without-libcrypt-prefix --without-utmp --without-libutil-prefix --without-libwrap --without-libwrap-prefix --without-libseccomp-prefix --without-libsystemd-prefix --without-llhttp --without-lz4 --without-gssapi --without-pcl-lib --disable-rpath --disable-seccomp --disable-anyconnect-compat --disable-compression"
   JOBS: 2
 
@@ -143,6 +144,29 @@ Centos8:
 Centos9:
   stage: testing
   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$CENTOS9_BUILD
+  script:
+  - git submodule update --init
+  - autoreconf -fvi
+  - ./configure
+  - chmod og-w tests/data/raddb
+  - chmod og-w tests/data/raddb/*
+  - make -j$JOBS
+  - make check VERBOSE=1 -j$JOBS
+  tags:
+  - saas-linux-small-amd64
+  except:
+  - tags
+  - schedules
+  artifacts:
+    expire_in: 1 week
+    when: on_failure
+    paths:
+      - ./*.log
+      - ./tests/*.log
+
+Centos10:
+  stage: testing
+  image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$CENTOS10_BUILD
   script:
   - git submodule update --init
   - autoreconf -fvi
