@@ -104,12 +104,12 @@ endif
 libipc_a_SOURCES=ctl.pb-c.c ctl.pb-c.h ipc.pb-c.h ipc.pb-c.c
 
 ipc.pb-c.c: ipc.proto
-	protoc-c --c_out=. --proto_path=$(srcdir) $<
+	protoc --c_out=. --proto_path=$(srcdir) $<
 
 ipc.pb-c.h: ipc.pb-c.c
 
 ctl.pb-c.c: ctl.proto
-	protoc-c --c_out=. --proto_path=$(srcdir) $<
+	protoc --c_out=. --proto_path=$(srcdir) $<
 
 ctl.pb-c.h: ctl.pb-c.c
 
