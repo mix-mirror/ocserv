@@ -295,6 +295,10 @@ static char* ini_reader_string(char* str, int num, void* stream) {
     char* strp = str;
     char c;
 
+#ifdef __clang_analyzer__
+    memset(str, '\0', num);
+#endif
+
     if (ctx_num_left == 0 || num < 2)
         return NULL;
 
