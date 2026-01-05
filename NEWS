@@ -1,5 +1,5 @@
-* Version 1.4.1 (unreased)
-- 
+* Version 1.4.1 (unreleased)
+- occtl: Fix column misalignment in ban command outputs
 
 
 * Version 1.4.0 (released 2026-01-04)

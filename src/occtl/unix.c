@@ -1126,7 +1126,7 @@ static int handle_list_banned_cmd(struct unix_ctx *ctx, const char *arg,
 			}
 
 			if (!header_printed && NO_JSON(params)) {
-				fprintf(out, "%14s %14s %30s\n", "IP", "score",
+				fprintf(out, "%15s %10s %30s\n", "IP", "score",
 					"expires");
 				header_printed = true;
 			}
@@ -1142,13 +1142,12 @@ static int handle_list_banned_cmd(struct unix_ctx *ctx, const char *arg,
 				print_single_value_int(out, params, "Score",
 						       rep->info[i]->score, 0);
 			} else {
-				fprintf(out, "%14s %14u %30s (%s)\n", txt_ip,
-					(unsigned int)rep->info[i]->score,
-					str_since, tmpbuf);
+				fprintf(out, "%15s %10u %30s (%s)\n", txt_ip,
+					rep->info[i]->score, str_since, tmpbuf);
 			}
 		} else {
 			if (!header_printed && NO_JSON(params)) {
-				fprintf(out, "%14s %14s\n", "IP", "score");
+				fprintf(out, "%15s %10s\n", "IP", "score");
 				header_printed = true;
 			}
 			print_start_block(out, params);
@@ -1159,8 +1158,8 @@ static int handle_list_banned_cmd(struct unix_ctx *ctx, const char *arg,
 				print_single_value_int(out, params, "Score",
 						       rep->info[i]->score, 0);
 			} else {
-				fprintf(out, "%14s %14u\n", txt_ip,
-					(unsigned int)rep->info[i]->score);
+				fprintf(out, "%15s %10u\n", txt_ip,
+					rep->info[i]->score);
 			}
 		}
 
