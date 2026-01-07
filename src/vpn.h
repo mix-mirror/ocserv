@@ -115,8 +115,6 @@ inline static const char *proto_to_str(fw_proto_t proto)
 #define REKEY_METHOD_SSL 1
 #define REKEY_METHOD_NEW_TUNNEL 2
 
-extern int syslog_open;
-
 /* the first is generic, for the methods that require a username password */
 #define AUTH_TYPE_USERNAME_PASS (1 << 0)
 #define AUTH_TYPE_PAM (1 << 1 | AUTH_TYPE_USERNAME_PASS)
