@@ -1,7 +1,7 @@
 # ocserv(8) -- OpenConnect VPN server
 
 ## SYNOPSIS
-**ocserv** [options] -c [config]
+**ocserv** \[ **-flag** \[<value>\] | **--option-name**\[\[=| \]<value>\] \]...
 
 OpenConnect VPN server (ocserv) is a VPN server compatible with the
 OpenConnect VPN client. It follows the AnyConnect VPN protocol which
@@ -9,12 +9,12 @@ is used by several CISCO routers.
 
 
 ## DESCRIPTION
-This a standalone server that reads a configuration file (see below for more details),
+This is a standalone server that reads a configuration file (see below for more details),
 and waits for client connections. Log messages are directed to the syslog daemon
 facility.
 
 The server maintains two connections/channels with the client. The main VPN
-channel is established over TCP, HTTP and TLS. This is the control channel as well
+channel is established over TCP, using HTTP and TLS. This is the control channel as well
 as the backup data channel. After its establishment a UDP channel using DTLS
 is initiated which serves as the main data channel. If the UDP channel fails
 to establish or is temporarily unavailable the backup channel over TCP/TLS
@@ -43,27 +43,40 @@ server.
 
 ## OPTIONS
 
-  * **-f, --foreground**::
+  * **-f, --foreground**:
     Do not fork server into background.
 
-  * **-d, --debug**=_num_::
+  * **-d, --debug**=_num_:
     Enable verbose network debugging information. _num_ must be between zero
     and 9999.
 
-  * **-c, --config**=_FILE_::
-    Specify the configuration file for the server.
+  * **-c, --config**=_FILE_:
+    Specify the configuration file for the server. The default is
+    _/etc/ocserv/ocserv.conf_.
 
-  * **-t, --test-config**::
+  * **-t, --test-config**:
     Test the provided configuration file and exit. A successful exit error code
     indicates a valid configuration.
 
-  * **-p, --pid-file**=_FILE_::
+  * **-p, --pid-file**=_FILE_:
     Specify a PID file for the server.
 
-  * **-h, --help**::
+  * **-e, --log-stderr**:
+    Log to stderr.
+
+  * **-s, --syslog**:
+    Log to syslog (default).
+
+  * **--no-chdir**:
+    Do not perform a chdir on daemonize.
+
+  * **-x, --traceable**:
+    Allows the process to be traced and dumped. Use for debugging purposes only.
+
+  * **-h, --help**:
     Display usage information and exit.
 
-  * **-v, --version**::
+  * **-v, --version**:
     Output version of program and exit.
 
 

@@ -3,7 +3,7 @@
 
 ## SYNOPSIS
 
-**occtl** ['COMMAND']
+**occtl** \[OPTIONS...\] \[COMMAND\]
 
 
 ## DESCRIPTION
