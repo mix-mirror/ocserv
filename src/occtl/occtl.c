@@ -169,7 +169,7 @@ unsigned int check_cmd_help(const char *line)
 
 static void usage(void)
 {
-	printf("occtl: [OPTIONS...] {COMMAND}\n\n");
+	printf("occtl: [OPTIONS...] [COMMAND]\n\n");
 	printf("  -s --socket-file       Specify the server's occtl socket file\n");
 	printf("  -h --help              Show this help\n");
 	printf("     --debug             Enable more verbose information in some commands\n");

@@ -2046,7 +2046,7 @@ int cmd_parser(void *pool, int argc, char **argv, struct list_head *head,
 		fprintf(stderr, ERRSTR "cannot access config file: %s\n",
 			cfg_file);
 		fprintf(stderr,
-			"Usage: %s -c [config]\nUse %s --help for more information.\n",
+			"Usage: %s [-c config]\nUse %s --help for more information.\n",
 			argv[0], argv[0]);
 		exit(EXIT_FAILURE);
 	}
