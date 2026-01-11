@@ -36,8 +36,6 @@ static unsigned int verbose;
 
 #include "../src/tlslib.c"
 
-int syslog_open;
-
 int get_cert_names(worker_st *ws, const gnutls_datum_t *raw)
 {
 	return 0;

@@ -82,7 +82,6 @@ char **worker_argv;
 static void listen_watcher_cb(EV_P_ ev_io *w, int revents);
 static void resume_accept_cb(EV_P_ ev_timer *w, int revents);
 
-int syslog_open;
 sigset_t sig_default_set;
 struct ev_loop *main_loop;
 static unsigned int allow_broken_clients;

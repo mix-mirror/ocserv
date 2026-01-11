@@ -45,7 +45,6 @@ asn1_node _kkdcp_pkix1_asn;
 
 extern struct snapshot_t *config_snapshot;
 
-int syslog_open;
 sigset_t sig_default_set;
 static unsigned int allow_broken_clients;
 
