@@ -1,5 +1,6 @@
 * Version 1.4.1 (unreleased)
 - occtl: Fix column misalignment in ban command outputs
+- occtl: Fix 'show ip bans' may produce invalid JSON (#683)
 - Handle dotted client hostnames (e.g., .local) by stripping the domain suffix
 
 

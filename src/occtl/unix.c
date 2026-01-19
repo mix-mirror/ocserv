@@ -1078,7 +1078,7 @@ static int handle_list_banned_cmd(struct unix_ctx *ctx, const char *arg,
 	FILE *out;
 	struct tm *tm, _tm;
 	time_t t;
-	bool header_printed = false;
+	bool item_printed = false;
 
 	PROTOBUF_ALLOCATOR(pa, ctx);
 	char txt_ip[MAX_IP_STR];
@@ -1125,11 +1125,10 @@ static int handle_list_banned_cmd(struct unix_ctx *ctx, const char *arg,
 				continue;
 			}
 
-			if (!header_printed && NO_JSON(params)) {
+			if (!item_printed && NO_JSON(params))
 				fprintf(out, "%15s %10s %30s\n", "IP", "score",
 					"expires");
-				header_printed = true;
-			}
+			print_value_separator(out, params, item_printed);
 			print_start_block(out, params);
 
 			print_time_ival7(tmpbuf, t, time(NULL));
@@ -1146,10 +1145,9 @@ static int handle_list_banned_cmd(struct unix_ctx *ctx, const char *arg,
 					rep->info[i]->score, str_since, tmpbuf);
 			}
 		} else {
-			if (!header_printed && NO_JSON(params)) {
+			if (!item_printed && NO_JSON(params))
 				fprintf(out, "%15s %10s\n", "IP", "score");
-				header_printed = true;
-			}
+			print_value_separator(out, params, item_printed);
 			print_start_block(out, params);
 
 			if (HAVE_JSON(params)) {
@@ -1163,11 +1161,14 @@ static int handle_list_banned_cmd(struct unix_ctx *ctx, const char *arg,
 			}
 		}
 
-		print_end_block(out, params, i < (rep->n_info - 1) ? 1 : 0);
+		print_end_block_simple(out, params);
+		item_printed = true;
 
 		ip_entries_add(ctx, txt_ip, strlen(txt_ip));
 	}
 
+	if (item_printed && HAVE_JSON(params))
+		fprintf(out, "\n");
 	print_end_array_block(out, params);
 
 	ret = 0;
