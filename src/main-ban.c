@@ -130,7 +130,7 @@ static int add_ip_to_ban_list(main_server_st *s, const unsigned char *ip,
 	struct ban_entry_st *e;
 	ban_entry_st t;
 	time_t now = time(NULL);
-	time_t expiration = now + GETCONFIG(s)->min_reauth_time;
+	time_t expiration = now + GETCONFIG(s)->ban_time;
 	int ret = 0;
 	char str_ip[MAX_IP_STR];
 	const char *p_str_ip = NULL;

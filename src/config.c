@@ -651,6 +651,7 @@ static void apply_default_conf(vhost_cfg_st *vhost, unsigned int reload)
 	vhost->perm_config.config->cookie_timeout =
 		DEFAULT_COOKIE_RECON_TIMEOUT;
 	vhost->perm_config.config->auth_timeout = DEFAULT_AUTH_TIMEOUT_SECS;
+	vhost->perm_config.config->ban_time = DEFAULT_BAN_TIME;
 	vhost->perm_config.config->ban_reset_time = DEFAULT_BAN_RESET_TIME;
 	vhost->perm_config.config->max_ban_score = DEFAULT_MAX_BAN_SCORE;
 	vhost->perm_config.config->ban_points_wrong_password =
@@ -1204,9 +1205,12 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 		if (!WARN_ON_VHOST(vhost->name, "max-clients", max_clients))
 			READ_NUMERIC(config->max_clients);
 	} else if (strcmp(name, "min-reauth-time") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "min-reauth-time",
-				   min_reauth_time))
-			READ_NUMERIC(config->min_reauth_time);
+		READ_NUMERIC(config->ban_time);
+		fprintf(stderr, NOTESTR
+			"'min-reauth-time' was replaced by 'ban-time'\n");
+	} else if (strcmp(name, "ban-time") == 0) {
+		if (!WARN_ON_VHOST(vhost->name, "ban-time", ban_time))
+			READ_NUMERIC(config->ban_time);
 	} else if (strcmp(name, "ban-reset-time") == 0) {
 		if (!WARN_ON_VHOST(vhost->name, "ban-reset-time",
 				   ban_reset_time))

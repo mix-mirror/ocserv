@@ -90,6 +90,7 @@ inline static const char *proto_to_str(fw_proto_t proto)
 #define DEFAULT_CONNECT_POINTS 1
 #define DEFAULT_KKDCP_POINTS 1
 #define DEFAULT_MAX_BAN_SCORE (MAX_PASSWORD_TRIES * DEFAULT_PASSWORD_POINTS)
+#define DEFAULT_BAN_TIME 300
 #define DEFAULT_BAN_RESET_TIME 300
 
 #define MIN_NO_COMPRESS_LIMIT 64
@@ -267,7 +268,7 @@ struct cfg_st {
 	time_t rekey_time; /* in seconds */
 	unsigned int rekey_method; /* REKEY_METHOD_ */
 
-	time_t min_reauth_time; /* after a failed auth, how soon one can reauthenticate -> in seconds */
+	time_t ban_time; /* duration IP remains banned after hitting max_ban_score -> in seconds */
 	unsigned int
 		max_ban_score; /* the score allowed before a user is banned (see vpn.h) */
 	int ban_reset_time;

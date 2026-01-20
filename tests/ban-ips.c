@@ -77,7 +77,7 @@ int main(void)
 	list_add(s->vconfig, &vhost->list);
 
 	vhost->perm_config.config->max_ban_score = 20;
-	vhost->perm_config.config->min_reauth_time = 30;
+	vhost->perm_config.config->ban_time = 30;
 
 	main_ban_db_init(s);
 
@@ -147,7 +147,7 @@ int main(void)
 	}
 
 	/* check expiration of entries */
-	sleep(GETCONFIG(s)->min_reauth_time + 1);
+	sleep(GETCONFIG(s)->ban_time + 1);
 
 	if (check_if_banned_str(s, "192.168.1.1") != 0) {
 		fprintf(stderr, "error in %d\n", __LINE__);
@@ -171,7 +171,7 @@ int main(void)
 	}
 
 	/* check cleanup */
-	sleep(GETCONFIG(s)->min_reauth_time + 1);
+	sleep(GETCONFIG(s)->ban_time + 1);
 
 	cleanup_banned_entries(s);
 
