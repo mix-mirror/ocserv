@@ -83,6 +83,7 @@ message auth_cookie_reply_msg
 	optional string ipv6_local = 10;
 
 	required bytes sid = 11;
+	required uint64 session_start_time = 12;
 	required bytes secmod_addr = 13;
 
 	/* additional config */
@@ -354,6 +355,7 @@ message secm_session_reply_msg
 	optional string user_agent = 12;
 	optional string device_platform = 13;
 	optional string device_type = 14;
+	required uint64 session_start_time = 15;
 }
 
 /* internal struct */

@@ -713,6 +713,8 @@ static int recv_cookie_auth_reply(worker_st *ws)
 			/* update our sid */
 			memcpy(ws->sid, msg->sid.data, sizeof(ws->sid));
 			ws->sid_set = 1;
+			ws->session_start_time =
+				(time_t)msg->session_start_time;
 
 			if (msg->secmod_addr.len > sizeof(ws->secmod_addr)) {
 				oclog(ws, LOG_ERR,

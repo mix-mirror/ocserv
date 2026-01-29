@@ -53,7 +53,7 @@ message user_info_rep
 	optional string local_ip = 7;
 	optional string remote_ip6 = 8;
 	optional string local_ip6 = 9;
-	required uint32 conn_time = 10;
+	required uint64 conn_time = 10;
 	optional string hostname = 11;
 	optional string user_agent = 12;
 	required uint32 status = 13; /* PS_ */
@@ -80,6 +80,7 @@ message user_info_rep
 
 	required bytes safe_id = 32; /* a value derived from the cookie */
 	required string vhost = 33;
+	required uint64 session_start_time = 34;
 }
 
 message user_list_rep

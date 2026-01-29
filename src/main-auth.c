@@ -119,6 +119,7 @@ int send_cookie_auth_reply(main_server_st *s, struct proc_st *proc, AUTHREP r)
 
 		msg.sid.data = proc->sid;
 		msg.sid.len = sizeof(proc->sid);
+		msg.session_start_time = proc->session_start_time;
 
 		msg.vname = proc->tun_lease.name;
 		msg.user_name = proc->username;

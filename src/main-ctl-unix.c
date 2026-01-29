@@ -405,6 +405,7 @@ static int append_user_info(method_ctx *ctx, UserListRep *list,
 	rep->remote_ip6 = strtmp;
 
 	rep->conn_time = ctmp->conn_time;
+	rep->session_start_time = ctmp->session_start_time;
 	rep->hostname = ctmp->hostname;
 	rep->user_agent = ctmp->user_agent;
 

@@ -1211,7 +1211,8 @@ static int common_info_cmd(UserListRep *args, FILE *out, cmd_params_st *params)
 {
 	char *username;
 	char *groupname;
-	char str_since[64];
+	char str_last_connect[64];
+	char str_session_start[64];
 	char tmpbuf[MAX_TMPSTR_SIZE];
 	char tmpbuf2[MAX_TMPSTR_SIZE];
 	struct tm *tm, _tm;
@@ -1239,7 +1240,13 @@ static int common_info_cmd(UserListRep *args, FILE *out, cmd_params_st *params)
 
 		t = args->user[i]->conn_time;
 		tm = localtime_r(&t, &_tm);
-		strftime(str_since, sizeof(str_since), DATE_TIME_FMT, tm);
+		strftime(str_last_connect, sizeof(str_last_connect),
+			 DATE_TIME_FMT, tm);
+
+		t = args->user[i]->session_start_time;
+		tm = localtime_r(&t, &_tm);
+		strftime(str_session_start, sizeof(str_session_start),
+			 DATE_TIME_FMT, tm);
 
 		username = args->user[i]->username;
 		if (username == NULL || username[0] == 0)
@@ -1331,13 +1338,20 @@ static int common_info_cmd(UserListRep *args, FILE *out, cmd_params_st *params)
 		print_single_value(out, params, "Hostname",
 				   args->user[i]->hostname, 1);
 
-		print_time_ival7(tmpbuf, time(NULL), t);
-		print_single_value_ex(out, params, "Connected at", str_since,
-				      tmpbuf, 1);
+		print_time_ival7(tmpbuf, time(NULL), args->user[i]->conn_time);
+		print_single_value_ex(out, params, "Last connected at",
+				      str_last_connect, tmpbuf, 1);
+		print_time_ival7(tmpbuf, time(NULL),
+				 args->user[i]->session_start_time);
+		print_single_value_ex(out, params, "Session started at",
+				      str_session_start, tmpbuf, 1);
 
 		if (HAVE_JSON(params)) {
 			print_single_value_int(out, params, "raw_connected_at",
-					       t, 1);
+					       args->user[i]->conn_time, 1);
+			print_single_value_int(
+				out, params, "raw_session_started_at",
+				args->user[i]->session_start_time, 1);
 			print_single_value(out, params, "Full session",
 					   shorten(args->user[i]->safe_id.data,
 						   args->user[i]->safe_id.len,

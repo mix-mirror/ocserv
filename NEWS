@@ -1,5 +1,9 @@
 * Version 1.4.1 (unreleased)
 - The bundled inih was updated to r62.
+- Fixed a bug where session timeout could be bypassed by reconnecting
+  (e.g., closing/opening laptop lid) (#599)
+- occtl: 'show user' command now includes a 'Session started at:' field,
+  indicating when the VPN session was established
 - occtl: Fix column misalignment in ban command outputs
 - occtl: Fix 'show ip bans' may produce invalid JSON (#683)
 - Handle dotted client hostnames (e.g., .local) by stripping the domain suffix

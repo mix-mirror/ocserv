@@ -572,6 +572,7 @@ int handle_secm_session_open_cmd(sec_mod_st *sec, int fd,
 
 	rep.sid.data = e->sid;
 	rep.sid.len = sizeof(e->sid);
+	rep.session_start_time = e->created;
 
 	rep.reply = AUTH__REP__OK;
 

@@ -128,6 +128,8 @@ typedef struct proc_st {
 	uint8_t sid[SID_SIZE];
 	unsigned int active_sid;
 
+	time_t session_start_time;
+
 	/* non zero if the sid has been invalidated and must not be allowed
 	 * to reconnect. */
 	unsigned int invalidated;

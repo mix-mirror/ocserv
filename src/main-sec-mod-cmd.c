@@ -562,6 +562,8 @@ int session_open(sec_mod_instance_st *sec_mod_instance, struct proc_st *proc,
 		return -1;
 	}
 
+	proc->session_start_time = (time_t)msg->session_start_time;
+
 	if (msg->username == NULL) {
 		mslog(s, proc, LOG_INFO,
 		      "no username present in session reply");
