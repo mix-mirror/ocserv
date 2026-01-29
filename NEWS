@@ -12,6 +12,7 @@
   an IP address is banned after exceeding the maximum allowed `max-ban-score`.
   Default is 300 seconds (5 minutes).
 - Fixed ocserv-worker process title
+- Fixed ignored udp-port in vhost (#612)
 
 
 * Version 1.4.0 (released 2026-01-04)
@@ -24,7 +25,6 @@
 - Fixed maximum MTU tracking in server statistics
 - Fixed 'iroute' option processing to handle multiple routes (#625)
 - Fixed session accounting for roaming users (#674)
-- Fixed ignored udp-port in vhost (#612)
 - occtl: fix invalid JSON output in `occtl -j show iroutes` (#661)
 - occtl: fix regression with trailing commas in `occtl -j show sessions` (#669)
 - occtl: fix missing column headers in 'show ip bans' output (#677)
