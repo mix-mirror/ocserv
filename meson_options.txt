@@ -25,3 +25,4 @@ option('tun-tests',         type: 'boolean',  value: true,      description: 'En
 option('kerberos-tests',    type: 'boolean',  value: false,     description: 'Enable tests requiring a Kerberos setup')
 option('with-werror',       type: 'boolean',  value: false,     description: 'Treat compiler warnings as errors')
 option('pager',             type: 'string',   value: 'less',    description: 'Default pager for occtl (empty string for none)')
+option('firewall-script',   type: 'combo',    choices: ['auto', 'nftables', 'iptables'], value: 'auto', description: 'Firewall script backend (auto prefers nftables if nft is found)')

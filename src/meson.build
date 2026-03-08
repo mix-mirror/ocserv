@@ -290,8 +290,14 @@ executable('ocserv-worker', worker_sources,
 # ocserv-fw script
 # --------------------------------------------------------------------------
 
-install_data('ocserv-fw',
-  install_dir: get_option('libexecdir'),
+if fw_script_type == 'nftables'
+  _fw_src = 'ocserv-fw-nftables'
+else
+  _fw_src = 'ocserv-fw-iptables'
+endif
+install_data(_fw_src,
+  rename:       'ocserv-fw',
+  install_dir:  get_option('libexecdir'),
   install_mode: 'rwxr-xr-x',
 )
 

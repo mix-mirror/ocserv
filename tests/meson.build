@@ -213,6 +213,7 @@ endif
 
 if get_option('root-tests')
   root_scripts = [
+    'test-fw-script',
     'haproxy-connect', 'test-iroute', 'test-multi-cookie',
     'test-pass-script', 'idle-timeout',
     'test-cookie-timeout', 'test-cookie-timeout-2',

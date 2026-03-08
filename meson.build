@@ -41,6 +41,16 @@ endif
 gperf    = find_program('gperf', required: false)
 protoc_c = find_program('protoc-c')
 ipcalc   = find_program(['ipcalc', 'ipcalc-ng'], required: true)
+nft_prog = find_program('nft', required: false)
+
+# Firewall script selection
+_fw_opt = get_option('firewall-script')
+if _fw_opt == 'auto'
+  fw_script_type = nft_prog.found() ? 'nftables' : 'iptables'
+else
+  fw_script_type = _fw_opt
+endif
+message('firewall script: ' + fw_script_type)
 
 # --------------------------------------------------------------------------
 # Required dependencies

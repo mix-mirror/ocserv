@@ -4,6 +4,7 @@
   commands that disconnect users and invalidate their session cookies,
   preventing automatic reconnection (#689)
 - Replaced autoconf/automake build system with meson (#699)
+- Added nftables-based ocserv-fw; requires ipcalc-ng/ipcalc (#397)
 
 
 * Version 1.4.1 (released 2026-02-28)
