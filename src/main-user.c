@@ -51,6 +51,16 @@
 #define OCSERV_FW_SCRIPT "/usr/libexec/ocserv-fw"
 #endif
 
+static const char *ocserv_fw_script(void)
+{
+	static const char *path;
+	if (path == NULL) {
+		const char *env = getenv("OCSERV_FW_SCRIPT");
+		path = (env && env[0]) ? env : OCSERV_FW_SCRIPT;
+	}
+	return path;
+}
+
 #define APPEND_TO_STR(str, val)                                           \
 	do {                                                              \
 		ret = str_append_str(str, val);                           \
@@ -292,7 +302,7 @@ static int call_script(main_server_st *s, struct proc_st *proc,
 		if (proc->config->restrict_user_to_routes ||
 		    proc->config->n_fw_ports > 0) {
 			next_script = script;
-			script = OCSERV_FW_SCRIPT;
+			script = ocserv_fw_script();
 		}
 	}
 
