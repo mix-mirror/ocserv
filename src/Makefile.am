@@ -17,7 +17,8 @@ BUILT_SOURCES = ipc.pb-c.c ipc.pb-c.h \
 	http-heads.h kkdcp_asn1_tab.c ctl.pb-c.c ctl.pb-c.h
 
 EXTRA_DIST = version.inc.in version.inc \
-	ipc.proto ctl.proto http-heads.gperf common.mk ocserv-fw
+	ipc.proto ctl.proto http-heads.gperf common.mk \
+	ocserv-fw-iptables ocserv-fw-nftables
 
 CORE_LDADD = libccan.a libcommon.a
 CORE_LDADD += $(LIBGNUTLS_LIBS) $(PAM_LIBS) $(LIBUTIL) \
@@ -59,7 +60,19 @@ ACCT_SOURCES=acct/radius.c acct/radius.h acct/pam.c acct/pam.h
 
 
 sbin_PROGRAMS = ocserv ocserv-worker
-libexec_SCRIPTS = ocserv-fw
+
+if USE_NFTABLES_FW
+FW_SCRIPT = ocserv-fw-nftables
+else
+FW_SCRIPT = ocserv-fw-iptables
+endif
+
+install-exec-hook:
+	$(MKDIR_P) $(DESTDIR)$(libexecdir)
+	$(INSTALL_SCRIPT) $(srcdir)/$(FW_SCRIPT) $(DESTDIR)$(libexecdir)/ocserv-fw
+
+uninstall-hook:
+	rm -f $(DESTDIR)$(libexecdir)/ocserv-fw
 
 ocserv_SOURCES = $(CORE_SOURCES) $(AUTH_SOURCES) $(ACCT_SOURCES) \
 	main.c main-auth.c main-ban.c main-ban.h main-ctl-unix.c main-proc.c \

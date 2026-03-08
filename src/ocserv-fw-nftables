@@ -1,0 +1,204 @@
+#!/bin/sh
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# This file is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This file is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this file; if not, write to the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+# Input is from environment:
+#
+# OCSERV_RESTRICT_TO_ROUTES: If set to '1' the user should be restricted
+#                    to accessing the OCSERV_ROUTES and prevented from accessing
+#                    OCSERV_NO_ROUTES.
+#
+# OCSERV_ROUTES:     A space separated list of IPv4 and IPv6 routes to
+#                    which the user has access. If empty or not set the
+#                    user has default route.
+#
+# OCSERV_ROUTES4:    A version of OCSERV_ROUTES with IPv4 addresses only.
+# OCSERV_ROUTES6:    A version of OCSERV_ROUTES with IPv6 addresses only.
+#
+# OCSERV_NO_ROUTES:  A space separated list of IPv4 and IPv6 routes to
+#                    which the user has NO access.
+#
+# OCSERV_NO_ROUTES4: A version of OCSERV_NO_ROUTES with IPv4 addresses only.
+# OCSERV_NO_ROUTES6: A version of OCSERV_NO_ROUTES with IPv6 addresses only.
+#
+# OCSERV_DNS:        A space-separated list of DNS servers the user has access to.
+# OCSERV_DNS4:       A version of OCSERV_DNS with IPv4 addresses only.
+# OCSERV_DNS6:       A version of OCSERV_DNS with IPv6 addresses only.
+#
+# OCSERV_DENY_PORTS: A space-separated list of port types and ports that the user
+#                    should be denied access to. An example of the format is:
+#                    "tcp 443 udp 312 sctp 999 icmp all esp all icmpv6 all"
+#
+# OCSERV_ALLOW_PORTS: A space-separated list of port types and ports that the user
+#                     should be granted access to. If set the user must be denied access
+#                     to any other ports. An example of the format is:
+#                     "tcp 443 udp 312 sctp 999 icmp all esp all icmpv6 all"
+
+PATH=/sbin:/usr/sbin:$PATH
+
+IPCALC=$(which ipcalc-ng 2>/dev/null)
+if test -z "${IPCALC}"; then
+	IPCALC=$(which ipcalc 2>/dev/null)
+fi
+
+# nft table names cannot contain hyphens, dots, or other non-identifier chars
+TABLE="ocserv_$(echo "${DEVICE}" | tr -c 'a-zA-Z0-9_' '_')"
+
+if test "$1" = "--removeall"; then
+	_tables=$(nft list tables inet 2>/dev/null | awk '/^table inet ocserv_/{print $3}')
+	for t in $_tables; do
+		nft delete table inet "$t" 2>/dev/null || true
+	done
+	exit 0
+fi
+
+execute_next_script() {
+	if test -n "${OCSERV_NEXT_SCRIPT}"; then
+		TMP_SCRIPT="${OCSERV_NEXT_SCRIPT}"
+		unset OCSERV_NEXT_SCRIPT
+		/bin/sh "${TMP_SCRIPT}"
+	fi
+}
+
+if test "${REASON}" = "disconnect"; then
+	nft delete table inet "${TABLE}" 2>/dev/null || true
+	execute_next_script
+	exit 0
+fi
+
+if test "${REASON}" != "connect"; then
+	logger -t ocserv-fw "unknown reason ${REASON}"
+	exit 1
+fi
+
+set -e
+
+# Convert a route that may use a dotted-decimal subnet mask
+# (e.g. 10.0.0.0/255.0.0.0, as ocserv normalises IPv4 routes) to
+# CIDR prefix-length notation (10.0.0.0/8) required by nftables.
+# IPv6 routes and routes already in CIDR notation are passed through.
+normalize_route() {
+	case "$1" in
+		*/*.*.*.*) eval $(${IPCALC} -p "$1"); echo "${1%%/*}/${PREFIX}" ;;
+		*)         echo "$1" ;;
+	esac
+}
+
+# Convert a space-separated list of routes to a comma-separated list
+# in CIDR notation for use in nftables inline sets.
+routes_to_nft() {
+	_sep=""
+	for _r in $@; do
+		printf '%s%s' "${_sep}" "$(normalize_route "${_r}")"
+		_sep=","
+	done
+	echo ""
+}
+
+# Remove any leftover table for this device (must be outside the atomic block)
+nft delete table inet "${TABLE}" 2>/dev/null || true
+
+# Build and apply the complete table definition atomically
+{
+	printf 'table inet %s {\n  chain forward {\n' "${TABLE}"
+	# priority filter-10 ensures ocserv rules evaluate before firewalld (priority 0)
+	printf '    type filter hook forward priority filter - 10; policy accept;\n'
+	printf '    oif "%s" ct state established,related accept\n' "${DEVICE}"
+
+	# DNS — collect addresses into a single inline set per address family
+	if test -n "${OCSERV_DNS4}"; then
+		dns4=$(echo $OCSERV_DNS4 | tr ' ' ',')
+		printf '    iif "%s" ip daddr { %s } udp dport 53 ct state new accept\n' \
+			"${DEVICE}" "${dns4}"
+		printf '    iif "%s" ip daddr { %s } tcp dport 53 ct state new,established accept\n' \
+			"${DEVICE}" "${dns4}"
+	fi
+	if test -n "${OCSERV_DNS6}"; then
+		dns6=$(echo $OCSERV_DNS6 | tr ' ' ',')
+		printf '    iif "%s" ip6 daddr { %s } udp dport 53 ct state new accept\n' \
+			"${DEVICE}" "${dns6}"
+		printf '    iif "%s" ip6 daddr { %s } tcp dport 53 ct state new,established accept\n' \
+			"${DEVICE}" "${dns6}"
+	fi
+
+	# Port restrictions
+	if test -n "${OCSERV_DENY_PORTS}"; then
+		set -- ${OCSERV_DENY_PORTS}
+		while test $# -gt 1; do
+			proto=$1
+			port=$2
+			case "$proto" in
+				icmp)   printf '    iif "%s" ip protocol icmp drop\n'   "${DEVICE}" ;;
+				icmpv6) printf '    iif "%s" ip6 nexthdr icmpv6 drop\n' "${DEVICE}" ;;
+				esp)    printf '    iif "%s" meta l4proto esp drop\n'   "${DEVICE}" ;;
+				*)      printf '    iif "%s" meta l4proto %s th dport %s drop\n' \
+					"${DEVICE}" "$proto" "$port" ;;
+			esac
+			shift 2
+		done
+	elif test -n "${OCSERV_ALLOW_PORTS}"; then
+		set -- ${OCSERV_ALLOW_PORTS}
+		while test $# -gt 1; do
+			proto=$1
+			port=$2
+			case "$proto" in
+				icmp)   printf '    iif "%s" ip protocol icmp accept\n'   "${DEVICE}" ;;
+				icmpv6) printf '    iif "%s" ip6 nexthdr icmpv6 accept\n' "${DEVICE}" ;;
+				esp)    printf '    iif "%s" meta l4proto esp accept\n'   "${DEVICE}" ;;
+				*)      printf '    iif "%s" meta l4proto %s th dport %s accept\n' \
+					"${DEVICE}" "$proto" "$port" ;;
+			esac
+			shift 2
+		done
+		printf '    iif "%s" drop\n' "${DEVICE}"
+	fi
+
+	# Route restrictions — inline sets for allow/deny lists
+	if test "${OCSERV_RESTRICT_TO_ROUTES}" = "1"; then
+		if test -n "${OCSERV_NO_ROUTES4}"; then
+			no4=$(routes_to_nft $OCSERV_NO_ROUTES4)
+			printf '    iif "%s" ip daddr { %s } drop\n' "${DEVICE}" "${no4}"
+		fi
+		if test -n "${OCSERV_NO_ROUTES6}"; then
+			no6=$(routes_to_nft $OCSERV_NO_ROUTES6)
+			printf '    iif "%s" ip6 daddr { %s } drop\n' "${DEVICE}" "${no6}"
+		fi
+		if test -n "$OCSERV_ROUTES"; then
+			if test -n "$OCSERV_ROUTES4"; then
+				r4=$(routes_to_nft $OCSERV_ROUTES4)
+				printf '    iif "%s" ip daddr { %s } accept\n' "${DEVICE}" "${r4}"
+			fi
+			if test -n "$OCSERV_ROUTES6"; then
+				r6=$(routes_to_nft $OCSERV_ROUTES6)
+				printf '    iif "%s" ip6 daddr { %s } accept\n' "${DEVICE}" "${r6}"
+			fi
+			printf '    iif "%s" drop\n' "${DEVICE}"
+		else
+			printf '    iif "%s" accept\n' "${DEVICE}"
+		fi
+	else
+		printf '    iif "%s" accept\n' "${DEVICE}"
+	fi
+
+	printf '  }\n}\n'
+} | nft -f -
+
+execute_next_script
+
+exit 0

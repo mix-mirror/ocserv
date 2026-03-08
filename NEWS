@@ -1,5 +1,6 @@
 * Version 1.4.2 (unreleased)
 - The bundled llhttp was updated to 9.3.1.
+- Added nftables-based ocserv-fw; requires ipcalc-ng/ipcalc (#397)
 
 
 * Version 1.4.1 (released 2026-02-28)

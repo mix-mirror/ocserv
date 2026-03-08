@@ -45,6 +45,28 @@ fi
 
 AC_PATH_PROG(CTAGS, ctags, [:])
 AC_PATH_PROG(CSCOPE, cscope, [:])
+
+AC_PATH_PROG([NFT], [nft])
+AC_PATH_PROG([IPTABLES], [iptables])
+
+AC_ARG_WITH([firewall-script],
+  [AS_HELP_STRING([--with-firewall-script=TYPE],
+    [firewall script type: nftables or iptables (default: auto, prefers nftables)])],
+  [with_fw_script=$withval],
+  [with_fw_script=auto])
+
+AS_IF([test "x$with_fw_script" = xauto],
+  [AS_IF([test -n "$NFT"],
+    [with_fw_script=nftables],
+    [with_fw_script=iptables])])
+
+AS_CASE([$with_fw_script],
+  [nftables], [],
+  [iptables], [],
+  [AC_MSG_ERROR([Unknown firewall script type: $with_fw_script])])
+
+AM_CONDITIONAL([USE_NFTABLES_FW], [test "x$with_fw_script" = xnftables])
+AC_MSG_NOTICE([firewall script: $with_fw_script])
 AC_CHECK_PROG([RONN], [ronn], [ronn], [:])
 
 if test x"$RONN" = "x:"; then
