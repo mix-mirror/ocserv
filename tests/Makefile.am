@@ -1,6 +1,6 @@
 include ../src/common.mk
 
-EXTRA_DIST = certs/ca-key.pem certs/ca.pem ns.sh common.sh certs/server-cert.pem \
+EXTRA_DIST = test-fw-script certs/ca-key.pem certs/ca.pem ns.sh common.sh certs/server-cert.pem \
 	certs/server-key.pem data/test1.config data/pam/nss-group.in data/pam/nss-passwd.in \
 	data/pam/users.oath.templ data/test-pam-noauth.config data/test-pam.passwd \
 	data/test1.passwd data/test-user-cert.config certs/user-cert.pem certs/user-key.pem \
@@ -63,7 +63,7 @@ endif
 
 if ENABLE_ROOT_TESTS
 #other root requiring tests
-dist_check_SCRIPTS += haproxy-connect test-iroute test-multi-cookie test-pass-script \
+dist_check_SCRIPTS += test-fw-script haproxy-connect test-iroute test-multi-cookie test-pass-script \
 	idle-timeout test-cookie-timeout test-cookie-timeout-2 test-explicit-ip \
 	test-cookie-invalidation test-user-config test-append-routes test-ban \
 	multiple-routes json test-udp-listen-host test-max-same-1 test-script-multi-user \
