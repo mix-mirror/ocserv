@@ -168,6 +168,14 @@ const char *cmd_request_to_str(unsigned int _cmd)
 		return "sm: reload";
 	case CMD_SECM_RELOAD_REPLY:
 		return "sm: reload reply";
+	case CMD_SECM_TERMINATE_USER_SESSIONS:
+		return "sm: terminate user sessions";
+	case CMD_SECM_TERMINATE_USER_SESSIONS_REPLY:
+		return "sm: terminate user sessions reply";
+	case CMD_SECM_TERMINATE_SESSION:
+		return "sm: terminate session";
+	case CMD_SECM_TERMINATE_SESSION_REPLY:
+		return "sm: terminate session reply";
 	default:
 		snprintf(tmp, sizeof(tmp), "unknown (%u)", _cmd);
 		return tmp;

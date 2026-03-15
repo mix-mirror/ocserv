@@ -548,6 +548,74 @@ static int process_packet_from_main(void *pool, int fd, sec_mod_st *sec,
 
 		return ret;
 	}
+	case CMD_SECM_TERMINATE_USER_SESSIONS: {
+		SecmTerminateUserSessionsMsg *msg;
+		SecmTerminateSessionReplyMsg reply =
+			SECM_TERMINATE_SESSION_REPLY_MSG__INIT;
+
+		msg = secm_terminate_user_sessions_msg__unpack(&pa, data.size,
+							       data.data);
+		if (msg == NULL) {
+			seclog(sec, LOG_INFO,
+			       "error unpacking terminate user sessions");
+			return ERR_BAD_COMMAND;
+		}
+
+		if (msg->username != NULL)
+			reply.result =
+				terminate_user_sessions(sec, msg->username);
+
+		ret = send_msg(
+			pool, fd, CMD_SECM_TERMINATE_USER_SESSIONS_REPLY,
+			&reply,
+			(pack_size_func)
+				secm_terminate_session_reply_msg__get_packed_size,
+			(pack_func)secm_terminate_session_reply_msg__pack);
+
+		secm_terminate_user_sessions_msg__free_unpacked(msg, &pa);
+
+		if (ret < 0) {
+			seclog(sec, LOG_ERR,
+			       "could not send terminate session reply!");
+			return ERR_BAD_COMMAND;
+		}
+
+		return 0;
+	}
+	case CMD_SECM_TERMINATE_SESSION: {
+		SecmTerminateSessionMsg *msg;
+		SecmTerminateSessionReplyMsg reply =
+			SECM_TERMINATE_SESSION_REPLY_MSG__INIT;
+
+		msg = secm_terminate_session_msg__unpack(&pa, data.size,
+							 data.data);
+		if (msg == NULL) {
+			seclog(sec, LOG_INFO,
+			       "error unpacking terminate session");
+			return ERR_BAD_COMMAND;
+		}
+
+		if (msg->safe_id.data != NULL && msg->safe_id.len > 0)
+			reply.result = terminate_session_by_sid(
+				sec, (const char *)msg->safe_id.data,
+				msg->safe_id.len);
+
+		ret = send_msg(
+			pool, fd, CMD_SECM_TERMINATE_SESSION_REPLY, &reply,
+			(pack_size_func)
+				secm_terminate_session_reply_msg__get_packed_size,
+			(pack_func)secm_terminate_session_reply_msg__pack);
+
+		secm_terminate_session_msg__free_unpacked(msg, &pa);
+
+		if (ret < 0) {
+			seclog(sec, LOG_ERR,
+			       "could not send terminate session reply!");
+			return ERR_BAD_COMMAND;
+		}
+
+		return 0;
+	}
 	default:
 		seclog(sec, LOG_WARNING, "unknown type 0x%.2x", cmd);
 		return ERR_BAD_COMMAND;

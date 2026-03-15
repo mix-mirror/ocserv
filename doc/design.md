@@ -211,6 +211,41 @@ sequenceDiagram
     sm->>m: SECM_CLI_STATS (SID)
 ```
 
+## IPC Communication for session termination
+
+When an administrator issues a terminate command via occtl, the main process
+disconnects the active worker (if any) and forwards the request to sec-mod
+to invalidate the session cookie, preventing automatic reconnection.
+
+For `terminate session`, occtl first fetches the full cookie list from the
+server to resolve a potentially shortened session ID prefix to the full
+safe_id. If the prefix is ambiguous (matches multiple sessions), occtl
+refuses the operation and lists the matching sessions. Scripts should use
+the full session ID from `occtl --json show sessions valid` ("Full session"
+field) to avoid ambiguity.
+
+```mermaid
+sequenceDiagram
+    participant ctl as occtl
+    participant m as main
+    participant sm as sec-mod
+
+    alt terminate session
+        ctl->>m: CTL_CMD_LIST_COOKIES
+        m->>ctl: cookie list (resolve short SID to full safe_id)
+    end
+    ctl->>m: CTL_CMD_TERMINATE_USER / ID / SESSION
+    Note over m: disconnect worker process(es)
+    alt terminate user
+        m->>sm: SECM_TERMINATE_USER_SESSIONS (username)
+        sm->>m: SECM_TERMINATE_SESSION_REPLY
+    else terminate id / session
+        m->>sm: SECM_TERMINATE_SESSION (safe_id)
+        sm->>m: SECM_TERMINATE_SESSION_REPLY
+    end
+    m->>ctl: CTL_CMD_TERMINATE_*_REP
+```
+
 ## Cookies
 
 Cookies are valid for the value configured in `cookie-timeout` option, after

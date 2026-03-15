@@ -58,6 +58,8 @@ static int common_info_cmd(UserListRep *args, FILE *out, cmd_params_st *params);
 static int session_info_cmd(void *ctx, SecmListCookiesReplyMsg *args, FILE *out,
 			    cmd_params_st *params, const char *lsid,
 			    unsigned int all);
+static char *shorten(void *cookie, unsigned int session_id_size,
+		     unsigned int small);
 
 struct unix_ctx {
 	int fd;
@@ -78,6 +80,9 @@ static uint8_t msg_map[] = {
 	[CTL_CMD_DISCONNECT_NAME] = CTL_CMD_DISCONNECT_NAME_REP,
 	[CTL_CMD_DISCONNECT_ID] = CTL_CMD_DISCONNECT_ID_REP,
 	[CTL_CMD_UNBAN_IP] = CTL_CMD_UNBAN_IP_REP,
+	[CTL_CMD_TERMINATE_USER] = CTL_CMD_TERMINATE_USER_REP,
+	[CTL_CMD_TERMINATE_ID] = CTL_CMD_TERMINATE_ID_REP,
+	[CTL_CMD_TERMINATE_SESSION] = CTL_CMD_TERMINATE_SESSION_REP,
 };
 
 struct cmd_reply_st {
@@ -659,6 +664,283 @@ int handle_disconnect_id_cmd(struct unix_ctx *ctx, const char *arg,
 	}
 
 	goto cleanup;
+
+error:
+	fprintf(stderr, ERR_SERVER_UNREACHABLE);
+	ret = 1;
+cleanup:
+	free_reply(&raw);
+
+	return ret;
+}
+
+int handle_terminate_user_cmd(struct unix_ctx *ctx, const char *arg,
+			      cmd_params_st *params)
+{
+	int ret;
+	struct cmd_reply_st raw;
+	BoolMsg *rep;
+	unsigned int status;
+	UsernameReq req = USERNAME_REQ__INIT;
+
+	PROTOBUF_ALLOCATOR(pa, ctx);
+
+	if (arg == NULL || need_help(arg)) {
+		check_cmd_help(rl_line_buffer);
+		return 1;
+	}
+
+	init_reply(&raw);
+
+	req.username = (void *)arg;
+
+	ret = send_cmd(ctx, CTL_CMD_TERMINATE_USER, &req,
+		       (pack_size_func)username_req__get_packed_size,
+		       (pack_func)username_req__pack, &raw);
+	if (ret < 0) {
+		goto error;
+	}
+
+	rep = bool_msg__unpack(&pa, raw.data_size, raw.data);
+	if (rep == NULL)
+		goto error;
+
+	status = rep->status;
+	bool_msg__free_unpacked(rep, &pa);
+
+	if (status != 0) {
+		printf("user '%s' was terminated (session invalidated)\n", arg);
+		ret = 0;
+	} else {
+		printf("could not terminate user '%s'\n", arg);
+		ret = 1;
+	}
+
+	goto cleanup;
+
+error:
+	fprintf(stderr, ERR_SERVER_UNREACHABLE);
+	ret = 1;
+cleanup:
+	free_reply(&raw);
+
+	return ret;
+}
+
+int handle_terminate_id_cmd(struct unix_ctx *ctx, const char *arg,
+			    cmd_params_st *params)
+{
+	int ret;
+	struct cmd_reply_st raw;
+	BoolMsg *rep;
+	unsigned int status;
+	unsigned int id = 0;
+	IdReq req = ID_REQ__INIT;
+
+	PROTOBUF_ALLOCATOR(pa, ctx);
+
+	if (arg != NULL)
+		id = atoi(arg);
+
+	if (arg == NULL || need_help(arg) || id == 0) {
+		check_cmd_help(rl_line_buffer);
+		return 1;
+	}
+
+	init_reply(&raw);
+
+	req.id = id;
+
+	ret = send_cmd(ctx, CTL_CMD_TERMINATE_ID, &req,
+		       (pack_size_func)id_req__get_packed_size,
+		       (pack_func)id_req__pack, &raw);
+	if (ret < 0) {
+		goto error;
+	}
+
+	rep = bool_msg__unpack(&pa, raw.data_size, raw.data);
+	if (rep == NULL)
+		goto error;
+
+	status = rep->status;
+	bool_msg__free_unpacked(rep, &pa);
+
+	if (status != 0) {
+		printf("connection ID '%s' was terminated (session invalidated)\n",
+		       arg);
+		ret = 0;
+	} else {
+		printf("could not terminate ID '%s'\n", arg);
+		ret = 1;
+	}
+
+	goto cleanup;
+
+error:
+	fprintf(stderr, ERR_SERVER_UNREACHABLE);
+	ret = 1;
+cleanup:
+	free_reply(&raw);
+
+	return ret;
+}
+
+int handle_terminate_session_cmd(struct unix_ctx *ctx, const char *arg,
+				 cmd_params_st *params)
+{
+	int ret;
+	struct cmd_reply_st raw;
+	struct cmd_reply_st raw_cookies;
+	BoolMsg *rep;
+	SecmListCookiesReplyMsg *crep = NULL;
+	unsigned int status;
+	SafeIdReq req = SAFE_ID_REQ__INIT;
+	unsigned int i;
+	size_t arg_len;
+	char resolved_safe_id[SAFE_ID_SIZE];
+	unsigned int match_count = 0;
+
+	PROTOBUF_ALLOCATOR(pa, ctx);
+
+	if (arg == NULL || need_help(arg)) {
+		check_cmd_help(rl_line_buffer);
+		return 1;
+	}
+
+	arg_len = strlen(arg);
+	if (arg_len > SAFE_ID_SIZE - 1) {
+		printf("invalid session ID '%s'\n", arg);
+		return 1;
+	}
+
+	/* Fetch cookie list to resolve short SID to full safe_id */
+	init_reply(&raw_cookies);
+
+	ret = send_cmd(ctx, CTL_CMD_LIST_COOKIES, NULL, NULL, NULL,
+		       &raw_cookies);
+	if (ret < 0) {
+		goto error_cookies;
+	}
+
+	crep = secm_list_cookies_reply_msg__unpack(&pa, raw_cookies.data_size,
+						   raw_cookies.data);
+	if (crep == NULL)
+		goto error_cookies;
+
+	/* Find cookies matching the given prefix */
+	for (i = 0; i < crep->n_cookies; i++) {
+		if (crep->cookies[i]->safe_id.len < arg_len)
+			continue;
+		if (memcmp(crep->cookies[i]->safe_id.data, arg, arg_len) == 0) {
+			match_count++;
+			memcpy(resolved_safe_id, crep->cookies[i]->safe_id.data,
+			       MIN(crep->cookies[i]->safe_id.len,
+				   SAFE_ID_SIZE - 1));
+			resolved_safe_id[MIN(crep->cookies[i]->safe_id.len,
+					     SAFE_ID_SIZE - 1)] = 0;
+		}
+	}
+
+	if (match_count == 0) {
+		printf("no session matching '%s' was found\n", arg);
+		ret = 1;
+		goto cleanup_cookies;
+	}
+
+	if (match_count > 1) {
+		printf("ambiguous session ID '%s' matches %u sessions:\n", arg,
+		       match_count);
+		for (i = 0; i < crep->n_cookies; i++) {
+			if (crep->cookies[i]->safe_id.len < arg_len)
+				continue;
+			if (memcmp(crep->cookies[i]->safe_id.data, arg,
+				   arg_len) == 0) {
+				const char *username =
+					crep->cookies[i]->username;
+				if (username == NULL || username[0] == 0)
+					username = NO_USER;
+				printf("  %s  user: %s\n",
+				       shorten(crep->cookies[i]->safe_id.data,
+					       crep->cookies[i]->safe_id.len,
+					       0),
+				       username);
+			}
+		}
+		printf("use the full session ID to terminate a specific session\n");
+		ret = 1;
+		goto cleanup_cookies;
+	}
+
+	/* Warn if the session has an active connection */
+	for (i = 0; i < crep->n_cookies; i++) {
+		if (crep->cookies[i]->safe_id.len < arg_len)
+			continue;
+		if (memcmp(crep->cookies[i]->safe_id.data, arg, arg_len) == 0) {
+			if (crep->cookies[i]->in_use) {
+				const char *username =
+					crep->cookies[i]->username;
+				if (username == NULL || username[0] == 0)
+					username = NO_USER;
+				fprintf(stderr,
+					"warning: session '%.6s' (user: %s) has an active"
+					" connection; the connection will not be dropped\n",
+					(const char *)crep->cookies[i]
+						->safe_id.data,
+					username);
+			}
+			break;
+		}
+	}
+
+	secm_list_cookies_reply_msg__free_unpacked(crep, &pa);
+	crep = NULL;
+	free_reply(&raw_cookies);
+
+	/* Reconnect - server closes the socket after each command */
+	conn_posthandle(ctx);
+	if (conn_prehandle(ctx) < 0) {
+		fprintf(stderr, ERR_SERVER_UNREACHABLE);
+		return 1;
+	}
+
+	/* Exactly one match - send the full safe_id */
+	init_reply(&raw);
+
+	req.safe_id.data = (uint8_t *)resolved_safe_id;
+	req.safe_id.len = strlen(resolved_safe_id);
+
+	ret = send_cmd(ctx, CTL_CMD_TERMINATE_SESSION, &req,
+		       (pack_size_func)safe_id_req__get_packed_size,
+		       (pack_func)safe_id_req__pack, &raw);
+	if (ret < 0) {
+		goto error;
+	}
+
+	rep = bool_msg__unpack(&pa, raw.data_size, raw.data);
+	if (rep == NULL)
+		goto error;
+
+	status = rep->status;
+	bool_msg__free_unpacked(rep, &pa);
+
+	if (status != 0) {
+		printf("session '%.6s' was terminated\n", arg);
+		ret = 0;
+	} else {
+		printf("could not terminate session '%.6s'\n", arg);
+		ret = 1;
+	}
+
+	goto cleanup;
+
+error_cookies:
+	fprintf(stderr, ERR_SERVER_UNREACHABLE);
+	ret = 1;
+cleanup_cookies:
+	if (crep != NULL)
+		secm_list_cookies_reply_msg__free_unpacked(crep, &pa);
+	free_reply(&raw_cookies);
+	return ret;
 
 error:
 	fprintf(stderr, ERR_SERVER_UNREACHABLE);

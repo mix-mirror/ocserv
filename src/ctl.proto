@@ -106,6 +106,12 @@ message id_req
 	required sint32 id = 1;
 }
 
+/* Used by 'terminate session' to transport the safe session ID */
+message safe_id_req
+{
+	required bytes safe_id = 1;
+}
+
 message ban_info_rep
 {
 	required bytes ip = 1;

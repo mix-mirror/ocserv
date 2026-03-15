@@ -38,6 +38,7 @@
 #include <ccan/container_of/container_of.h>
 
 #include <ctl.pb-c.h>
+#include <ipc.pb-c.h>
 #include <str.h>
 
 typedef struct method_ctx {
@@ -69,6 +70,12 @@ static void method_list_banned(method_ctx *ctx, int cfd, uint8_t *msg,
 			       unsigned int msg_size);
 static void method_list_cookies(method_ctx *ctx, int cfd, uint8_t *msg,
 				unsigned int msg_size);
+static void method_terminate_user(method_ctx *ctx, int cfd, uint8_t *msg,
+				  unsigned int msg_size);
+static void method_terminate_id(method_ctx *ctx, int cfd, uint8_t *msg,
+				unsigned int msg_size);
+static void method_terminate_session(method_ctx *ctx, int cfd, uint8_t *msg,
+				     unsigned int msg_size);
 
 typedef void (*method_func)(method_ctx *ctx, int cfd, uint8_t *msg,
 			    unsigned int msg_size);
@@ -97,6 +104,9 @@ static const ctl_method_st methods[] = {
 	ENTRY(CTL_CMD_UNBAN_IP, method_unban_ip),
 	ENTRY(CTL_CMD_DISCONNECT_NAME, method_disconnect_user_name),
 	ENTRY(CTL_CMD_DISCONNECT_ID, method_disconnect_user_id),
+	ENTRY(CTL_CMD_TERMINATE_USER, method_terminate_user),
+	ENTRY(CTL_CMD_TERMINATE_ID, method_terminate_id),
+	ENTRY(CTL_CMD_TERMINATE_SESSION, method_terminate_session),
 	{ NULL, 0, NULL }
 };
 
@@ -863,6 +873,241 @@ static void method_disconnect_user_id(method_ctx *ctx, int cfd, uint8_t *msg,
 	id_req__free_unpacked(req, NULL);
 
 	ret = send_msg(ctx->pool, cfd, CTL_CMD_DISCONNECT_ID_REP, &rep,
+		       (pack_size_func)bool_msg__get_packed_size,
+		       (pack_func)bool_msg__pack);
+	if (ret < 0) {
+		mslog(ctx->s, NULL, LOG_ERR, "error sending ctl reply");
+	}
+}
+
+/* Invalidate all session cookies for a given username in sec-mod */
+static int terminate_user_sessions_in_secmod(method_ctx *ctx,
+					     const char *username)
+{
+	SecmTerminateUserSessionsMsg req =
+		SECM_TERMINATE_USER_SESSIONS_MSG__INIT;
+	SecmTerminateSessionReplyMsg *reply = NULL;
+	int ret, result = 0;
+	unsigned int i;
+
+	PROTOBUF_ALLOCATOR(pa, ctx->pool);
+
+	req.username = (char *)username;
+
+	for (i = 0; i < ctx->s->sec_mod_instance_count; i++) {
+		ret = send_msg(
+			ctx->pool, ctx->s->sec_mod_instances[i].sec_mod_fd_sync,
+			CMD_SECM_TERMINATE_USER_SESSIONS, &req,
+			(pack_size_func)
+				secm_terminate_user_sessions_msg__get_packed_size,
+			(pack_func)secm_terminate_user_sessions_msg__pack);
+		if (ret < 0) {
+			mslog(ctx->s, NULL, LOG_ERR,
+			      "error sending terminate to sec-mod!");
+			continue;
+		}
+
+		ret = recv_msg(
+			ctx->pool, ctx->s->sec_mod_instances[i].sec_mod_fd_sync,
+			CMD_SECM_TERMINATE_USER_SESSIONS_REPLY, (void *)&reply,
+			(unpack_func)secm_terminate_session_reply_msg__unpack,
+			MAIN_SEC_MOD_TIMEOUT);
+		if (ret < 0) {
+			mslog(ctx->s, NULL, LOG_ERR,
+			      "error receiving terminate reply");
+			continue;
+		}
+
+		if (reply && reply->result)
+			result = 1;
+		if (reply)
+			secm_terminate_session_reply_msg__free_unpacked(reply,
+									&pa);
+		reply = NULL;
+		if (result == 1)
+			break;
+	}
+
+	return result;
+}
+
+/* Invalidate a single session cookie by safe_id in sec-mod */
+static int terminate_session_in_secmod(method_ctx *ctx, const char *safe_id,
+				       size_t safe_id_len)
+{
+	SecmTerminateSessionMsg req = SECM_TERMINATE_SESSION_MSG__INIT;
+	SecmTerminateSessionReplyMsg *reply = NULL;
+	int ret, result = 0;
+	unsigned int i;
+
+	PROTOBUF_ALLOCATOR(pa, ctx->pool);
+
+	req.safe_id.data = (uint8_t *)safe_id;
+	req.safe_id.len = safe_id_len;
+
+	for (i = 0; i < ctx->s->sec_mod_instance_count; i++) {
+		ret = send_msg(
+			ctx->pool, ctx->s->sec_mod_instances[i].sec_mod_fd_sync,
+			CMD_SECM_TERMINATE_SESSION, &req,
+			(pack_size_func)
+				secm_terminate_session_msg__get_packed_size,
+			(pack_func)secm_terminate_session_msg__pack);
+		if (ret < 0) {
+			mslog(ctx->s, NULL, LOG_ERR,
+			      "error sending terminate to sec-mod!");
+			continue;
+		}
+
+		ret = recv_msg(
+			ctx->pool, ctx->s->sec_mod_instances[i].sec_mod_fd_sync,
+			CMD_SECM_TERMINATE_SESSION_REPLY, (void *)&reply,
+			(unpack_func)secm_terminate_session_reply_msg__unpack,
+			MAIN_SEC_MOD_TIMEOUT);
+		if (ret < 0) {
+			mslog(ctx->s, NULL, LOG_ERR,
+			      "error receiving terminate reply");
+			continue;
+		}
+
+		if (reply && reply->result)
+			result = 1;
+		if (reply)
+			secm_terminate_session_reply_msg__free_unpacked(reply,
+									&pa);
+		reply = NULL;
+		if (result == 1)
+			break;
+	}
+
+	return result;
+}
+
+static void method_terminate_user(method_ctx *ctx, int cfd, uint8_t *msg,
+				  unsigned int msg_size)
+{
+	UsernameReq *req;
+	BoolMsg rep = BOOL_MSG__INIT;
+	struct proc_st *cpos;
+	struct proc_st *ctmp = NULL;
+	int ret;
+
+	mslog(ctx->s, NULL, LOG_DEBUG, "ctl: terminate user");
+
+	req = username_req__unpack(NULL, msg_size, msg);
+	if (req == NULL) {
+		mslog(ctx->s, NULL, LOG_ERR,
+		      "error parsing terminate user request");
+		return;
+	}
+
+	/* First disconnect all active sessions for this user */
+	list_for_each_safe(&ctx->s->proc_list.head, ctmp, cpos, list)
+	{
+		if (strcmp(ctmp->username, req->username) == 0) {
+			disconnect_proc(ctx->s, ctmp);
+			rep.status = 1;
+		}
+	}
+
+	/* Then invalidate all session cookies in sec-mod */
+	if (terminate_user_sessions_in_secmod(ctx, req->username)) {
+		mslog(ctx->s, NULL, LOG_INFO,
+		      "terminated session cookies for user '%s'",
+		      req->username);
+		rep.status = 1;
+	}
+
+	username_req__free_unpacked(req, NULL);
+
+	ret = send_msg(ctx->pool, cfd, CTL_CMD_TERMINATE_USER_REP, &rep,
+		       (pack_size_func)bool_msg__get_packed_size,
+		       (pack_func)bool_msg__pack);
+	if (ret < 0) {
+		mslog(ctx->s, NULL, LOG_ERR, "error sending ctl reply");
+	}
+}
+
+static void method_terminate_id(method_ctx *ctx, int cfd, uint8_t *msg,
+				unsigned int msg_size)
+{
+	IdReq *req;
+	BoolMsg rep = BOOL_MSG__INIT;
+	struct proc_st *cpos;
+	struct proc_st *ctmp = NULL;
+	int ret;
+	char safe_id[SAFE_ID_SIZE];
+	int found = 0;
+
+	mslog(ctx->s, NULL, LOG_DEBUG, "ctl: terminate id");
+
+	req = id_req__unpack(NULL, msg_size, msg);
+	if (req == NULL) {
+		mslog(ctx->s, NULL, LOG_ERR,
+		      "error parsing terminate id request");
+		return;
+	}
+
+	/* Find and disconnect the process, save sid for cookie invalidation */
+	list_for_each_safe(&ctx->s->proc_list.head, ctmp, cpos, list)
+	{
+		if (ctmp->pid == req->id) {
+			calc_safe_id(ctmp->sid, sizeof(ctmp->sid), safe_id,
+				     SAFE_ID_SIZE);
+			found = 1;
+			disconnect_proc(ctx->s, ctmp);
+			rep.status = 1;
+			break;
+		}
+	}
+
+	/* Invalidate session cookie for the specific connection */
+	if (found) {
+		if (terminate_session_in_secmod(ctx, safe_id,
+						SAFE_ID_SIZE - 1)) {
+			mslog(ctx->s, NULL, LOG_INFO,
+			      "terminated session cookie for ID %d", req->id);
+		}
+	}
+
+	id_req__free_unpacked(req, NULL);
+
+	ret = send_msg(ctx->pool, cfd, CTL_CMD_TERMINATE_ID_REP, &rep,
+		       (pack_size_func)bool_msg__get_packed_size,
+		       (pack_func)bool_msg__pack);
+	if (ret < 0) {
+		mslog(ctx->s, NULL, LOG_ERR, "error sending ctl reply");
+	}
+}
+
+static void method_terminate_session(method_ctx *ctx, int cfd, uint8_t *msg,
+				     unsigned int msg_size)
+{
+	SafeIdReq *req;
+	BoolMsg rep = BOOL_MSG__INIT;
+	int ret;
+
+	mslog(ctx->s, NULL, LOG_DEBUG, "ctl: terminate session");
+
+	req = safe_id_req__unpack(NULL, msg_size, msg);
+	if (req == NULL) {
+		mslog(ctx->s, NULL, LOG_ERR,
+		      "error parsing terminate session request");
+		return;
+	}
+
+	/* Invalidate session cookie by safe_id */
+	if (req->safe_id.data != NULL && req->safe_id.len > 0 &&
+	    terminate_session_in_secmod(ctx, (const char *)req->safe_id.data,
+					req->safe_id.len)) {
+		mslog(ctx->s, NULL, LOG_INFO,
+		      "terminated session (session: %.6s)",
+		      (const char *)req->safe_id.data);
+		rep.status = 1;
+	}
+
+	safe_id_req__free_unpacked(req, NULL);
+
+	ret = send_msg(ctx->pool, cfd, CTL_CMD_TERMINATE_SESSION_REP, &rep,
 		       (pack_size_func)bool_msg__get_packed_size,
 		       (pack_func)bool_msg__pack);
 	if (ret < 0) {

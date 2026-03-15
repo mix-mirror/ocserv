@@ -1,9 +1,12 @@
 * Version 1.4.2 (unreleased)
 - The bundled llhttp was updated to 9.3.1.
+- occtl: Added 'terminate user', 'terminate id', and 'terminate session'
+  commands that disconnect users and invalidate their session cookies,
+  preventing automatic reconnection (#689)
 
 
 * Version 1.4.1 (released 2026-02-28)
-- [SECURITY] Fixed authentication bypass (medium severity) when combined 
+- [SECURITY] Fixed authentication bypass (medium severity) when combined
   password with certificate authentication with cert-user-oid set to SAN(rfc822name):
   a client presenting a valid CA-signed certificate without the expected
   RFC822 SAN field could authenticate using password credentials alone,
