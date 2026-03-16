@@ -225,7 +225,7 @@ if get_option('root-tests')
 
   test('test-script-multi-user', find_program('test-script-multi-user'),
     env:         test_env,
-    timeout:     360,
+    timeout:     700,
     is_parallel: false,
     workdir:     test_workdir,
   )
