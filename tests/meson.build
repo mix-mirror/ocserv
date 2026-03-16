@@ -15,6 +15,17 @@ test_env.set('OCCTL',        meson.build_root() / 'src' / 'occtl' / 'occtl')
 test_env.set('OCPASSWD',     meson.build_root() / 'src' / 'ocpasswd' / 'ocpasswd')
 
 # --------------------------------------------------------------------------
+# Generate raddb directory in the build tree
+# radiusd.conf is generated from radiusd.conf.in with RADIUS_LIBDIR substituted.
+# All other static files are copied so radiusd -d <raddb_build_dir> works.
+# The subdir() call below outputs files into build/tests/data/raddb/.
+# --------------------------------------------------------------------------
+
+raddb_build_dir = meson.current_build_dir() / 'data' / 'raddb'
+test_env.set('RADDB_DIR', raddb_build_dir)
+subdir('data/raddb')
+
+# --------------------------------------------------------------------------
 # C unit tests
 # --------------------------------------------------------------------------
 
@@ -207,13 +218,6 @@ if get_option('root-tests')
     'test-config-per-group-url-cert', 'test-multiple-client-ip',
   ]
 
-  if radcli_dep.found()
-    root_scripts += [
-      'radius', 'radius-group', 'radius-multi-group',
-      'radius-otp', 'radius-config',
-    ]
-  endif
-
   foreach s : root_scripts
     test(s, find_program(s),
       env:         test_env,
@@ -222,6 +226,19 @@ if get_option('root-tests')
       workdir:     test_workdir,
     )
   endforeach
+
+  if radcli_dep.found()
+    foreach s : ['radius', 'radius-group', 'radius-multi-group',
+                 'radius-otp', 'radius-config']
+      test(s, find_program(s),
+        env:         test_env,
+        timeout:     300,
+        is_parallel: false,
+        workdir:     test_workdir,
+        depends:     [raddb_chmod_stamp],
+      )
+    endforeach
+  endif
 
   test('test-script-multi-user', find_program('test-script-multi-user'),
     env:         test_env,

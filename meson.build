@@ -124,6 +124,19 @@ if not opt_radius.disabled()
   endif
 endif
 
+# Detect freeradius module directory (for test radiusd.conf generation)
+# radius_libdir is the parent of the freeradius/ subdir (e.g. /usr/lib64)
+radius_libdir = '/usr/lib'
+foreach _pair : [['/usr/lib64/freeradius', '/usr/lib64'],
+                 ['/usr/lib/freeradius',   '/usr/lib'],
+                 ['/usr/lib/x86_64-linux-gnu/freeradius', '/usr/lib/x86_64-linux-gnu'],
+                 ['/usr/lib/aarch64-linux-gnu/freeradius', '/usr/lib/aarch64-linux-gnu']]
+  if fs.is_dir(_pair[0])
+    radius_libdir = _pair[1]
+    break
+  endif
+endforeach
+
 # GSSAPI + libtasn1
 gssapi_dep = dependency('', required: false)
 tasn1_dep  = dependency('', required: false)
