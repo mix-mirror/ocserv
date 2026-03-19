@@ -33,7 +33,7 @@ configuration while ocserv-main will use the previous configuration.
 # Basic build tools
 apt-get install -y build-essential meson ninja-build pkg-config
 # Required
-apt-get install -y libgnutls28-dev libev-dev libreadline-dev
+apt-get install -y libgnutls28-dev libev-dev libreadline-dev libtasn1-bin
 # Optional functionality and testing
 apt-get install -y libpam0g-dev liblz4-dev libseccomp-dev \
 	libnl-route-3-dev libkrb5-dev libradcli-dev \
@@ -51,7 +51,7 @@ apt-get install -y ronn
 # Basic build tools
 yum install -y meson ninja-build gcc pkgconf-pkg-config
 # Required
-yum install -y gnutls-devel libev-devel readline-devel
+yum install -y gnutls-devel libev-devel readline-devel libtasn1-tools
 # Optional functionality and testing
 yum install -y pam-devel lz4-devel libseccomp-devel \
 	libnl3-devel krb5-devel radcli-devel libcurl-devel cjose-devel \

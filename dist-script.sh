@@ -7,32 +7,44 @@ set -e
 
 DISTROOT="$MESON_PROJECT_DIST_ROOT"
 
+require_cmd() {
+    command -v "$1" >/dev/null 2>&1 || {
+        echo "dist-script: ERROR: '$1' not found; install it to create a dist tarball" >&2
+        exit 1
+    }
+}
+
 # --------------------------------------------------------------------------
 # Protocol buffers: ipc.proto and ctl.proto
 # --------------------------------------------------------------------------
 
-PROTOC=$(command -v protoc 2>/dev/null || command -v protoc-c 2>/dev/null || true)
+PROTOC=$(command -v protoc-c 2>/dev/null || command -v protoc 2>/dev/null || true)
 if [ -z "$PROTOC" ]; then
-    echo "dist-script: WARNING: protoc/protoc-c not found, skipping pb-c generation" >&2
-else
-    "$PROTOC" --c_out="$DISTROOT/src" \
-              --proto_path="$DISTROOT/src" \
-              "$DISTROOT/src/ipc.proto"
-    "$PROTOC" --c_out="$DISTROOT/src" \
-              --proto_path="$DISTROOT/src" \
-              "$DISTROOT/src/ctl.proto"
+    echo "dist-script: ERROR: protoc-c/protoc not found; install it to create a dist tarball" >&2
+    exit 1
 fi
+"$PROTOC" --c_out="$DISTROOT/src" \
+          --proto_path="$DISTROOT/src" \
+          "$DISTROOT/src/ipc.proto"
+"$PROTOC" --c_out="$DISTROOT/src" \
+          --proto_path="$DISTROOT/src" \
+          "$DISTROOT/src/ctl.proto"
+
+# --------------------------------------------------------------------------
+# ASN.1 (GSSAPI / KKDCP)
+# --------------------------------------------------------------------------
+
+require_cmd asn1Parser
+asn1Parser -o "$DISTROOT/src/kkdcp_asn1_tab.c" \
+           "$DISTROOT/src/kkdcp.asn"
 
 # --------------------------------------------------------------------------
 # gperf: http-heads.c
 # --------------------------------------------------------------------------
 
-if command -v gperf >/dev/null 2>&1; then
-    gperf --global-table -t "$DISTROOT/src/http-heads.gperf" \
-        --output-file "$DISTROOT/src/http-heads.c"
-else
-    echo "dist-script: WARNING: gperf not found, skipping http-heads.c generation" >&2
-fi
+require_cmd gperf
+gperf --global-table -t "$DISTROOT/src/http-heads.gperf" \
+    --output-file "$DISTROOT/src/http-heads.c"
 
 # --------------------------------------------------------------------------
 # version.inc
