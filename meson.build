@@ -28,6 +28,12 @@ add_project_arguments(warn_flags, language: 'c')
 # _GNU_SOURCE and friends (AC_USE_SYSTEM_EXTENSIONS)
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
 
+# When building with coverage instrumentation, define WITH_COVERAGE so that
+# worker processes can explicitly flush gcov data before calling _exit().
+if get_option('b_coverage')
+  add_project_arguments('-DWITH_COVERAGE', language: 'c')
+endif
+
 # --------------------------------------------------------------------------
 # Required tools
 # --------------------------------------------------------------------------

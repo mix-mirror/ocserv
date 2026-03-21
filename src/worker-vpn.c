@@ -20,6 +20,20 @@
 
 #include <config.h>
 
+#ifdef WITH_COVERAGE
+#include <unistd.h>
+#include <sys/stat.h>
+extern void __gcov_exit(void);
+static inline void worker_exit(int status)
+{
+	umask(022);
+	__gcov_exit();
+	_exit(status);
+}
+#else
+#define worker_exit(s) _exit(s)
+#endif
+
 #include <gnutls/gnutls.h>
 #include <gnutls/dtls.h>
 #include <gnutls/crypto.h>
@@ -131,7 +145,7 @@ static void handle_alarm(int signo)
 	if (global_ws)
 		exit_worker_reason(global_ws, terminate_reason);
 
-	_exit(EXIT_FAILURE);
+	worker_exit(EXIT_FAILURE);
 }
 
 static void handle_term(int signo)
@@ -591,7 +605,7 @@ void exit_worker_reason(worker_st *ws, unsigned int reason)
 
 	talloc_free(ws->main_pool);
 	closelog();
-	_exit(EXIT_FAILURE);
+	worker_exit(EXIT_FAILURE);
 }
 
 #define HANDSHAKE_SESSION_ID_POS (34)
