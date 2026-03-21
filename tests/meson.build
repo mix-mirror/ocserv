@@ -227,7 +227,7 @@ if get_option('root-tests')
     'ping-leases', 'test-ban-local', 'test-client-bypass-protocol',
     'ipv6-small-net', 'test-camouflage', 'test-camouflage-norealm',
     'vhost-traffic', 'defvhost-traffic', 'session-timeout',
-    'test-occtl', 'no-ipv6-ocv3',
+    'test-occtl', 'test-occtl-commands', 'no-ipv6-ocv3',
     # cipher / traffic tests
     'traffic', 'bandwidth', 'lz4-compression', 'lzs-compression',
     'aes256-cipher', 'aes128-cipher',
