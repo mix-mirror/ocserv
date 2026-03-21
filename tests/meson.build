@@ -183,14 +183,12 @@ if oidc_enabled
     timeout:      30,
     workdir:      test_workdir,
     priority:     1,
-    is_parallel:  false,
   )
   test('test-oidc', find_program('test-oidc'),
     env:          test_env,
     timeout:      180,
     workdir:      test_workdir,
     priority:     0,
-    is_parallel:  false,
   )
 endif
 
@@ -240,29 +238,26 @@ if get_option('root-tests')
 
   foreach s : root_scripts
     test(s, find_program(s),
-      env:         test_env,
-      timeout:     300,
-      is_parallel: false,
-      workdir:     test_workdir,
+      env:     test_env,
+      timeout: 300,
+      workdir: test_workdir,
     )
   endforeach
 
   # PAM accounting test requires PAM support compiled in and pam_wrapper
   if have_cwrap_pam
     test('test-pass-pam-acct', find_program('test-pass-pam-acct'),
-      env:         test_env,
-      timeout:     300,
-      is_parallel: false,
-      workdir:     test_workdir,
+      env:     test_env,
+      timeout: 300,
+      workdir: test_workdir,
     )
   endif
 
   if get_option('namespaces').enabled()
     test('test-namespace-listen', find_program('test-namespace-listen'),
-      env:         test_env,
-      timeout:     300,
-      is_parallel: false,
-      workdir:     test_workdir,
+      env:     test_env,
+      timeout: 300,
+      workdir: test_workdir,
     )
   endif
 
@@ -270,19 +265,17 @@ if get_option('root-tests')
     foreach s : ['radius', 'radius-group', 'radius-multi-group',
                  'radius-otp', 'radius-config']
       test(s, find_program(s),
-        env:         test_env,
-        timeout:     300,
-        is_parallel: false,
-        workdir:     test_workdir,
-        depends:     [raddb_chmod_stamp],
+        env:     test_env,
+        timeout: 300,
+        workdir: test_workdir,
+        depends: [raddb_chmod_stamp],
       )
     endforeach
   endif
 
   test('test-script-multi-user', find_program('test-script-multi-user'),
-    env:         test_env,
-    timeout:     700,
-    is_parallel: false,
-    workdir:     test_workdir,
+    env:     test_env,
+    timeout: 700,
+    workdir: test_workdir,
   )
 endif
