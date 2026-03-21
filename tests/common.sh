@@ -226,6 +226,30 @@ cleanup() {
 	return $ret
 }
 
+# cleanup_client_server: kill the VPN client BEFORE the server so that the
+# worker process detects the peer disconnect and exits cleanly (calling
+# __gcov_dump() in coverage builds) instead of being force-killed by
+# terminate_server() after its 5-second SIGKILL deadline.
+#
+# Usage from a finish() trap:
+#   cleanup_client_server
+# followed by any test-specific file removals.
+#
+# Expects the caller to have set:
+#   CLIPID  - file holding the openconnect client PID  (may be unset/absent)
+#   PID     - ocserv main process PID
+#   PIDFILE - file holding the ocserv PID              (may be unset/absent)
+cleanup_client_server() {
+	set +e
+	test -n "${CLIPID}" && test -f "${CLIPID}" && kill $(cat ${CLIPID}) >/dev/null 2>&1
+	test -n "${CLIPID}" && rm -f "${CLIPID}" >/dev/null 2>&1
+	sleep 2
+	test -n "${PID}" && kill ${PID} >/dev/null 2>&1
+	test -n "${PID}" && wait ${PID} 2>/dev/null
+	test -n "${PIDFILE}" && rm -f "${PIDFILE}" >/dev/null 2>&1
+	test -n "${CONFIG}" && rm -f "${CONFIG}" >/dev/null 2>&1
+}
+
 # Check for a utility to list ports.  Both ss and netstat will list
 # ports for normal users, and have similar semantics, so put the
 # command in the caller's PFCMD, or exit, indicating an unsupported

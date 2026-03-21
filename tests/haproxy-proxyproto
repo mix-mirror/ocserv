@@ -55,15 +55,10 @@ fi
 echo "Testing ocserv connection via haproxy... "
 
 function finish {
-  set +e
   echo " * Cleaning up..."
+  cleanup_client_server
   test -n "${HAPID}" && kill ${HAPID} >/dev/null 2>&1
-  test -n "${PID}" && kill ${PID} >/dev/null 2>&1
-  test -n "${PIDFILE}" && rm -f ${PIDFILE} >/dev/null 2>&1
-  test -n "${CLIPID}" && kill $(cat ${CLIPID}) >/dev/null 2>&1
-  test -n "${CLIPID}" && rm -f ${CLIPID} >/dev/null 2>&1
   test -n "${HACONFIG}" && rm -f ${HACONFIG} >/dev/null 2>&1
-  test -n "${CONFIG}" && rm -f ${CONFIG} >/dev/null 2>&1
   test -n "${NUTTCPPID}" && kill ${NUTTCPPID} >/dev/null 2>&1
   rm -f proxyproto-connect-ok
   rm -f $OUTPUT
