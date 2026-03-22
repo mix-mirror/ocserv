@@ -9,5 +9,14 @@ exclude = */http-heads.gperf
 # "duplicate merge record src".
 exclude = */build/src/*
 
+# Exclude vendored third-party libraries — not developed in this project.
+exclude = */src/ccan/*
+exclude = */src/gnulib/*
+exclude = */src/inih/*
+exclude = */src/llhttp/*
+exclude = */src/pcl/*
+exclude = */tests/*
+exclude = */src/protobuf/protobuf-c/*
+
 ignore_errors = unused
 genhtml_ignore_errors = unmapped
