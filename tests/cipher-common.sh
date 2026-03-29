@@ -43,6 +43,13 @@ if test "$(id -u)" != "0";then
 	exit 77
 fi
 
+if echo "${GNUTLS_NAME}" | grep -q "DTLS0.9"; then
+	if ! gnutls-cli --list --priority 'NONE:+VERS-DTLS0.9:+COMP-NULL:+AES-128-CBC:+SHA1:+RSA:+SIGN-ALL:%COMPAT' 2>/dev/null | grep -q "^TLS_"; then
+		echo "GnuTLS does not support DTLS0.9 ciphers, skipping test"
+		exit 77
+	fi
+fi
+
 echo "Testing ocserv connection with ${CIPHER_NAME} under legacy DTLS... "
 
 function finish {
