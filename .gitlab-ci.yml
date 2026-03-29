@@ -62,7 +62,7 @@ i386/Debian:
   # Radius seems to be malfunctioning on i386 build
   - meson setup build -Doidc-auth=enabled -Dradius=disabled
   - ninja -C build -j$JOBS
-  - VERBOSE=1 meson test -C build --num-processes $JOBS --no-rebuild
+  - VERBOSE=1 meson test -C build --num-processes $JOBS --no-rebuild --no-suite fw
   tags:
   - saas-linux-medium-amd64
   except:

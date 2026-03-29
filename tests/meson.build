@@ -212,8 +212,16 @@ endif
 # --------------------------------------------------------------------------
 
 if get_option('root-tests')
+  foreach s : ['test-fw-script', 'fw-ocserv', 'fw-ocserv-ports-routes']
+    test(s, find_program(s),
+      env:     test_env,
+      timeout: 300,
+      workdir: test_workdir,
+      suite:   'fw',
+    )
+  endforeach
+
   root_scripts = [
-    'test-fw-script', 'fw-ocserv', 'fw-ocserv-ports-routes',
     'haproxy-connect', 'test-iroute', 'test-multi-cookie',
     'test-pass-script', 'idle-timeout',
     'test-cookie-timeout', 'test-cookie-timeout-2',
