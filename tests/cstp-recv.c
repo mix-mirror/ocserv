@@ -73,12 +73,10 @@ void writer(int fd)
 
 void receiver(int fd)
 {
-	worker_st ws;
+	worker_st ws = { 0 };
 	unsigned char buf[MAX_SIZE * 3];
 	int ret;
 	unsigned int i;
-
-	memset(&ws, 0, sizeof(ws));
 	ws.conn_fd = fd;
 
 	for (i = 0; i < ITERATIONS; i++) {
