@@ -181,6 +181,31 @@ int main(void)
 		exit(1);
 	}
 
+	/* Regression test: IPv6 local-address mishandling.
+	 *
+	 * if_address_st previously used struct sockaddr (16 bytes) for both
+	 * if_addr and if_netmask.  struct sockaddr_in6 is 28 bytes, so only
+	 * the first 16 bytes were stored by if_address_init().
+	 * test_local_ipv6() then cast those fields back to struct sockaddr_in6 *
+	 * and read all four 32-bit words, producing an out-of-bounds read for
+	 * words [2] and [3] of the netmask.  The fix uses struct sockaddr_storage
+	 * and copies sizeof(struct sockaddr_in6) bytes for AF_INET6 entries. */
+
+	if (if_address_init(s)) {
+		/* ::2 differs from ::1 only in the last bit; on a system
+		 * with ::1/128 (loopback) it must NOT be treated as local. */
+		add_str_ip_to_ban_list(s, "::2", 40);
+
+		if (check_if_banned_str(s, "::2") == 0) {
+			fprintf(stderr,
+				"error in %d: IPv6 address mishandling (::2 treated as local)\n",
+				__LINE__);
+			exit(1);
+		}
+
+		if_address_cleanup(s);
+	}
+
 	main_ban_db_deinit(s);
 	talloc_free(s);
 	return 0;
