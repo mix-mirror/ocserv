@@ -52,7 +52,8 @@ struct plain_ctx_st {
 
 	const char *pass_msg;
 	unsigned int retries;
-	unsigned int failed; /* non-zero if the username is wrong */
+	unsigned int
+		unknown_user; /* non-zero if the username is not in the passwd file */
 
 	const struct plain_cfg_st *config;
 };
@@ -149,7 +150,7 @@ static int read_auth_pass(struct plain_ctx_st *pctx)
 		return 0;
 	}
 
-	pctx->failed = 1;
+	pctx->unknown_user = 1;
 
 	fp = fopen(pctx->config->passwd, "r");
 	if (fp == NULL) {
@@ -188,7 +189,7 @@ static int read_auth_pass(struct plain_ctx_st *pctx)
 				if (p != NULL) {
 					strlcpy(pctx->cpass, p,
 						sizeof(pctx->cpass));
-					pctx->failed = 0;
+					pctx->unknown_user = 0;
 					ret = 0;
 					goto exit;
 				}
@@ -208,7 +209,7 @@ static int read_auth_pass(struct plain_ctx_st *pctx)
 				if (p != NULL) {
 					strlcpy(pctx->cpass, p,
 						sizeof(pctx->cpass));
-					pctx->failed = 0;
+					pctx->unknown_user = 0;
 					ret = 0;
 					goto exit;
 				}
@@ -244,7 +245,7 @@ static int plain_auth_init(void **ctx, void *pool, void *vctx,
 	pctx->pass_msg = NULL; /* use default */
 	pctx->config = vctx;
 
-	/* this doesn't fail on password mismatch but sets p->failed */
+	/* this doesn't fail on unknown user but sets pctx->unknown_user */
 	ret = read_auth_pass(pctx);
 	if (ret < 0) {
 		talloc_free(pctx);
@@ -253,7 +254,7 @@ static int plain_auth_init(void **ctx, void *pool, void *vctx,
 
 	*ctx = pctx;
 
-	if (pctx->cpass[0] == 0 && pctx->failed == 0) {
+	if (pctx->cpass[0] == 0 && pctx->unknown_user == 0) {
 		/* if there is no password set, nor an OTP file; don't ask for password */
 		if (pctx->config->otp_file == NULL)
 			return 0;
@@ -310,25 +311,25 @@ static int plain_auth_pass(void *ctx, const char *pass, unsigned int pass_len)
 {
 	struct plain_ctx_st *pctx = ctx;
 	const char *p;
+	int wrong_pass = 0;
 
-	if (pctx->cpass[0] != 0) {
-		p = crypt(pass, pctx->cpass);
-		if (p == NULL) {
-			pctx->failed = 1;
-		} else if (strcmp(p, pctx->cpass) != 0)
-			pctx->failed = 1;
-	}
+	/* Always call crypt() to normalize timing regardless of whether the
+	 * user exists, preventing username enumeration via response time. Use
+	 * a dummy salt when the user was not found. */
+	p = crypt(pass, pctx->cpass[0] != 0 ? pctx->cpass : "$5$fakesalt$");
+	if (pctx->unknown_user || p == NULL ||
+	    (pctx->cpass[0] != 0 && strcmp(p, pctx->cpass) != 0))
+		wrong_pass = 1;
 
-	if (pctx->failed) {
+	if (wrong_pass) {
 		if (pctx->retries++ < MAX_PASSWORD_TRIES - 1) {
 			pctx->pass_msg = pass_msg_failed;
 			return ERR_AUTH_CONTINUE;
-		} else {
-			oc_syslog(LOG_NOTICE,
-				  "plain-auth: error authenticating user '%s'",
-				  pctx->username);
-			return ERR_AUTH_FAIL;
 		}
+		oc_syslog(LOG_NOTICE,
+			  "plain-auth: error authenticating user '%s'",
+			  pctx->username);
+		return ERR_AUTH_FAIL;
 	}
 
 	if (pctx->cpass[0] == 0 && pctx->config->otp_file == NULL) {
@@ -362,9 +363,6 @@ static int plain_auth_pass(void *ctx, const char *pass, unsigned int pass_len)
 		}
 	}
 #endif
-
-	if (pctx->failed)
-		return ERR_AUTH_FAIL;
 
 	return 0;
 }

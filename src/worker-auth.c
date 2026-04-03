@@ -1539,9 +1539,6 @@ int post_auth_handler(worker_st *ws, unsigned int http_ver)
 		      (int)req->body_length, req->body);
 	}
 
-	if (ws->sid_set && ws->auth_state == S_AUTH_INACTIVE)
-		ws->auth_state = S_AUTH_INIT;
-
 	if (ws->auth_state == S_AUTH_INACTIVE) {
 		SecAuthInitMsg ireq = SEC_AUTH_INIT_MSG__INIT;
 
