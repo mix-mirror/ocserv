@@ -98,6 +98,14 @@ static void radius_vhost_init(void **_vctx, void *pool, void *additional)
 		vctx->nas_identifier[0] = 0;
 	}
 
+	if (config->group_separator) {
+		strlcpy(vctx->group_separator, config->group_separator,
+			sizeof(vctx->group_separator));
+	} else {
+		strlcpy(vctx->group_separator, ";",
+			sizeof(vctx->group_separator));
+	}
+
 	if (rc_read_dictionary(vctx->rh, rc_conf_str(vctx->rh, "dictionary")) !=
 	    0) {
 		fprintf(stderr, "error reading the radius dictionary\n");
@@ -233,10 +241,11 @@ static void append_route(struct radius_ctx_st *pctx, const char *route,
 	}
 }
 
-/* Parses group of format "OU=group1;group2;group3" */
+/* Parses group of format "OU=group1<sep>group2<sep>group3" */
 static void parse_groupnames(struct radius_ctx_st *pctx, const char *full)
 {
 	char *p, *p2;
+	const char *sep = pctx->vctx->group_separator;
 
 	if (pctx->groupnames_size >= MAX_GROUPS) {
 		oc_syslog(
@@ -252,13 +261,13 @@ static void parse_groupnames(struct radius_ctx_st *pctx, const char *full)
 		if (p == NULL)
 			return;
 
-		p2 = strsep(&p, ";");
+		p2 = strsep(&p, sep);
 		while (p2 != NULL) {
 			pctx->groupnames[pctx->groupnames_size++] = p2;
 
 			oc_syslog(LOG_DEBUG, "radius-auth: found group %s", p2);
 
-			p2 = strsep(&p, ";");
+			p2 = strsep(&p, sep);
 
 			if (pctx->groupnames_size == MAX_GROUPS) {
 				if (p2)

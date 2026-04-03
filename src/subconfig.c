@@ -250,6 +250,19 @@ void *radius_get_brackets_string(void *pool, struct perm_cfg_st *config,
 				   0) {
 				additional->nas_identifier = vals[i].value;
 				vals[i].value = NULL;
+			} else if (strcasecmp(vals[i].name,
+					      "group-separator") == 0) {
+				if (strcasecmp(vals[i].value, "comma") == 0)
+					additional->group_separator = ",";
+				else if (strcasecmp(vals[i].value,
+						    "semicolon") == 0)
+					additional->group_separator = ";";
+				else {
+					fprintf(stderr,
+						"unknown group-separator value '%s'; use 'semicolon' or 'comma'\n",
+						vals[i].value);
+					exit(EXIT_FAILURE);
+				}
 			} else if (strcasecmp(vals[i].name, "groupconfig") ==
 				   0) {
 				if (CHECK_TRUE(vals[i].value))

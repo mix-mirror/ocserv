@@ -1,4 +1,7 @@
 * Version 1.4.2 (unreleased)
+- radius: added group-separator option to auth configuration, allowing
+  the separator used in OU= Class attributes to be set to 'semicolon'
+  (default) or 'comma', to support Freeradius deployments (#428)
 - The bundled llhttp was updated to 9.3.1.
 - occtl: Added 'terminate user', 'terminate id', and 'terminate session'
   commands that disconnect users and invalidate their session cookies,
