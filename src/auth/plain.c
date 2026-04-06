@@ -46,6 +46,8 @@
 struct plain_ctx_st {
 	char username[MAX_USERNAME_SIZE];
 	char cpass[MAX_CPASS_SIZE]; /* crypt() passwd */
+	char dummy_salt[MAX_CPASS_SIZE]; /* salt from any passwd entry, for timing
+					    normalisation when user is unknown */
 
 	char *groupnames[MAX_GROUPS];
 	unsigned int groupnames_size;
@@ -193,6 +195,16 @@ static int read_auth_pass(struct plain_ctx_st *pctx)
 					goto exit;
 				}
 			}
+		} else if (p != NULL && pctx->dummy_salt[0] == 0) {
+			/* capture salt from any entry for timing normalisation
+			 * when the target user is not found */
+			p = strsep(&sp, ":");
+			if (p != NULL) {
+				p = strsep(&sp, ":");
+				if (p != NULL && p[0] == '$')
+					strlcpy(pctx->dummy_salt, p,
+						sizeof(pctx->dummy_salt));
+			}
 		}
 	}
 
@@ -290,11 +302,19 @@ static int plain_auth_pass(void *ctx, const char *pass, unsigned int pass_len)
 	struct plain_ctx_st *pctx = ctx;
 	const char *p;
 	int wrong_pass = 0;
-
 	/* Always call crypt() to normalize timing regardless of whether the
 	 * user exists, preventing username enumeration via response time. Use
-	 * a dummy salt when the user was not found. */
-	p = crypt(pass, pctx->cpass[0] != 0 ? pctx->cpass : "$5$fakesalt$");
+	 * a salt extracted from the passwd file when the user was not found. */
+	const char *salt;
+
+	if (pctx->cpass[0] != 0)
+		salt = pctx->cpass;
+	else if (pctx->dummy_salt[0] != 0)
+		salt = pctx->dummy_salt;
+	else
+		salt = "$5$fakesalt$";
+
+	p = crypt(pass, salt);
 	if (pctx->unknown_user || p == NULL ||
 	    (pctx->cpass[0] != 0 && strcmp(p, pctx->cpass) != 0))
 		wrong_pass = 1;
@@ -359,6 +379,10 @@ static int plain_auth_msg(void *ctx, void *pool, passwd_msg_st *pst)
 
 static void plain_auth_deinit(void *ctx)
 {
+	struct plain_ctx_st *pctx = ctx;
+
+	safe_memset(pctx->cpass, 0, sizeof(pctx->cpass));
+	safe_memset(pctx->dummy_salt, 0, sizeof(pctx->dummy_salt));
 	talloc_free(ctx);
 }
 
