@@ -308,7 +308,7 @@ have_scm_timestamping = cc.has_type('struct scm_timestamping',
 check_funcs = [
   'setproctitle', 'vasprintf', 'clock_gettime', 'isatty',
   'pselect', 'ppoll', 'getpeereid', 'sigaltstack',
-  'strlcpy', 'posix_memalign', 'malloc_trim', 'strsep',
+  'strlcpy', 'posix_memalign', 'malloc_trim',
   'memset', 'malloc', 'free',
   'makecontext', 'getcontext', 'swapcontext',
   'sigaction', 'longjmp', 'setjmp',

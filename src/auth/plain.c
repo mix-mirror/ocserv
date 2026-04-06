@@ -175,7 +175,6 @@ static int read_auth_pass(struct plain_ctx_st *pctx)
 			ll--;
 			line[ll] = 0;
 		}
-#ifdef HAVE_STRSEP
 		sp = line;
 		p = strsep(&sp, ":");
 
@@ -195,27 +194,6 @@ static int read_auth_pass(struct plain_ctx_st *pctx)
 				}
 			}
 		}
-
-#else
-		p = strtok_r(line, ":", &sp);
-
-		if (p != NULL && strcmp(pctx->username, p) == 0) {
-			p = strtok_r(NULL, ":", &sp);
-			if (p != NULL) {
-				break_group_list(pctx, p, pctx->groupnames,
-						 &pctx->groupnames_size);
-
-				p = strtok_r(NULL, ":", &sp);
-				if (p != NULL) {
-					strlcpy(pctx->cpass, p,
-						sizeof(pctx->cpass));
-					pctx->unknown_user = 0;
-					ret = 0;
-					goto exit;
-				}
-			}
-		}
-#endif
 	}
 
 	/* always succeed */
@@ -442,18 +420,11 @@ static void plain_group_list(void *pool, void *additional, char ***groupname,
 			line[ll] = 0;
 		}
 
-#ifdef HAVE_STRSEP
 		sp = line;
 		p = strsep(&sp, ":");
 
 		if (p != NULL) {
 			p = strsep(&sp, ":");
-#else
-		p = strtok_r(line, ":", &sp);
-
-		if (p != NULL) {
-			p = strtok_r(NULL, ":", &sp);
-#endif
 			if (p != NULL) {
 				break_group_list(pool, p, tgroup, &tgroup_size);
 
