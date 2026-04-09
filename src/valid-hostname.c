@@ -24,6 +24,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
 
 unsigned int valid_hostname(const char *host)
 {

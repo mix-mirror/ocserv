@@ -7,6 +7,7 @@
 - Added nftables-based ocserv-fw; requires ipcalc-ng/ipcalc (#397)
 - Fixed a bug where a correct password was rejected after a wrong password
   attempt in the same session (#323)
+- Fix build issue on FreeBSD (#704)
 
 
 * Version 1.4.1 (released 2026-02-28)
