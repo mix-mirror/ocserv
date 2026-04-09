@@ -12,7 +12,7 @@ option('systemd',           type: 'feature', value: 'auto',     description: 'sy
 option('oidc-auth',         type: 'feature', value: 'disabled', description: 'OpenID Connect authentication support')
 option('latency-stats',     type: 'feature', value: 'disabled', description: 'Capture latency statistics')
 option('anyconnect-compat', type: 'feature', value: 'enabled',  description: 'Cisco AnyConnect client compatibility')
-option('namespaces',        type: 'feature', value: 'enabled',  description: 'Linux network namespace support')
+option('namespaces',        type: 'feature', value: 'auto',     description: 'Linux network namespace support')
 option('utmp',              type: 'feature', value: 'auto',     description: 'utmp support via libutil')
 option('libwrap',           type: 'feature', value: 'auto',     description: 'TCP wrappers support via libwrap')
 option('local-talloc',      type: 'boolean',  value: false,     description: 'Force use of bundled talloc')

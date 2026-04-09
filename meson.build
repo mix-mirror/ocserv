@@ -64,19 +64,20 @@ libev_dep   = cc.find_library('ev', required: true)
 # Optional dependencies
 # --------------------------------------------------------------------------
 
-opt_pam     = get_option('pam')
-opt_radius  = get_option('radius')
-opt_gssapi  = get_option('gssapi')
-opt_liboath = get_option('liboath')
-opt_libnl   = get_option('libnl')
-opt_maxmind = get_option('maxmind')
-opt_geoip   = get_option('geoip')
-opt_lz4     = get_option('lz4')
-opt_seccomp = get_option('seccomp')
-opt_systemd = get_option('systemd')
-opt_oidc    = get_option('oidc-auth')
-opt_utmp    = get_option('utmp')
-opt_wrap    = get_option('libwrap')
+opt_pam        = get_option('pam')
+opt_radius     = get_option('radius')
+opt_gssapi     = get_option('gssapi')
+opt_liboath    = get_option('liboath')
+opt_libnl      = get_option('libnl')
+opt_maxmind    = get_option('maxmind')
+opt_geoip      = get_option('geoip')
+opt_lz4        = get_option('lz4')
+opt_seccomp    = get_option('seccomp')
+opt_systemd    = get_option('systemd')
+opt_oidc       = get_option('oidc-auth')
+opt_namespaces = get_option('namespaces')
+opt_utmp       = get_option('utmp')
+opt_wrap       = get_option('libwrap')
 
 # talloc: system or bundled
 talloc_dep = dependency('', required: false)
@@ -277,13 +278,21 @@ if not get_option('latency-stats').disabled()
 endif
 
 adaptive_rate = cc.has_header('linux/netlink.h')   and \
-               cc.has_header('linux/rtnetlink.h')   and \
-               cc.has_header('linux/sock_diag.h')   and \
-               cc.has_header('linux/unix_diag.h')
+                cc.has_header('linux/rtnetlink.h') and \
+                cc.has_header('linux/sock_diag.h') and \
+                cc.has_header('linux/unix_diag.h')
 
 proc_fs = fs.exists('/proc/self/exe')
 
 try_sha2_crypt = cc.has_header('gnu/libc-version.h')
+
+if not get_option('namespaces').disabled()
+  linux_namespaces = cc.has_header('sched.h') and \
+                     cc.has_function('setns', prefix : '#include <sched.h>') and \
+                     cc.has_header_symbol('sched.h',
+                       'CLONE_NEWNET',
+                       prefix : '#define _GNU_SOURCE\n#include <sched.h>')
+endif
 
 have_sighandler_t  = cc.has_type('sighandler_t',
   prefix: '#include <sys/types.h>\n#include <signal.h>')
@@ -358,7 +367,7 @@ cdata.set('HAVE_ORIG_READLINE',               have_orig_readline)
 cdata.set('HAVE_PAM',                         pam_dep.found())
 cdata.set('HAVE_RADIUS',                      radcli_dep.found())
 cdata.set('LEGACY_RADIUS',                    legacy_radius)
-cdata.set('LINUX_NAMESPACES',                 get_option('namespaces').enabled())
+cdata.set('LINUX_NAMESPACES',                 linux_namespaces)
 cdata.set('NETTLE_OLD_BASE64_API',            old_base64)
 cdata.set('PROC_FS_SUPPORTED',                proc_fs)
 cdata.set('SUPPORT_OIDC_AUTH',                oidc_enabled)
