@@ -1358,6 +1358,7 @@ enum {
 	CFG_FLAG_WORKER = (1 << 2)
 };
 
+#if defined(PROC_FS_SUPPORTED)
 static void replace_file_with_snapshot(char **file_name)
 {
 	char *snapshot_file_name;
@@ -1376,6 +1377,7 @@ static void replace_file_with_snapshot(char **file_name)
 	talloc_free(*file_name);
 	*file_name = snapshot_file_name;
 }
+#endif
 
 #define CONFIG_ERROR(filename, err)                                            \
 	{                                                                      \
