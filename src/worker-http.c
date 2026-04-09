@@ -195,10 +195,10 @@ static const dtls_ciphersuite_st ciphersuites12[] = {
 };
 
 #define STR_ST(x) { .data = (uint8_t *)x, .length = sizeof(x) - 1 }
-static const str_st sensitve_http_headers[] = { STR_ST("Cookie"),
-						STR_ST("X-DTLS-Master-Secret"),
-						STR_ST("Authorization"),
-						{ NULL, 0 } };
+static const str_st sensitive_http_headers[] = { STR_ST("Cookie"),
+						 STR_ST("X-DTLS-Master-Secret"),
+						 STR_ST("Authorization"),
+						 { NULL, 0 } };
 
 #ifdef HAVE_LZ4
 /* Wrappers over LZ4 functions */
@@ -279,10 +279,10 @@ static bool header_is_sensitive(str_st *header)
 {
 	size_t i;
 
-	for (i = 0; sensitve_http_headers[i].length != 0; i++) {
-		if ((header->length == sensitve_http_headers[i].length) &&
+	for (i = 0; sensitive_http_headers[i].length != 0; i++) {
+		if ((header->length == sensitive_http_headers[i].length) &&
 		    (strncasecmp((char *)header->data,
-				 (char *)sensitve_http_headers[i].data,
+				 (char *)sensitive_http_headers[i].data,
 				 header->length) == 0))
 			return true;
 	}

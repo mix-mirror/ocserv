@@ -49,9 +49,9 @@
 #include <gnutls/abstract.h>
 #include "log.h"
 
-#define MAINTAINANCE_TIME 310
+#define MAINTENANCE_TIME 310
 
-static int need_maintainance;
+static int need_maintenance;
 static int need_reload;
 static int need_exit;
 
@@ -626,7 +626,7 @@ static int process_packet_from_main(void *pool, int fd, sec_mod_st *sec,
 
 static void handle_alarm(int signo)
 {
-	need_maintainance = 1;
+	need_maintenance = 1;
 }
 
 static void handle_sigterm(int signo)
@@ -713,15 +713,15 @@ static void check_other_work(sec_mod_st *sec)
 		reload_server(sec);
 	}
 
-	if (need_maintainance) {
+	if (need_maintenance) {
 		seclog(sec, LOG_DEBUG, "performing maintenance");
 		cleanup_client_entries(sec);
 		expire_tls_sessions(sec);
 		send_stats_to_main(sec);
 		seclog(sec, LOG_DEBUG, "active sessions %d",
 		       sec_mod_client_db_elems(sec));
-		alarm(MAINTAINANCE_TIME);
-		need_maintainance = 0;
+		alarm(MAINTENANCE_TIME);
+		need_maintenance = 0;
 	}
 }
 
@@ -1096,7 +1096,7 @@ void sec_mod_server(void *main_pool, void *config_pool,
 	}
 
 	sigprocmask(SIG_BLOCK, &blockset, &sig_default_set);
-	alarm(MAINTAINANCE_TIME);
+	alarm(MAINTENANCE_TIME);
 	seclog(sec, LOG_INFO, "sec-mod initialized (socket: %s)", SOCKET_FILE);
 
 	for (;;) {
