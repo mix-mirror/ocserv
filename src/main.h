@@ -50,7 +50,7 @@ extern int saved_argc;
 extern char **saved_argv;
 
 extern struct ev_loop *main_loop;
-extern ev_timer maintainance_watcher;
+extern ev_timer maintenance_watcher;
 
 #include "log.h"
 
