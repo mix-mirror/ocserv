@@ -5,6 +5,9 @@
   preventing automatic reconnection (#689)
 - Replaced autoconf/automake build system with meson (#699)
 - Added nftables-based ocserv-fw; requires ipcalc-ng/ipcalc (#397)
+- No longer need to duplicate global options in virtual hosts (#698)
+- Added VIRTUAL HOSTS section to ocserv(8) man page; documented global options
+  that cannot be overridden at vhost level
 - Fixed a bug where a correct password was rejected after a wrong password
   attempt in the same session (#323)
 

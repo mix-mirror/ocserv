@@ -70,6 +70,9 @@ static void archive_cfg(struct list_head *head);
 static void clear_cfg(struct list_head *head);
 static void check_cfg(vhost_cfg_st *vhost, vhost_cfg_st *defvhost,
 		      unsigned int silent);
+static bool warn_on_vhost(const char *vname, const char *oname);
+static void vhost_init_from_default(vhost_cfg_st *vhost,
+				    vhost_cfg_st *defvhost);
 
 #define ERRSTR "error: "
 #define WARNSTR "warning: "
@@ -642,6 +645,7 @@ static void apply_default_conf(vhost_cfg_st *vhost, unsigned int reload)
 		vhost->perm_config.log_level = DEFAULT_LOG_LEVEL;
 	}
 
+	vhost->perm_config.occtl_socket_file = OCCTL_UNIX_SOCKET;
 	vhost->perm_config.config->mobile_idle_timeout = (unsigned int)-1;
 #ifdef ENABLE_COMPRESSION
 	vhost->perm_config.config->no_compress_limit =
@@ -720,68 +724,16 @@ struct ini_ctx_st {
 	void *pool;
 };
 
-#define WARN_ON_VHOST_ONLY(vname, oname)                                      \
-	({                                                                    \
-		int rval;                                                     \
-		if (vname) {                                                  \
-			fprintf(stderr,                                       \
-				WARNSTR "%s is ignored on %s virtual host\n", \
-				oname, vname);                                \
-			rval = 1;                                             \
-		} else {                                                      \
-			rval = 0;                                             \
-		}                                                             \
-		rval;                                                         \
-	})
+static bool warn_on_vhost(const char *vname, const char *oname)
+{
+	if (vname) {
+		fprintf(stderr, WARNSTR "%s is ignored on %s virtual host\n",
+			oname, vname);
+		return true;
+	}
 
-#define WARN_ON_VHOST(vname, oname, member)                                   \
-	({                                                                    \
-		int rval;                                                     \
-		if (vname) {                                                  \
-			fprintf(stderr,                                       \
-				WARNSTR "%s is ignored on %s virtual host\n", \
-				oname, vname);                                \
-			memcpy(&config->member,                               \
-			       &defvhost->perm_config.config->member,         \
-			       sizeof(config->member));                       \
-			rval = 1;                                             \
-		} else {                                                      \
-			rval = 0;                                             \
-		}                                                             \
-		rval;                                                         \
-	})
-
-#define PWARN_ON_VHOST(vname, oname, member)                                  \
-	({                                                                    \
-		int rval;                                                     \
-		if (vname) {                                                  \
-			fprintf(stderr,                                       \
-				WARNSTR "%s is ignored on %s virtual host\n", \
-				oname, vname);                                \
-			vhost->perm_config.member =                           \
-				defvhost->perm_config.member;                 \
-			rval = 1;                                             \
-		} else {                                                      \
-			rval = 0;                                             \
-		}                                                             \
-		rval;                                                         \
-	})
-
-#define PWARN_ON_VHOST_STRDUP(vname, oname, member)                           \
-	({                                                                    \
-		int rval;                                                     \
-		if (vname) {                                                  \
-			fprintf(stderr,                                       \
-				WARNSTR "%s is ignored on %s virtual host\n", \
-				oname, vname);                                \
-			vhost->perm_config.member = talloc_strdup(            \
-				pool, defvhost->perm_config.member);          \
-			rval = 1;                                             \
-		} else {                                                      \
-			rval = 0;                                             \
-		}                                                             \
-		rval;                                                         \
-	})
+	return false;
+}
 
 static char *idna_map(void *pool, const char *name, unsigned int size)
 {
@@ -904,9 +856,14 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 		} else if (strcmp(name, "acct") == 0) {
 			vhost->acct = talloc_strdup(pool, value);
 		} else if (strcmp(name, "listen-host") == 0) {
-			PREAD_STRING(pool, vhost->perm_config.listen_host);
+			if (!warn_on_vhost(vhost->name, "listen-host"))
+				PREAD_STRING(pool,
+					     vhost->perm_config.listen_host);
 		} else if (strcmp(name, "udp-listen-host") == 0) {
-			PREAD_STRING(pool, vhost->perm_config.udp_listen_host);
+			if (!warn_on_vhost(vhost->name, "udp-listen-host"))
+				PREAD_STRING(
+					pool,
+					vhost->perm_config.udp_listen_host);
 		} else if (strcmp(name, "listen-clear-file") == 0) {
 			fprintf(stderr, ERRSTR
 				"the 'listen-clear-file' option was removed in ocserv 1.1.2\n");
@@ -915,13 +872,13 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 			vhost->perm_config.listen_netns_name =
 				talloc_strdup(pool, value);
 		} else if (strcmp(name, "tcp-port") == 0) {
-			if (!PWARN_ON_VHOST(vhost->name, "tcp-port", port))
+			if (!warn_on_vhost(vhost->name, "tcp-port"))
 				READ_NUMERIC(vhost->perm_config.port);
 		} else if (strcmp(name, "udp-port") == 0) {
-			if (!PWARN_ON_VHOST(vhost->name, "udp-port", udp_port))
+			if (!warn_on_vhost(vhost->name, "udp-port"))
 				READ_NUMERIC(vhost->perm_config.udp_port);
 		} else if (strcmp(name, "run-as-user") == 0) {
-			if (!PWARN_ON_VHOST(vhost->name, "run-as-user", uid)) {
+			if (!warn_on_vhost(vhost->name, "run-as-user")) {
 				const struct passwd *pwd = getpwnam(value);
 
 				if (pwd == NULL) {
@@ -933,7 +890,7 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 				vhost->perm_config.uid = pwd->pw_uid;
 			}
 		} else if (strcmp(name, "run-as-group") == 0) {
-			if (!PWARN_ON_VHOST(vhost->name, "run-as-group", gid)) {
+			if (!warn_on_vhost(vhost->name, "run-as-group")) {
 				const struct group *grp = getgrnam(value);
 
 				if (grp == NULL) {
@@ -967,29 +924,24 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 			READ_STRING(vhost->perm_config.srk_pin);
 #endif
 		} else if (strcmp(name, "socket-file") == 0) {
-			if (!PWARN_ON_VHOST_STRDUP(vhost->name, "socket-file",
-						   socket_file_prefix))
+			if (!warn_on_vhost(vhost->name, "socket-file"))
 				PREAD_STRING(
 					pool,
 					vhost->perm_config.socket_file_prefix);
 		} else if (strcmp(name, "occtl-socket-file") == 0) {
-			if (!PWARN_ON_VHOST_STRDUP(vhost->name,
-						   "occtl-socket-file",
-						   occtl_socket_file))
+			if (!warn_on_vhost(vhost->name, "occtl-socket-file"))
 				PREAD_STRING(
 					pool,
 					vhost->perm_config.occtl_socket_file);
 		} else if (strcmp(name, "chroot-dir") == 0) {
-			if (!PWARN_ON_VHOST_STRDUP(vhost->name, "chroot-dir",
-						   chroot_dir))
+			if (!warn_on_vhost(vhost->name, "chroot-dir"))
 				PREAD_STRING(pool,
 					     vhost->perm_config.chroot_dir);
 		} else if (strcmp(name, "server-stats-reset-time") == 0) {
 			/* cannot be modified as it would require sec-mod to
 			 * re-read configuration too */
-			if (!PWARN_ON_VHOST(vhost->name,
-					    "server-stats-reset-time",
-					    stats_reset_time))
+			if (!warn_on_vhost(vhost->name,
+					   "server-stats-reset-time"))
 				READ_NUMERIC(
 					vhost->perm_config.stats_reset_time);
 		} else if (strcmp(name, "pid-file") == 0) {
@@ -999,8 +951,7 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 				fprintf(stderr, NOTESTR
 					"skipping 'pid-file' config option\n");
 		} else if (strcmp(name, "sec-mod-scale") == 0) {
-			if (!PWARN_ON_VHOST(vhost->name, "sec-mod-scale",
-					    sec_mod_scale))
+			if (!warn_on_vhost(vhost->name, "sec-mod-scale"))
 				READ_NUMERIC(vhost->perm_config.sec_mod_scale);
 		} else if (strcmp(name, "log-level") == 0) {
 			READ_NUMERIC(vhost->perm_config.log_level);
@@ -1022,8 +973,7 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 	if (strcmp(name, "listen-host-is-dyndns") == 0) {
 		READ_TF(config->is_dyndns);
 	} else if (strcmp(name, "listen-proxy-proto") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "listen-proxy-proto",
-				   listen_proxy_proto))
+		if (!warn_on_vhost(vhost->name, "listen-proxy-proto"))
 			READ_TF(config->listen_proxy_proto);
 	} else if (strcmp(name, "append-routes") == 0) {
 		READ_TF(config->append_routes);
@@ -1042,11 +992,10 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 	} else if (strcmp(name, "mobile-dpd") == 0) {
 		READ_NUMERIC(config->mobile_dpd);
 	} else if (strcmp(name, "rate-limit-ms") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "rate-limit-ms", rate_limit_ms))
+		if (!warn_on_vhost(vhost->name, "rate-limit-ms"))
 			READ_NUMERIC(config->rate_limit_ms);
 	} else if (strcmp(name, "server-drain-ms") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "server-drain-ms",
-				   server_drain_ms))
+		if (!warn_on_vhost(vhost->name, "server-drain-ms"))
 			READ_NUMERIC(config->server_drain_ms);
 	} else if (strcmp(name, "ocsp-response") == 0) {
 		READ_STRING(config->ocsp_response);
@@ -1065,16 +1014,13 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 	} else if (strcmp(name, "cert-group-oid") == 0) {
 		READ_STRING(config->cert_group_oid);
 	} else if (strcmp(name, "connect-script") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "connect-script",
-				   connect_script))
+		if (!warn_on_vhost(vhost->name, "connect-script"))
 			READ_STRING(config->connect_script);
 	} else if (strcmp(name, "host-update-script") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "host-update-script",
-				   host_update_script))
+		if (!warn_on_vhost(vhost->name, "host-update-script"))
 			READ_STRING(config->host_update_script);
 	} else if (strcmp(name, "disconnect-script") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "disconnect-script",
-				   disconnect_script))
+		if (!warn_on_vhost(vhost->name, "disconnect-script"))
 			READ_STRING(config->disconnect_script);
 	} else if (strcmp(name, "session-control") == 0) {
 		fprintf(stderr,
@@ -1097,7 +1043,7 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 	} else if (strcmp(name, "cisco-svc-client-compat") == 0) {
 		READ_TF(config->cisco_svc_client_compat);
 	} else if (strcmp(name, "dtls-psk") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "dtls-psk", dtls_psk))
+		if (!warn_on_vhost(vhost->name, "dtls-psk"))
 			READ_TF(config->dtls_psk);
 	} else if (strcmp(name, "match-tls-dtls-ciphers") == 0) {
 		READ_TF(config->match_dtls_and_tls);
@@ -1105,8 +1051,7 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 	} else if (strcmp(name, "compression") == 0) {
 		READ_TF(config->enable_compression);
 	} else if (strcmp(name, "compression-algo-priority") == 0) {
-		if (!WARN_ON_VHOST_ONLY(vhost->name,
-					"compression-algo-priority")) {
+		if (!warn_on_vhost(vhost->name, "compression-algo-priority")) {
 #if defined(OCSERV_WORKER_PROCESS)
 			if (switch_comp_priority(pool, value) == 0) {
 				fprintf(stderr,
@@ -1125,12 +1070,12 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 			fprintf(stderr, NOTESTR
 				"'use-seccomp' was replaced by 'isolate-workers'\n");
 	} else if (strcmp(name, "isolate-workers") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "isolate-workers", isolate))
+		if (!warn_on_vhost(vhost->name, "isolate-workers"))
 			READ_TF(config->isolate);
 	} else if (strcmp(name, "predictable-ips") == 0) {
 		READ_TF(config->predictable_ips);
 	} else if (strcmp(name, "use-utmp") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "use-utmp", use_utmp))
+		if (!warn_on_vhost(vhost->name, "use-utmp"))
 			READ_TF(config->use_utmp);
 	} else if (strcmp(name, "use-dbus") == 0) {
 		READ_TF(use_dbus);
@@ -1140,13 +1085,13 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 			config->use_occtl = use_dbus;
 		}
 	} else if (strcmp(name, "use-occtl") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "use-occtl", use_occtl))
+		if (!warn_on_vhost(vhost->name, "use-occtl"))
 			READ_TF(config->use_occtl);
 	} else if (strcmp(name, "try-mtu-discovery") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "try-mtu-discovery", try_mtu))
+		if (!warn_on_vhost(vhost->name, "try-mtu-discovery"))
 			READ_TF(config->try_mtu);
 	} else if (strcmp(name, "ping-leases") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "ping_leases", ping_leases))
+		if (!warn_on_vhost(vhost->name, "ping_leases"))
 			READ_TF(config->ping_leases);
 	} else if (strcmp(name, "restrict-user-to-routes") == 0) {
 		READ_TF(config->restrict_user_to_routes);
@@ -1195,45 +1140,41 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 	} else if (strcmp(name, "session-timeout") == 0) {
 		READ_NUMERIC(config->session_timeout);
 	} else if (strcmp(name, "auth-timeout") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "auth-timeout", auth_timeout))
+		if (!warn_on_vhost(vhost->name, "auth-timeout"))
 			READ_NUMERIC(config->auth_timeout);
 	} else if (strcmp(name, "idle-timeout") == 0) {
 		READ_NUMERIC(config->idle_timeout);
 	} else if (strcmp(name, "mobile-idle-timeout") == 0) {
 		READ_NUMERIC(config->mobile_idle_timeout);
 	} else if (strcmp(name, "max-clients") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "max-clients", max_clients))
+		if (!warn_on_vhost(vhost->name, "max-clients"))
 			READ_NUMERIC(config->max_clients);
 	} else if (strcmp(name, "min-reauth-time") == 0) {
 		READ_NUMERIC(config->ban_time);
 		fprintf(stderr, NOTESTR
 			"'min-reauth-time' was replaced by 'ban-time'\n");
 	} else if (strcmp(name, "ban-time") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "ban-time", ban_time))
+		if (!warn_on_vhost(vhost->name, "ban-time"))
 			READ_NUMERIC(config->ban_time);
 	} else if (strcmp(name, "ban-reset-time") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "ban-reset-time",
-				   ban_reset_time))
+		if (!warn_on_vhost(vhost->name, "ban-reset-time"))
 			READ_NUMERIC(config->ban_reset_time);
 	} else if (strcmp(name, "max-ban-score") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "max-ban-score", max_ban_score))
+		if (!warn_on_vhost(vhost->name, "max-ban-score"))
 			READ_NUMERIC(config->max_ban_score);
 	} else if (strcmp(name, "ban-points-wrong-password") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "ban-points-wrong-password",
-				   ban_points_wrong_password))
+		if (!warn_on_vhost(vhost->name, "ban-points-wrong-password"))
 			READ_NUMERIC(config->ban_points_wrong_password);
 	} else if (strcmp(name, "ban-points-connection") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "ban-points-connection",
-				   ban_points_connect))
+		if (!warn_on_vhost(vhost->name, "ban-points-connection"))
 			READ_NUMERIC(config->ban_points_connect);
 	} else if (strcmp(name, "ban-points-kkdcp") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "ban-points-kkdcp",
-				   ban_points_kkdcp))
+		if (!warn_on_vhost(vhost->name, "ban-points-kkdcp"))
 			READ_NUMERIC(config->ban_points_kkdcp);
 	} else if (strcmp(name, "max-same-clients") == 0) {
 		READ_NUMERIC(config->max_same_clients);
 	} else if (strcmp(name, "device") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "device", network.name))
+		if (!warn_on_vhost(vhost->name, "device"))
 			READ_STATIC_STRING(config->network.name);
 	} else if (strcmp(name, "cgroup") == 0) {
 		READ_STRING(config->cgroup);
@@ -1320,10 +1261,10 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 		READ_MULTI_LINE(config->network.nbns,
 				config->network.nbns_size);
 	} else if (strcmp(name, "route-add-cmd") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "route-add-cmd", route_add_cmd))
+		if (!warn_on_vhost(vhost->name, "route-add-cmd"))
 			READ_STRING(config->route_add_cmd);
 	} else if (strcmp(name, "route-del-cmd") == 0) {
-		if (!WARN_ON_VHOST(vhost->name, "route-del-cmd", route_del_cmd))
+		if (!warn_on_vhost(vhost->name, "route-del-cmd"))
 			READ_STRING(config->route_del_cmd);
 	} else if (strcmp(name, "config-per-user") == 0) {
 		READ_STRING(config->per_user_dir);
@@ -1566,9 +1507,10 @@ static void parse_cfg_file(void *pool, const char *file, struct list_head *head,
 			load_iroutes(config);
 		}
 
-		if (vhost->name)
+		if (vhost->name) {
 			defvhost = default_vhost(head);
-		else
+			vhost_init_from_default(vhost, defvhost);
+		} else
 			defvhost = NULL;
 
 		/* this check copies mandatory fields from default vhost if needed */
@@ -1600,6 +1542,67 @@ static void parse_cfg_file(void *pool, const char *file, struct list_head *head,
 	}
 }
 
+#define VHOST_INHERIT(member) \
+	({ vhost->perm_config.member = defvhost->perm_config.member; })
+
+#define VHOST_INHERIT_STRDUP(member)                                         \
+	({                                                                   \
+		if (defvhost->perm_config.member != NULL)                    \
+			vhost->perm_config.member =                          \
+				talloc_strdup(vhost->perm_config.config,     \
+					      defvhost->perm_config.member); \
+	})
+
+#define VHOST_INHERIT_STRLCPY(member)                       \
+	({                                                  \
+		strlcpy(vhost->perm_config.member,          \
+			defvhost->perm_config.member,       \
+			sizeof(vhost->perm_config.member)); \
+	})
+
+/*
+ * Initialize per-vhost configuration by inheriting settings from default vhost.
+ *
+ * Copies global settings (UID, ports, scripts) from the default virtual host
+ * to a specific vhost. These settings cannot be overridden at the vhost level
+ * and are applied uniformly across all virtual hosts.
+ */
+static void vhost_init_from_default(vhost_cfg_st *vhost, vhost_cfg_st *defvhost)
+{
+	VHOST_INHERIT(port);
+	VHOST_INHERIT(udp_port);
+	VHOST_INHERIT(uid);
+	VHOST_INHERIT(gid);
+	VHOST_INHERIT(sec_mod_scale);
+	VHOST_INHERIT(stats_reset_time);
+	VHOST_INHERIT_STRDUP(socket_file_prefix);
+	VHOST_INHERIT_STRDUP(occtl_socket_file);
+	VHOST_INHERIT_STRDUP(chroot_dir);
+	VHOST_INHERIT_STRDUP(config->connect_script);
+	VHOST_INHERIT_STRDUP(config->host_update_script);
+	VHOST_INHERIT_STRDUP(config->disconnect_script);
+	VHOST_INHERIT_STRDUP(config->route_add_cmd);
+	VHOST_INHERIT_STRDUP(config->route_del_cmd);
+	VHOST_INHERIT_STRLCPY(config->network.name);
+	VHOST_INHERIT(config->ban_time);
+	VHOST_INHERIT(config->ban_reset_time);
+	VHOST_INHERIT(config->max_ban_score);
+	VHOST_INHERIT(config->ban_points_wrong_password);
+	VHOST_INHERIT(config->ban_points_connect);
+	VHOST_INHERIT(config->ban_points_kkdcp);
+	VHOST_INHERIT(config->listen_proxy_proto);
+	VHOST_INHERIT(config->rate_limit_ms);
+	VHOST_INHERIT(config->server_drain_ms);
+	VHOST_INHERIT(config->dtls_psk);
+	VHOST_INHERIT(config->isolate);
+	VHOST_INHERIT(config->use_utmp);
+	VHOST_INHERIT(config->use_occtl);
+	VHOST_INHERIT(config->try_mtu);
+	VHOST_INHERIT(config->ping_leases);
+	VHOST_INHERIT(config->auth_timeout);
+	VHOST_INHERIT(config->max_clients);
+}
+
 /* sanity checks on config */
 static void check_cfg(vhost_cfg_st *vhost, vhost_cfg_st *defvhost,
 		      unsigned int silent)
@@ -1619,33 +1622,16 @@ static void check_cfg(vhost_cfg_st *vhost, vhost_cfg_st *defvhost,
 	}
 
 	if (vhost->perm_config.socket_file_prefix == NULL) {
-		if (vhost->name) {
-			vhost->perm_config.socket_file_prefix = talloc_strdup(
-				vhost,
-				defvhost->perm_config.socket_file_prefix);
-		} else {
-			/* The 'socket-file' is not mandatory on main server */
-			fprintf(stderr,
-				ERRSTR
-				"%sthe 'socket-file' configuration option must be specified!\n",
-				PREFIX_VHOST(vhost));
-			exit(EXIT_FAILURE);
-		}
+		/* The 'socket-file' is mandatory on main server */
+		fprintf(stderr, ERRSTR
+			"the 'socket-file' configuration option must be specified!\n");
+		exit(EXIT_FAILURE);
 	}
 
 	if (vhost->perm_config.port == 0) {
-		if (defvhost) {
-			vhost->perm_config.port = defvhost->perm_config.port;
-		} else {
-			fprintf(stderr,
-				ERRSTR "%sthe tcp-port option is mandatory!\n",
-				PREFIX_VHOST(vhost));
-			exit(EXIT_FAILURE);
-		}
+		fprintf(stderr, ERRSTR "the tcp-port option is mandatory!\n");
+		exit(EXIT_FAILURE);
 	}
-
-	if (vhost->perm_config.udp_port == 0 && defvhost)
-		vhost->perm_config.udp_port = defvhost->perm_config.udp_port;
 
 	if (vhost->perm_config.cert_size == 0 ||
 	    vhost->perm_config.key_size == 0) {
@@ -1802,10 +1788,6 @@ static void check_cfg(vhost_cfg_st *vhost, vhost_cfg_st *defvhost,
 		}
 	}
 
-	if (vhost->perm_config.occtl_socket_file == NULL)
-		vhost->perm_config.occtl_socket_file =
-			talloc_strdup(vhost, OCCTL_UNIX_SOCKET);
-
 	if (config->network.ipv6_prefix &&
 	    config->network.ipv6_prefix >= config->network.ipv6_subnet_prefix) {
 		fprintf(stderr,
@@ -1817,17 +1799,9 @@ static void check_cfg(vhost_cfg_st *vhost, vhost_cfg_st *defvhost,
 	}
 
 	if (config->network.name[0] == 0) {
-		if (!vhost->name) {
-			fprintf(stderr,
-				ERRSTR
-				"%sthe 'device' configuration option must be specified!\n",
-				PREFIX_VHOST(vhost));
-			exit(EXIT_FAILURE);
-		} else {
-			strlcpy(config->network.name,
-				defvhost->perm_config.config->network.name,
-				sizeof(config->network.name));
-		}
+		fprintf(stderr, ERRSTR
+			"the 'device' configuration option must be specified!\n");
+		exit(EXIT_FAILURE);
 	}
 
 	if (config->mobile_dpd == 0)

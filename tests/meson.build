@@ -239,7 +239,7 @@ if get_option('root-tests')
     'test-explicit-ip', 'test-cookie-invalidation',
     'test-user-config', 'test-append-routes', 'test-ban',
     'multiple-routes', 'json', 'test-udp-listen-host',
-    'test-max-same-1',
+    'test-max-same-1', 'test-vhost-udp-port-inheritance',
     'apple-ios', 'ipv6-iface',
     'disconnect-user', 'disconnect-user2', 'terminate-commands',
     'ping-leases', 'test-ban-local', 'test-client-bypass-protocol',

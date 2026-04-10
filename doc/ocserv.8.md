@@ -243,6 +243,26 @@ should be generated as follows.
                --load-ca-certificate ca-cert.pem \
                --template crl.tmpl --outfile crl.pem
 
+## VIRTUAL HOSTS
+Ocserv supports virtual hosts, allowing a single instance to serve multiple
+domains with different configurations. This feature operates similarly to
+virtual hosts in Apache or Nginx - when clients connect requesting a specific
+domain name (via TLS SNI), the server selects the corresponding virtual host
+configuration. If no matching virtual host is found, the connection falls back
+to the global configuration.
+
+The global configuration can be thought of as a default virtual host that is
+used when an incoming connection does not match any explicitly defined virtual
+host.
+
+Options not specified within a virtual host are initialized to their default
+values. Default value is typically zero or an empty string, unless an option's
+description states otherwise.
+
+Note that certain options have global scope (affecting the entire server) and
+cannot be specified within virtual hosts. Such options are only recognized
+in the global configuration.
+
 ## FILES
 
 ### ocserv's configuration file format
