@@ -29,27 +29,45 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <getopt.h>
-#ifdef HAVE_CRYPT_H
-/* libcrypt in Fedora28 does not provide prototype
-   * in unistd.h */
 #include <crypt.h>
-#endif
 #include <locale.h>
 
 #define DEFAULT_OCPASSWD "/etc/ocserv/ocpasswd"
 
+#ifndef HAVE_CRYPT_GENSALT
 static const char alphabet[] =
 	"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ./";
 
 #define SALT_SIZE 16
+static char *portable_crypt_gensalt()
+{
+	uint8_t _salt[SALT_SIZE];
+	static char salt[SALT_SIZE + 1];
+	int ret;
+
+	/* Generate random bytes using GnuTLS */
+	ret = gnutls_rnd(GNUTLS_RND_NONCE, _salt, sizeof(_salt));
+	if (ret < 0) {
+		fprintf(stderr, "Error generating nonce: %s\n",
+			gnutls_strerror(ret));
+		exit(EXIT_FAILURE);
+	}
+
+	/* Encode bytes into crypt-compatible nul-terminated Base64 */
+	for (size_t i = 0; i < sizeof(_salt); i++)
+		salt[i] = alphabet[_salt[i] & 0x3F];
+	salt[SALT_SIZE] = '\0';
+
+	return salt;
+}
+#define crypt_gensalt(prefix, count, rbytes, nrbytes) portable_crypt_gensalt()
+#endif
+
 static void crypt_int(const char *fpasswd, const char *username,
 		      const char *groupname, const char *passwd)
 {
-	uint8_t _salt[SALT_SIZE];
-	char salt[SALT_SIZE + 16];
-	char *p, *cr_passwd;
+	char *cr_salt, *cr_passwd;
 	char *tmp_passwd;
-	unsigned int i;
 	unsigned int fpasswd_len = strlen(fpasswd);
 	unsigned int tmp_passwd_len;
 	unsigned int username_len = strlen(username);
@@ -63,36 +81,16 @@ static void crypt_int(const char *fpasswd, const char *username,
 	setlocale(LC_CTYPE, "C");
 	setlocale(LC_COLLATE, "C");
 
-	ret = gnutls_rnd(GNUTLS_RND_NONCE, _salt, sizeof(_salt));
-	if (ret < 0) {
-		fprintf(stderr, "Error generating nonce: %s\n",
-			gnutls_strerror(ret));
+	/* Generate salt using the system default algorithm */
+	cr_salt = crypt_gensalt(NULL, 0, NULL, 0);
+	if (cr_salt == NULL) {
+		perror("Error in crypt_gensalt()");
 		exit(EXIT_FAILURE);
 	}
 
-#ifdef TRY_SHA2_CRYPT
-	strcpy(salt, "$5$");
-#else
-	strcpy(salt, "$1$");
-#endif
-	p = salt + 3;
-
-	for (i = 0; i < sizeof(_salt); i++) {
-		*p = alphabet[_salt[i] % (sizeof(alphabet) - 1)];
-		p++;
-	}
-	*p = '$';
-	p++;
-	*p = 0;
-	p++;
-
-	cr_passwd = crypt(passwd, salt);
-	if (cr_passwd == NULL) { /* try MD5 */
-		salt[1] = '1';
-		cr_passwd = crypt(passwd, salt);
-	}
+	cr_passwd = crypt(passwd, cr_salt);
 	if (cr_passwd == NULL) {
-		fprintf(stderr, "Error in crypt().\n");
+		perror("Error in crypt()");
 		exit(EXIT_FAILURE);
 	}
 
@@ -122,7 +120,7 @@ static void crypt_int(const char *fpasswd, const char *username,
 		int found = 0;
 
 		while ((len = getline(&line, &line_size, fd)) > 0) {
-			p = strchr(line, ':');
+			char *p = strchr(line, ':');
 			if (p == NULL)
 				continue;
 

@@ -28,6 +28,7 @@
   * /ca.cer
 - Fix incorrect local address when using PROXY protocol with IPv6 (#711).
 - Fix calculation of avg_auth_time acros sec-mod instances (#736)
+- ocpasswd: Use the default hash algorithm to hash ocserv passwords.
 
 
 * Version 1.4.2 (released 2026-04-16)

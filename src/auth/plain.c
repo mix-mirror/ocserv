@@ -33,11 +33,7 @@
 #ifdef HAVE_LIBOATH
 #include <liboath/oath.h>
 #endif
-#ifdef HAVE_CRYPT_H
-/* libcrypt in Fedora28 does not provide prototype
-   * in unistd.h */
 #include <crypt.h>
-#endif
 #include "log.h"
 
 #define MAX_CPASS_SIZE 128
