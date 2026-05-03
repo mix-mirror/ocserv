@@ -51,7 +51,11 @@ void generate_hmac(size_t key_length, const uint8_t *key,
 		}
 	}
 
+#if NETTLE_MAJOR >= 4
+	hmac_sha256_digest(&ctx, digest);
+#else
 	hmac_sha256_digest(&ctx, HMAC_DIGEST_SIZE, digest);
+#endif
 
 	safe_memset(&ctx, 0, sizeof(ctx));
 }

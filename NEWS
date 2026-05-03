@@ -13,6 +13,7 @@
 - Limited HTTP header size to 16 KB to complement the existing 256 KB
   body limit
 - Fix build issue on FreeBSD (#704)
+- Build against Nettle 4.
 
 
 * Version 1.4.2 (released 2026-04-16)
