@@ -6,6 +6,7 @@
   now causes session rejection (previously silently ignored).
 - In certificate authentication the user is not prompted for group selection
   if the certificate provides a single group (#692)
+- ocpasswd: Use the system default hash algorithm to hash ocserv passwords.
 
 
 * Version 1.5.0 (released 2026-06-07)
