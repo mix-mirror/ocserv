@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2018 Nikos Mavrogiannopoulos
+ * Copyright (C) 2013-2026 Nikos Mavrogiannopoulos
  * Copyright (C) 2015-2016 Red Hat, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -19,10 +19,86 @@
 #include <config.h>
 
 #include <fcntl.h>
+#include <stdio.h>
 #include <sys/resource.h>
 #include <grp.h>
+#include <worker.h>
 #include <main.h>
 #include <limits.h>
+#include <unistd.h>
+
+/*
+ * Headroom above the measured data-segment baseline granted to each worker.
+ * Takes into account max values for HTTP body+headers (256 + 128 KB),
+ * presence of GnuTLS + worker I/O buffers + talloc/libc overhead +
+ * safety margin = 64 MB total. */
+#define WORKER_MEMORY_HEADROOM_KB (64 * 1024)
+
+#ifdef __linux__
+/* Returns a per-worker RLIMIT_DATA cap: data+stack baseline plus headroom.
+ * Field 6 of /proc/self/statm ("data" = VmData+VmStk, in pages).
+ * Returns 0 on any read failure (caller skips the limit).
+ */
+static rlim_t compute_worker_data_limit(unsigned headroom_kb)
+{
+	FILE *f;
+	/* statm: size resident shared text lib data dt (all in pages) */
+	unsigned long size, resident, shared, text, lib, data;
+	int n;
+
+	f = fopen("/proc/self/statm", "r");
+	if (!f)
+		return 0;
+
+	n = fscanf(f, "%lu %lu %lu %lu %lu %lu", &size, &resident, &shared,
+		   &text, &lib, &data);
+	fclose(f);
+	if (n != 6)
+		return 0;
+
+	return (rlim_t)data * (rlim_t)sysconf(_SC_PAGESIZE) +
+	       (rlim_t)headroom_kb * 1024;
+}
+
+/* Apply per-worker heap cap (RLIMIT_DATA) unless explicitly disabled. */
+void set_worker_mem_limits(struct worker_st *ws)
+{
+	struct rlimit rl;
+	rlim_t lim;
+
+	if (GETRCONFIG(ws)->has_limit_worker_memory &&
+	    !GETRCONFIG(ws)->limit_worker_memory)
+		return;
+
+	lim = compute_worker_data_limit(WORKER_MEMORY_HEADROOM_KB);
+	if (lim == 0) {
+		oclog(ws, LOG_INFO,
+		      "could not read memory baseline from "
+		      "/proc/self/statm; skipping RLIMIT_DATA");
+		return;
+	}
+
+	/* similarly to set_worker_fd_limits() this doesn't hard fail
+	 * if we are unable to set the limit, as the limit may have been
+	 * lowered for ocserv as a whole. */
+	rl.rlim_cur = lim;
+	rl.rlim_max = lim;
+	if (setrlimit(RLIMIT_DATA, &rl) < 0) {
+#ifdef WORKER_MEMORY_LIMIT_TEST
+		oclog(ws, LOG_ERR, "could not set RLIMIT_DATA to %zu: %s",
+		      (size_t)lim, strerror(errno));
+		exit(EXIT_FAILURE);
+#else
+		oclog(ws, LOG_INFO, "could not set RLIMIT_DATA to %zu: %s",
+		      (size_t)lim, strerror(errno));
+#endif /* WORKER_MEMORY_LIMIT_TEST */
+	}
+}
+#else /* !__linux__ */
+void set_worker_mem_limits(struct worker_st *ws)
+{
+}
+#endif /* __linux__ */
 
 /* Adjusts the file descriptor limits for the worker processes
  */

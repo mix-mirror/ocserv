@@ -21,6 +21,7 @@ option('local-llhttp',      type: 'boolean',  value: true,      description: 'Us
 option('local-protobuf',    type: 'boolean',  value: false,     description: 'Force use of bundled protobuf-c')
 option('local-pcl',         type: 'boolean',  value: true,      description: 'Use bundled PCL (default); false to require system pcl')
 option('seccomp-trap',      type: 'boolean',  value: false,     description: 'Filtered syscalls fail with a signal (for CI/testing)')
+option('worker-memory-limit-test', type: 'boolean', value: false, description: 'RLIMIT_DATA failures in worker are fatal (for CI/testing)')
 option('root-tests',        type: 'boolean',  value: true,      description: 'Enable tests requiring root/namespaces')
 option('tun-tests',         type: 'boolean',  value: true,      description: 'Enable tests requiring /dev/net/tun')
 option('kerberos-tests',    type: 'boolean',  value: false,     description: 'Enable tests requiring a Kerberos setup')

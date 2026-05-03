@@ -332,6 +332,26 @@ seccomp/Fedora:
     untracked: true
     when: on_failure
 
+# Tests per-worker RLIMIT_DATA by making setrlimit failures fatal
+worker-memory-limit/Fedora:
+  stage: testing
+  image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$FEDORA_BUILD
+  script:
+  - chmod -R o-w tests/data/raddb
+  - git submodule update --init
+  - meson setup build -Dworker-memory-limit-test=true
+  - ninja -C build -j$JOBS
+  - meson test -C build --num-processes $JOBS --no-rebuild
+  tags:
+  - saas-linux-medium-amd64
+  except:
+  - tags
+  - schedules
+  artifacts:
+    expire_in: 1 week
+    untracked: true
+    when: on_failure
+
 minimal:
   stage: testing
   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$CENTOS8_BUILD

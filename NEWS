@@ -5,6 +5,11 @@
   they are not overridden (#705)
 - `tunnel-all-dns` now works correctly when set in per-user/group config (#708)
 - radius: fixed Framed-IPv6-Prefix routes being silently dropped (#710)
+- Added per-worker memory limit (RLIMIT_DATA) as defense-in-depth against
+  memory-exhaustion attacks; controlled by the new `limit-worker-memory`
+  option (enabled by default)
+- Limited HTTP header size to 16 KB to complement the existing 256 KB
+  body limit
 
 
 * Version 1.4.2 (released 2026-04-16)

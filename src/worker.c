@@ -192,6 +192,7 @@ int main(int argc, char *argv[])
 	DTLS_ACTIVE(ws)->dtls_tptr.fd = -1;
 	DTLS_INACTIVE(ws)->dtls_tptr.fd = -1;
 
+	set_worker_mem_limits(ws);
 	set_worker_fd_limits(ws);
 
 	/* Drop privileges after this point */

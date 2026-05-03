@@ -1247,6 +1247,10 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 		if (error_on_vhost(vhost->name, "isolate-workers"))
 			return 0;
 		READ_TF_VC(isolate);
+	} else if (strcmp(name, "limit-worker-memory") == 0) {
+		if (error_on_vhost(vhost->name, "limit-worker-memory"))
+			return 0;
+		READ_TF_VC(limit_worker_memory);
 	} else if (strcmp(name, "predictable-ips") == 0) {
 		READ_TF_VC(predictable_ips);
 	} else if (strcmp(name, "use-utmp") == 0) {
