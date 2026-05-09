@@ -170,16 +170,23 @@ static int is_ipv4_ok(main_server_st *s, struct sockaddr_storage *ip,
 {
 	struct sockaddr_storage broadcast;
 	unsigned int i;
+	static const uint8_t mask31[4] = { 0xff, 0xff, 0xff, 0xfe };
 
 	memcpy(&broadcast, net, sizeof(broadcast));
 	for (i = 0; i < sizeof(struct in_addr); i++) {
 		SA_IN_U8_P(&broadcast)[i] |= ~(SA_IN_U8_P(mask)[i]);
 	}
 
-	if (ip_lease_exists(s, ip, sizeof(struct sockaddr_in)) != 0 ||
-	    ip_cmp(ip, net) == 0 || ip_cmp(ip, &broadcast) == 0) {
+	if (ip_lease_exists(s, ip, sizeof(struct sockaddr_in)) != 0) {
 		return 0;
 	}
+
+	/* /31 networks have no reserved network/broadcast addresses (RFC 3021) */
+	if (memcmp(SA_IN_U8_P(mask), mask31, 4) != 0 &&
+	    (ip_cmp(ip, net) == 0 || ip_cmp(ip, &broadcast) == 0)) {
+		return 0;
+	}
+
 	return 1;
 }
 
@@ -194,6 +201,7 @@ static int get_ipv4_lease(main_server_st *s, struct proc_st *proc)
 	int ret;
 	const char *c_network, *c_netmask;
 	char buf[64];
+	static const uint8_t mask31[4] = { 0xff, 0xff, 0xff, 0xfe };
 
 	/* Our IP accounting */
 	if (proc->config->ipv4_net && proc->config->ipv4_netmask) {
@@ -260,10 +268,11 @@ static int get_ipv4_lease(main_server_st *s, struct proc_st *proc)
 			goto fail;
 		}
 
-		/* LIP = network address + 1 */
+		/* LIP = network address + 1, except for /31 networks (RFC 3021) */
 		memcpy(&proc->ipv4->lip, &network, sizeof(struct sockaddr_in));
 		proc->ipv4->lip_len = sizeof(struct sockaddr_in);
-		SA_IN_U8_P(&proc->ipv4->lip)[3] |= 1;
+		if (memcmp(SA_IN_U8_P(&mask), mask31, 4) != 0)
+			SA_IN_U8_P(&proc->ipv4->lip)[3] |= 1;
 
 		if (ip_cmp(&proc->ipv4->lip, &proc->ipv4->rip) == 0) {
 			mslog(s, NULL, LOG_ERR,
@@ -344,10 +353,11 @@ static int get_ipv4_lease(main_server_st *s, struct proc_st *proc)
 
 		memcpy(&proc->ipv4->sig, &rnd, sizeof(struct sockaddr_in));
 
-		/* LIP = network address + 1 */
+		/* LIP = network address + 1, except for /31 networks (RFC 3021) */
 		memcpy(&proc->ipv4->lip, &network, sizeof(struct sockaddr_in));
 		proc->ipv4->lip_len = sizeof(struct sockaddr_in);
-		SA_IN_U8_P(&proc->ipv4->lip)[3] |= 1;
+		if (memcmp(SA_IN_U8_P(&mask), mask31, 4) != 0)
+			SA_IN_U8_P(&proc->ipv4->lip)[3] |= 1;
 
 		if (memcmp(SA_IN_U8_P(&proc->ipv4->lip),
 			   SA_IN_U8_P(&proc->ipv4->rip),
