@@ -23,6 +23,12 @@
 - IPv4 /31 networks (netmask 255.255.255.254) can now be used for leases as
   point-to-point links (RFC 3021); previously no address could be leased from
   them. The server takes the network address and the client the other one.
+- The server-side IPv6 tunnel address is now the network address of
+  ipv6-network (previously the network address + 1). Firewall rules, DNS
+  settings or scripts that reference the server's ::1 tunnel address must be
+  updated. This makes /127 point-to-point networks (RFC 6164) lease the
+  expected address to the client, and a client can no longer be assigned
+  the server's address as part of the first subnet (#714)
 
 
 * Version 1.5.0 (released 2026-06-07)

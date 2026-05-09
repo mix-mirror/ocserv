@@ -366,8 +366,9 @@ test sources after `common.sh`:
       same kind into `NAME`. For every allocated `NAME` it MUST set
       `NAME_BASE`, the network address without its last all-zero octet
       (IPv4, e.g. `10.22.134`) or group (IPv6, ending in `:`), and
-      `NAME_ADDR`, the first host address (`NAME_BASE` followed by `.1`
-      or `1`), and it MUST append `NAME` to `VPNNET_VARS` so that
+      `NAME_ADDR`, the server address: the first host address
+      (`NAME_BASE` followed by `.1`) for IPv4, and the network address
+      itself for IPv6 (`REQ-MAIN-NET-006`), and it MUST append `NAME` to `VPNNET_VARS` so that
       `update_config` substitutes it (`REQ-GEN-TEST-008`). It MUST also
       set `VPNADDR` and `VPNADDR6` to `VPNNET_ADDR` and `VPNNET6_ADDR`.
       It MUST NOT modify `ADDRESS` or `CLI_ADDRESS`, so a test using
@@ -414,7 +415,7 @@ draw space is about 70,000 `/24` networks).
 `random-vpnnet.sh`, call `alloc_vpnnet4 VPNNET2`, and confirm: `ADDRESS`
 is unchanged and `CLI_ADDRESS` unset; `"${VPNNET_BASE}.0/24" = "$VPNNET"`
 and `VPNADDR = VPNNET_ADDR = ${VPNNET_BASE}.1`; `VPNNET6` ends in `/112`
-and `VPNADDR6 = ${VPNNET6_BASE}1`; `VPNNET2 != VPNNET`; and a template
+and `VPNADDR6` equals the network address of `VPNNET6`; `VPNNET2 != VPNNET`; and a template
 containing `@VPNNET2@ @VPNNET2_BASE@.9 @VPNNET2_ADDR@` is materialized by
 `update_config` with those values. Source `random-net.sh` and confirm
 `ADDRESS` and `CLI_ADDRESS` are set to addresses different from
