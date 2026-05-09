@@ -1,0 +1,121 @@
+#!/bin/bash
+#
+# Copyright (C) 2021 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with GnuTLS; if not, write to the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+PIDFILE=ocserv-pid.$$.tmp
+CLIPID=oc-pid.$$.tmp
+IP=$(command -v ip)
+
+. `dirname $0`/common.sh
+
+eval "${GETPORT}"
+
+if test -z "${IP}";then
+	echo "no IP tool is present"
+	exit 77
+fi
+
+if test "$(id -u)" != "0";then
+	echo "This test must be run as root"
+	exit 77
+fi
+
+
+echo "Testing ocserv with point-to-point networks (IPv4 /30, IPv6 /127)... "
+
+function finish {
+  echo " * Cleaning up..."
+  cleanup_client_server
+}
+trap finish EXIT
+
+OCCTL_SOCKET=./p2p-iface-$$.socket
+USERNAME=test
+
+# Generate random IPv4 P2P network (/30 - RFC 3021)
+# /30 provides 4 addresses: network, 2 usable hosts, broadcast
+ret=0
+while [ $ret = 0 ]
+do
+	eval $(${IPCALC} -r 30 -np --minaddr --maxaddr)
+	VPNNET="${NETWORK}/${PREFIX}"
+	VPNADDR=${MINADDR}           # Server address
+	VPNADDR_CLI=${MAXADDR}       # Client address
+	ping -W 1 -c 2 ${VPNADDR} >/dev/null 2>&1
+	ret=$?
+done
+
+# Generate random IPv6 P2P network (/127 - RFC 6164)
+# /127 provides exactly 2 addresses for point-to-point links
+ret=0
+while [ $ret = 0 ]
+do
+	eval $(${IPCALC} -r 127 -np --minaddr --maxaddr)
+	VPNNET6="${NETWORK}/${PREFIX}"
+	VPNADDR6=${MINADDR}          # Server address
+	VPNADDR6_CLI=${MAXADDR}      # Client address
+	ping -W 1 -c 2 ${VPNADDR6} >/dev/null 2>&1
+	ret=$?
+done
+
+echo "**************************"
+echo "VPN IPv4 network: $VPNNET"
+echo "VPN IPv4 server address: $VPNADDR"
+echo "VPN IPv6 network: $VPNNET6"
+echo "VPN IPv6 server address: $VPNADDR6"
+echo "Client IPv4 address: $VPNADDR_CLI"
+echo "Client IPv6 address: $VPNADDR6_CLI"
+echo "**************************"
+
+. `dirname $0`/ns.sh
+
+update_config p2p-iface.config
+if test "$VERBOSE" = 1;then
+	DEBUG="-d 3"
+fi
+
+${CMDNS2} ${SERV} -p ${PIDFILE} -f -c ${CONFIG} ${DEBUG} & PID=$!
+wait_server $PID
+
+echo -n "Connecting to P2P interface... "
+echo "test" | ${CMDNS1} $OPENCONNECT -q $ADDRESS:$PORT -u ${USERNAME} --servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8= -s ${srcdir}/scripts/vpnc-script --pid-file=${CLIPID} --passwd-on-stdin -b
+if test $? != 0;then
+	echo "Could not connect to server"
+	exit 1
+fi
+
+echo ok
+
+set -e
+echo " * ping IPv4 P2P addresses"
+${CMDNS2} ping -c 3 ${VPNADDR}
+${CMDNS2} ping -c 3 ${VPNADDR_CLI}
+
+echo " * ping IPv6 P2P addresses"
+${CMDNS2} ping -6 -c 3 ${VPNADDR6}
+${CMDNS2} ping -6 -c 3 ${VPNADDR6_CLI}
+
+echo ok
+
+kill $PID
+wait
+
+exit 0

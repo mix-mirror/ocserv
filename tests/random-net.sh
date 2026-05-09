@@ -51,7 +51,7 @@ while [ $ret = 0 ]
 do
 	eval $(${IPCALC} -r 112 -np --minaddr)
 	VPNNET6="${NETWORK}/${PREFIX}"
-	VPNADDR6="${NETWORK}1"
+	VPNADDR6="${NETWORK}"
 	ping ${PINGOPS} ${VPNADDR6} >/dev/null 2>&1
 	ret=$?
 done

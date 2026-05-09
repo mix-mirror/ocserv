@@ -76,7 +76,7 @@ VPNNET=192.168.66.0/24
 VPNADDR=192.168.66.1
 CLIVPNADDR=192.168.66.194
 VPNNET6=fd91:6d14:7241:dc6a::/112
-VPNADDR6=fd91:6d14:7241:dc6a::1
+VPNADDR6=fd91:6d14:7241:dc6a::0
 OCCTL_SOCKET=./occtl-radius-ipv6-prefix-$$.socket
 
 . `dirname $0`/ns.sh

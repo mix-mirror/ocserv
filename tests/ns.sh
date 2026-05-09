@@ -27,9 +27,9 @@
 #  VPNADDR=192.168.1.1
 #
 # Provides:
-#  ${NSCMD1} - to run on NS1
-#  ${NSCMD2} - to run on NS2
-#  ${NSCMD3} - to run on NS3
+#  ${CMDNS1} - to run on NS1
+#  ${CMDNS2} - to run on NS2
+#  ${CMDNS3} - to run on NS3
 #
 # Cleanup is automatic via a trap
 #  Requires: finish() to be defined

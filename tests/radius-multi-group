@@ -73,7 +73,7 @@ trap finish EXIT
 VPNNET=192.168.94.0/24
 VPNADDR=192.168.94.192
 VPNNET6=fc7d:b139:f7ba:5f51:c634:e98e:b777:0/112
-VPNADDR6=fc7d:b139:f7ba:5f51:c634:e98e:b777:1
+VPNADDR6=fc7d:b139:f7ba:5f51:c634:e98e:b777:0
 OCCTL_SOCKET=./occtl-radius-group-$$.socket
 
 . `dirname $0`/ns.sh

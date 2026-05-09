@@ -425,9 +425,8 @@ static int get_ipv6_lease(main_server_st *s, struct proc_st *proc)
 	if (proc->ipv6 == NULL)
 		return ERR_MEM;
 
-	/* LIP = network address + 1 */
+	/* LIP = network address */
 	memcpy(&proc->ipv6->lip, &network, sizeof(struct sockaddr_in6));
-	SA_IN6_U8_P(&proc->ipv6->lip)[15] |= 1;
 
 	proc->ipv6->lip_len = sizeof(struct sockaddr_in6);
 
