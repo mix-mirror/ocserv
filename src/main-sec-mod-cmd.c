@@ -238,8 +238,8 @@ static void append_routes(sec_mod_instance_st *sec_mod_instance, proc_st *proc,
 			to_append += vhost->config->network->n_routes;
 
 		gc->n_routes = 0;
-		gc->routes = talloc_size(
-			proc, sizeof(char *) * (old_routes_size + to_append));
+		gc->routes =
+			talloc_array(proc, char *, old_routes_size + to_append);
 
 		for (i = 0; i < old_routes_size; i++) {
 			gc->routes[i] = talloc_strdup(proc, old_routes[i]);
@@ -296,11 +296,10 @@ static void append_routes(sec_mod_instance_st *sec_mod_instance, proc_st *proc,
 			old_routes_size = gc->n_no_routes;
 
 			gc->n_no_routes = 0;
-			gc->no_routes = talloc_size(
-				proc,
-				sizeof(char *) *
-					(old_routes_size +
-					 vhost->config->network->n_no_routes));
+			gc->no_routes = talloc_array(
+				proc, char *,
+				old_routes_size +
+					vhost->config->network->n_no_routes);
 
 			for (i = 0; i < old_routes_size; i++) {
 				gc->no_routes[i] =

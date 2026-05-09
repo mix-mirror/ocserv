@@ -87,32 +87,30 @@ static void vhost_inherit_static_config(vhost_cfg_st *vhost,
 		}                                                           \
 	}
 
-#define READ_MULTI_BRACKET_LINE(varname, varname2, num)                        \
-	{                                                                      \
-		if (varname == NULL || varname2 == NULL) {                     \
-			num = 0;                                               \
-			varname = talloc_size(pool,                            \
-					      sizeof(char *) *                 \
-						      DEFAULT_CONFIG_ENTRIES); \
-			varname2 = talloc_size(                                \
-				pool,                                          \
-				sizeof(char *) * DEFAULT_CONFIG_ENTRIES);      \
-			if (varname == NULL || varname2 == NULL) {             \
-				fprintf(stderr, ERRSTR "memory\n");            \
-				exit(EXIT_FAILURE);                            \
-			}                                                      \
-		}                                                              \
-		if (num < DEFAULT_CONFIG_ENTRIES) {                            \
-			char *xp;                                              \
-			varname[num] = talloc_strdup(pool, value);             \
-			xp = strchr(varname[num], '[');                        \
-			if (xp != NULL)                                        \
-				*xp = 0;                                       \
-			varname2[num] = get_brackets_string1(pool, value);     \
-			num++;                                                 \
-			varname[num] = NULL;                                   \
-			varname2[num] = NULL;                                  \
-		}                                                              \
+#define READ_MULTI_BRACKET_LINE(varname, varname2, num)                    \
+	{                                                                  \
+		if (varname == NULL || varname2 == NULL) {                 \
+			num = 0;                                           \
+			varname = talloc_array(pool, char *,               \
+					       DEFAULT_CONFIG_ENTRIES);    \
+			varname2 = talloc_array(pool, char *,              \
+						DEFAULT_CONFIG_ENTRIES);   \
+			if (varname == NULL || varname2 == NULL) {         \
+				fprintf(stderr, ERRSTR "memory\n");        \
+				exit(EXIT_FAILURE);                        \
+			}                                                  \
+		}                                                          \
+		if (num < DEFAULT_CONFIG_ENTRIES) {                        \
+			char *xp;                                          \
+			varname[num] = talloc_strdup(pool, value);         \
+			xp = strchr(varname[num], '[');                    \
+			if (xp != NULL)                                    \
+				*xp = 0;                                   \
+			varname2[num] = get_brackets_string1(pool, value); \
+			num++;                                             \
+			varname[num] = NULL;                               \
+			varname2[num] = NULL;                              \
+		}                                                          \
 	}
 
 #define PREAD_STRING(pool, varname)                         \

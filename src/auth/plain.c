@@ -468,7 +468,7 @@ static void plain_group_list(void *pool, void *additional, char ***groupname,
 	}
 
 	*groupname_size = 0;
-	*groupname = talloc_size(pool, sizeof(char *) * MAX_GROUPS);
+	*groupname = talloc_array(pool, char *, MAX_GROUPS);
 	if (*groupname == NULL) {
 		goto exit;
 	}

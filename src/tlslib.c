@@ -882,9 +882,8 @@ static int load_cert_files(main_server_st *s, struct vhost_cfg_st *vhost)
 			}
 
 			pcert_list_size = 8;
-			pcert_list = talloc_size(vhost->pool,
-						 sizeof(pcert_list[0]) *
-							 pcert_list_size);
+			pcert_list = talloc_array(vhost->pool, gnutls_pcert_st,
+						  pcert_list_size);
 			if (pcert_list == NULL) {
 				oc_syslog(LOG_ERR, "error allocating memory");
 				return -1;
