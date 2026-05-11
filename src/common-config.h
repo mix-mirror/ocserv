@@ -58,6 +58,7 @@ typedef struct plain_cfg_st {
 } plain_cfg_st;
 
 typedef struct pam_cfg_st {
+	char *service_name;
 	int gid_min;
 } pam_cfg_st;
 

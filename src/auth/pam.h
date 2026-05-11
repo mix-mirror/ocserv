@@ -47,6 +47,7 @@ struct pam_ctx_st {
 	unsigned int state; /* PAM_S_ */
 	unsigned int passwd_counter;
 	size_t prev_prompt_hash;
+	const struct pam_cfg_st *config;
 };
 
 #endif

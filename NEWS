@@ -1,4 +1,6 @@
 * Version 1.5.0 (unreleased)
+- Added 'service' sub-option to the 'auth = pam[...]' directive to allow
+  configurable PAM service names, enabling per-vhost PAM stacks (#718)
 - ocserv-fw-nftables: dropped runtime dependency on ipcalc/ipcalc-ng (#709)
 - Fixed sudden disconnects after authentication for AnyConnect clients (#706)
 - Vhosts now inherit configuration options from the default vhost if

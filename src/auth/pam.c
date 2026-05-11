@@ -58,6 +58,24 @@ enum {
 	PAM_S_COMPLETE,
 };
 
+static void pam_vhost_init(void **vctx, void *pool, void *additional)
+{
+	struct pam_cfg_st *config = additional;
+
+	/* vctx is pam_cfg_st */
+
+	/* Defensive check; config is always allocated by pam_get_brackets_string() */
+	if (config == NULL) {
+		fprintf(stderr, "pam: no configuration passed!\n");
+		exit(EXIT_FAILURE);
+	}
+
+	if (config->service_name == NULL)
+		config->service_name = PACKAGE;
+
+	*vctx = (void *)config;
+}
+
 static int ocserv_conv(int msg_size, const struct pam_message **msg,
 		       struct pam_response **resp, void *uptr)
 {
@@ -207,7 +225,10 @@ static int pam_auth_init(void **ctx, void *pool, void *vctx,
 
 	pctx->dc.conv = ocserv_conv;
 	pctx->dc.appdata_ptr = pctx;
-	pret = pam_start(PACKAGE, info->username, &pctx->dc, &pctx->ph);
+	pctx->config = vctx;
+
+	pret = pam_start(pctx->config->service_name, info->username, &pctx->dc,
+			 &pctx->ph);
 	if (pret != PAM_SUCCESS) {
 		oc_syslog(LOG_NOTICE, "PAM-auth init: %s",
 			  pam_strerror(pctx->ph, pret));
@@ -376,6 +397,7 @@ static void pam_group_list(void *pool, void *_additional, char ***groupname,
 
 const struct auth_mod_st pam_auth_funcs = { .type = AUTH_TYPE_PAM |
 						    AUTH_TYPE_USERNAME_PASS,
+					    .vhost_init = pam_vhost_init,
 					    .auth_init = pam_auth_init,
 					    .auth_deinit = pam_auth_deinit,
 					    .auth_msg = pam_auth_msg,

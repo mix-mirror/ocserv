@@ -21,3 +21,17 @@ configure_file(
   configuration: pam_conf,
   install:       false,
 )
+
+configure_file(
+  input:         'ocserv-vhost1.in',
+  output:        'ocserv-vhost1',
+  configuration: pam_conf,
+  install:       false,
+)
+
+configure_file(
+  input:         'ocserv-vhost2.in',
+  output:        'ocserv-vhost2',
+  configuration: pam_conf,
+  install:       false,
+)

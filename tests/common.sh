@@ -144,13 +144,16 @@ launch_pam_server() {
 	export PAM_WRAPPER_SERVICE_DIR="${builddir}/pam.$$.tmp/"
 	mkdir -p "${PAM_WRAPPER_SERVICE_DIR}"
 	test -f "${srcdir}/${TEST_PAMDIR}/users.oath.templ" && cp "${srcdir}/${TEST_PAMDIR}/users.oath.templ" "${PAM_WRAPPER_SERVICE_DIR}/users.oath"
-	test -f "${srcdir}/${TEST_PAMDIR}/passdb.templ" && cp "${srcdir}/${TEST_PAMDIR}/passdb.templ" "${PAM_WRAPPER_SERVICE_DIR}/passdb"
-	if test -f "${builddir}/${TEST_PAMDIR}/ocserv";then
-		cp "${builddir}/${TEST_PAMDIR}/ocserv" "${PAM_WRAPPER_SERVICE_DIR}/"
-	else
-		cp "${builddir}/data/pam/ocserv" "${PAM_WRAPPER_SERVICE_DIR}/"
-	fi
-	sed -i -e 's|%PAM_WRAPPER_SERVICE_DIR%|'${PAM_WRAPPER_SERVICE_DIR}'|g' "${PAM_WRAPPER_SERVICE_DIR}/ocserv"
+
+	for f in "${srcdir}/${TEST_PAMDIR}"/passdb*.templ; do
+		test -f "${f}" && cp "${f}" "${PAM_WRAPPER_SERVICE_DIR}/$(basename "${f%.templ}")"
+	done
+
+	cp "${builddir}/data/pam/ocserv" "${PAM_WRAPPER_SERVICE_DIR}/"
+	for f in "${builddir}/${TEST_PAMDIR}"/ocserv*; do
+		test -f "${f}" && cp -f "${f}" "${PAM_WRAPPER_SERVICE_DIR}/"
+	done
+	sed -i -e 's|%PAM_WRAPPER_SERVICE_DIR%|'${PAM_WRAPPER_SERVICE_DIR}'|g' "${PAM_WRAPPER_SERVICE_DIR}"/ocserv*
 
 	cp "${builddir}/data/pam/nss-passwd" "${PAM_WRAPPER_SERVICE_DIR}/"
 	cp "${builddir}/data/pam/nss-group" "${PAM_WRAPPER_SERVICE_DIR}/"
