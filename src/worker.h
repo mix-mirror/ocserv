@@ -200,7 +200,7 @@ typedef struct worker_st {
 
 	struct http_req_st req;
 
-	/* inique session identifier */
+	/* unique session identifier */
 	uint8_t sid[SID_SIZE];
 	unsigned int sid_set;
 
