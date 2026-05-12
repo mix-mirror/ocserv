@@ -160,13 +160,6 @@ static int ca_handler(worker_st *ws, unsigned int http_ver, unsigned int der)
 			return -1;
 		}
 
-		ret = gnutls_x509_crt_init(&issuer);
-		if (ret < 0) {
-			oclog(ws, LOG_DEBUG, "could not initialize cert");
-			ret = -1;
-			goto cleanup;
-		}
-
 		ret = gnutls_x509_crt_import(crt, &certs[0],
 					     GNUTLS_X509_FMT_DER);
 		if (ret < 0) {
@@ -179,6 +172,14 @@ static int ca_handler(worker_st *ws, unsigned int http_ver, unsigned int der)
 			ret = gnutls_certificate_get_crt_raw(WSCREDS(ws)->xcred,
 							     i, 1, &tmpca);
 			if (ret < 0) {
+				goto cleanup;
+			}
+
+			ret = gnutls_x509_crt_init(&issuer);
+			if (ret < 0) {
+				ret = -1;
+				oclog(ws, LOG_DEBUG,
+				      "could not initialize issuer cert");
 				goto cleanup;
 			}
 
