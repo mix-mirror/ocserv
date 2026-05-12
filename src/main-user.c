@@ -61,14 +61,14 @@ static const char *ocserv_fw_script(void)
 	return path;
 }
 
-#define APPEND_TO_STR(str, val)                                           \
-	do {                                                              \
-		ret = str_append_str(str, val);                           \
-		if (ret < 0) {                                            \
-			mslog(s, proc, LOG_ERR,                           \
-			      "could not append value to environment\n"); \
-			exit(EXIT_FAILURE);                               \
-		}                                                         \
+#define APPEND_TO_STR(str, val)                                         \
+	do {                                                            \
+		ret = str_append_str(str, val);                         \
+		if (ret < 0) {                                          \
+			mslog(s, proc, LOG_ERR,                         \
+			      "could not append value to environment"); \
+			exit(EXIT_FAILURE);                             \
+		}                                                       \
 	} while (0)
 
 typedef enum script_type_t {
@@ -110,19 +110,19 @@ static void export_fw_info(main_server_st *s, struct proc_st *proc)
 
 	if (str4.length > 0 &&
 	    setenv("OCSERV_ROUTES4", (char *)str4.data, 1) == -1) {
-		mslog(s, proc, LOG_ERR, "could not export routes\n");
+		mslog(s, proc, LOG_ERR, "could not export routes");
 		exit(EXIT_FAILURE);
 	}
 
 	if (str6.length > 0 &&
 	    setenv("OCSERV_ROUTES6", (char *)str6.data, 1) == -1) {
-		mslog(s, proc, LOG_ERR, "could not export routes\n");
+		mslog(s, proc, LOG_ERR, "could not export routes");
 		exit(EXIT_FAILURE);
 	}
 
 	if (str_common.length > 0 &&
 	    setenv("OCSERV_ROUTES", (char *)str_common.data, 1) == -1) {
-		mslog(s, proc, LOG_ERR, "could not export routes\n");
+		mslog(s, proc, LOG_ERR, "could not export routes");
 		exit(EXIT_FAILURE);
 	}
 
@@ -148,26 +148,26 @@ static void export_fw_info(main_server_st *s, struct proc_st *proc)
 
 	if (str4.length > 0 &&
 	    setenv("OCSERV_NO_ROUTES4", (char *)str4.data, 1) == -1) {
-		mslog(s, proc, LOG_ERR, "could not export no-routes\n");
+		mslog(s, proc, LOG_ERR, "could not export no-routes");
 		exit(EXIT_FAILURE);
 	}
 
 	if (str6.length > 0 &&
 	    setenv("OCSERV_NO_ROUTES6", (char *)str6.data, 1) == -1) {
-		mslog(s, proc, LOG_ERR, "could not export no-routes\n");
+		mslog(s, proc, LOG_ERR, "could not export no-routes");
 		exit(EXIT_FAILURE);
 	}
 
 	if (str_common.length > 0 &&
 	    setenv("OCSERV_NO_ROUTES", (char *)str_common.data, 1) == -1) {
-		mslog(s, proc, LOG_ERR, "could not export no-routes\n");
+		mslog(s, proc, LOG_ERR, "could not export no-routes");
 		exit(EXIT_FAILURE);
 	}
 
 	if (proc->config->restrict_user_to_routes) {
 		if (setenv("OCSERV_RESTRICT_TO_ROUTES", "1", 1) == -1) {
 			mslog(s, proc, LOG_ERR,
-			      "could not export OCSERV_RESTRICT_TO_ROUTES\n");
+			      "could not export OCSERV_RESTRICT_TO_ROUTES");
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -194,19 +194,19 @@ static void export_fw_info(main_server_st *s, struct proc_st *proc)
 
 	if (str4.length > 0 &&
 	    setenv("OCSERV_DNS4", (char *)str4.data, 1) == -1) {
-		mslog(s, proc, LOG_ERR, "could not export DNS servers\n");
+		mslog(s, proc, LOG_ERR, "could not export DNS servers");
 		exit(EXIT_FAILURE);
 	}
 
 	if (str6.length > 0 &&
 	    setenv("OCSERV_DNS6", (char *)str6.data, 1) == -1) {
-		mslog(s, proc, LOG_ERR, "could not export DNS servers\n");
+		mslog(s, proc, LOG_ERR, "could not export DNS servers");
 		exit(EXIT_FAILURE);
 	}
 
 	if (str_common.length > 0 &&
 	    setenv("OCSERV_DNS", (char *)str_common.data, 1) == -1) {
-		mslog(s, proc, LOG_ERR, "could not export DNS servers\n");
+		mslog(s, proc, LOG_ERR, "could not export DNS servers");
 		exit(EXIT_FAILURE);
 	}
 
@@ -257,7 +257,7 @@ static void export_fw_info(main_server_st *s, struct proc_st *proc)
 
 			if (ret < 0) {
 				mslog(s, proc, LOG_ERR,
-				      "could not append value to environment\n");
+				      "could not append value to environment");
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -268,14 +268,14 @@ static void export_fw_info(main_server_st *s, struct proc_st *proc)
 			if (setenv("OCSERV_DENY_PORTS", (char *)str_common.data,
 				   1) == -1) {
 				mslog(s, proc, LOG_ERR,
-				      "could not export DENY_PORTS\n");
+				      "could not export DENY_PORTS");
 				exit(EXIT_FAILURE);
 			}
 		} else {
 			if (setenv("OCSERV_ALLOW_PORTS",
 				   (char *)str_common.data, 1) == -1) {
 				mslog(s, proc, LOG_ERR,
-				      "could not export ALLOW_PORTS\n");
+				      "could not export ALLOW_PORTS");
 				exit(EXIT_FAILURE);
 			}
 		}

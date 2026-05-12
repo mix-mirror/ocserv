@@ -83,7 +83,7 @@ static int os_set_ipv6_addr(main_server_st *s, struct proc_st *proc)
 	fd = socket(AF_INET6, SOCK_STREAM, 0);
 	if (fd == -1) {
 		e = errno;
-		mslog(s, NULL, LOG_ERR, "%s: Error socket(AF_INET6): %s\n",
+		mslog(s, NULL, LOG_ERR, "%s: Error socket(AF_INET6): %s",
 		      proc->tun_lease.name, strerror(e));
 		return -1;
 	}
@@ -94,7 +94,7 @@ static int os_set_ipv6_addr(main_server_st *s, struct proc_st *proc)
 	ret = ioctl(fd, SIOGIFINDEX, &ifr);
 	if (ret != 0) {
 		e = errno;
-		mslog(s, NULL, LOG_ERR, "%s: Error in SIOGIFINDEX: %s\n",
+		mslog(s, NULL, LOG_ERR, "%s: Error in SIOGIFINDEX: %s",
 		      proc->tun_lease.name, strerror(e));
 		ret = -1;
 		goto cleanup;
@@ -111,7 +111,7 @@ static int os_set_ipv6_addr(main_server_st *s, struct proc_st *proc)
 	ret = ioctl(fd, SIOCSIFADDR, &ifr6);
 	if (ret != 0) {
 		e = errno;
-		mslog(s, NULL, LOG_ERR, "%s: Error setting IPv6: %s\n",
+		mslog(s, NULL, LOG_ERR, "%s: Error setting IPv6: %s",
 		      proc->tun_lease.name, strerror(e));
 		ret = -1;
 		goto cleanup;
@@ -126,7 +126,7 @@ static int os_set_ipv6_addr(main_server_st *s, struct proc_st *proc)
 	if (ret != 0) {
 		e = errno;
 		mslog(s, NULL, LOG_ERR,
-		      "%s: Could not bring up IPv6 interface: %s\n",
+		      "%s: Could not bring up IPv6 interface: %s",
 		      proc->tun_lease.name, strerror(e));
 		ret = -1;
 		goto cleanup;
@@ -147,7 +147,7 @@ static int os_set_ipv6_addr(main_server_st *s, struct proc_st *proc)
 	if (ret != 0) {
 		e = errno;
 		mslog(s, NULL, LOG_ERR,
-		      "%s: Error setting route to remote IPv6: %s\n",
+		      "%s: Error setting route to remote IPv6: %s",
 		      proc->tun_lease.name, strerror(e));
 		ret = -1;
 		goto cleanup;
@@ -227,7 +227,7 @@ static int os_set_ipv6_addr(main_server_st *s, struct proc_st *proc)
 	fd = socket(AF_INET6, SOCK_STREAM, 0);
 	if (fd == -1) {
 		e = errno;
-		mslog(s, NULL, LOG_ERR, "%s: Error socket(AF_INET6): %s\n",
+		mslog(s, NULL, LOG_ERR, "%s: Error socket(AF_INET6): %s",
 		      proc->tun_lease.name, strerror(e));
 		return -1;
 	}
@@ -260,7 +260,7 @@ static int os_set_ipv6_addr(main_server_st *s, struct proc_st *proc)
 	ret = ioctl(fd, SIOCAIFADDR_IN6, &ifr6);
 	if (ret != 0) {
 		e = errno;
-		mslog(s, NULL, LOG_ERR, "%s: Error setting IPv6: %s\n",
+		mslog(s, NULL, LOG_ERR, "%s: Error setting IPv6: %s",
 		      proc->tun_lease.name, strerror(e));
 		ret = -1;
 		goto cleanup;
@@ -275,7 +275,7 @@ static int os_set_ipv6_addr(main_server_st *s, struct proc_st *proc)
 	if (ret != 0) {
 		e = errno;
 		mslog(s, NULL, LOG_ERR,
-		      "%s: Could not bring up IPv6 interface: %s\n",
+		      "%s: Could not bring up IPv6 interface: %s",
 		      proc->tun_lease.name, strerror(e));
 		ret = -1;
 		goto cleanup;
@@ -359,7 +359,7 @@ static int set_network_info(main_server_st *s, struct proc_st *proc)
 		ret = ioctl(fd, SIOCAIFADDR, &ifr);
 		if (ret != 0) {
 			e = errno;
-			mslog(s, NULL, LOG_ERR, "%s: Error setting IPv4: %s\n",
+			mslog(s, NULL, LOG_ERR, "%s: Error setting IPv4: %s",
 			      proc->tun_lease.name, strerror(e));
 			ret = -1;
 			goto cleanup;
@@ -372,7 +372,7 @@ static int set_network_info(main_server_st *s, struct proc_st *proc)
 		ret = ioctl(fd, SIOCSIFADDR, &ifr);
 		if (ret != 0) {
 			e = errno;
-			mslog(s, NULL, LOG_ERR, "%s: Error setting IPv4: %s\n",
+			mslog(s, NULL, LOG_ERR, "%s: Error setting IPv4: %s",
 			      proc->tun_lease.name, strerror(e));
 			ret = -1;
 			goto cleanup;
@@ -388,7 +388,7 @@ static int set_network_info(main_server_st *s, struct proc_st *proc)
 		if (ret != 0) {
 			e = errno;
 			mslog(s, NULL, LOG_ERR,
-			      "%s: Error setting DST IPv4: %s\n",
+			      "%s: Error setting DST IPv4: %s",
 			      proc->tun_lease.name, strerror(e));
 			ret = -1;
 			goto cleanup;
@@ -403,7 +403,7 @@ static int set_network_info(main_server_st *s, struct proc_st *proc)
 		ret = ioctl(fd, SIOCSIFFLAGS, &ifr);
 		if (ret != 0) {
 			mslog(s, NULL, LOG_ERR,
-			      "%s: Could not bring up IPv4 interface.\n",
+			      "%s: Could not bring up IPv4 interface.",
 			      proc->tun_lease.name);
 			ret = -1;
 			goto cleanup;
@@ -423,7 +423,7 @@ static int set_network_info(main_server_st *s, struct proc_st *proc)
 	}
 
 	if (proc->ipv6 == 0 && proc->ipv4 == 0) {
-		mslog(s, NULL, LOG_ERR, "%s: Could not set any IP.\n",
+		mslog(s, NULL, LOG_ERR, "%s: Could not set any IP.",
 		      proc->tun_lease.name);
 		ret = -1;
 		goto cleanup;
@@ -472,7 +472,7 @@ static int bsd_ifrename(main_server_st *s, struct proc_st *proc)
 			       GETRCONFIG(s)->network->name, i);
 		if (ret != strlen(tun_name)) {
 			mslog(s, NULL, LOG_ERR,
-			      "Truncation error in tun name: %s; adjust 'device' option\n",
+			      "Truncation error in tun name: %s; adjust 'device' option",
 			      proc->tun_lease.name);
 			return -1;
 		}
@@ -486,7 +486,7 @@ static int bsd_ifrename(main_server_st *s, struct proc_st *proc)
 				continue;
 
 			mslog(s, NULL, LOG_ERR,
-			      "%s: Error renaming interface: %s\n",
+			      "%s: Error renaming interface: %s",
 			      proc->tun_lease.name, strerror(e));
 			goto fail;
 		}
@@ -505,7 +505,7 @@ static int bsd_ifrename(main_server_st *s, struct proc_st *proc)
 	} else {
 		e = errno;
 		mslog(s, NULL, LOG_WARNING,
-		      "Error renaming interface: %s to %s: %s\n",
+		      "Error renaming interface: %s to %s: %s",
 		      proc->tun_lease.name, tun_name, strerror(e));
 		ret = -1;
 	}
@@ -580,8 +580,7 @@ static int os_open_tun(main_server_st *s, struct proc_st *proc)
 	ret = fstat(fd, &st);
 	if (ret < 0) {
 		e = errno;
-		mslog(s, NULL, LOG_ERR, "tun fd %d: stat: %s\n", fd,
-		      strerror(e));
+		mslog(s, NULL, LOG_ERR, "tun fd %d: stat: %s", fd, strerror(e));
 		close(fd);
 		return -1;
 	}
@@ -598,7 +597,7 @@ static int os_open_tun(main_server_st *s, struct proc_st *proc)
 		ret = ioctl(fd, TUNGIFINFO, &inf);
 		if (ret < 0) {
 			e = errno;
-			mslog(s, NULL, LOG_ERR, "%s: TUNGIFINFO: %s\n",
+			mslog(s, NULL, LOG_ERR, "%s: TUNGIFINFO: %s",
 			      proc->tun_lease.name, strerror(e));
 		} else {
 			inf.flags |= IFF_MULTICAST;
@@ -606,7 +605,7 @@ static int os_open_tun(main_server_st *s, struct proc_st *proc)
 			ret = ioctl(fd, TUNSIFINFO, &inf);
 			if (ret < 0) {
 				e = errno;
-				mslog(s, NULL, LOG_ERR, "%s: TUNSIFINFO: %s\n",
+				mslog(s, NULL, LOG_ERR, "%s: TUNSIFINFO: %s",
 				      proc->tun_lease.name, strerror(e));
 			}
 		}
@@ -615,7 +614,7 @@ static int os_open_tun(main_server_st *s, struct proc_st *proc)
 		ret = ioctl(fd, TUNSIFMODE, &i);
 		if (ret < 0) {
 			e = errno;
-			mslog(s, NULL, LOG_ERR, "%s: TUNSIFMODE: %s\n",
+			mslog(s, NULL, LOG_ERR, "%s: TUNSIFMODE: %s",
 			      proc->tun_lease.name, strerror(e));
 		}
 
@@ -624,7 +623,7 @@ static int os_open_tun(main_server_st *s, struct proc_st *proc)
 		ret = ioctl(fd, TUNSLMODE, &i);
 		if (ret < 0) {
 			e = errno;
-			mslog(s, NULL, LOG_ERR, "%s: TUNSLMODE: %s\n",
+			mslog(s, NULL, LOG_ERR, "%s: TUNSLMODE: %s",
 			      proc->tun_lease.name, strerror(e));
 		}
 #endif
@@ -635,7 +634,7 @@ static int os_open_tun(main_server_st *s, struct proc_st *proc)
 		ret = ioctl(fd, TUNSIFHEAD, &i);
 		if (ret < 0) {
 			e = errno;
-			mslog(s, NULL, LOG_ERR, "%s: TUNSIFHEAD: %s\n",
+			mslog(s, NULL, LOG_ERR, "%s: TUNSIFHEAD: %s",
 			      proc->tun_lease.name, strerror(e));
 		}
 #endif /* TUNSIFHEAD */
@@ -661,7 +660,7 @@ static int os_open_tun(main_server_st *s, struct proc_st *proc)
 		       "%s%%d", GETRCONFIG(s)->network->name);
 	if (ret != strlen(proc->tun_lease.name)) {
 		mslog(s, NULL, LOG_ERR,
-		      "Truncation error in tun name: %s; adjust 'device' option\n",
+		      "Truncation error in tun name: %s; adjust 'device' option",
 		      proc->tun_lease.name);
 		return -1;
 	}
@@ -671,7 +670,7 @@ static int os_open_tun(main_server_st *s, struct proc_st *proc)
 	if (tunfd < 0) {
 		int e = errno;
 
-		mslog(s, NULL, LOG_ERR, "Can't open /dev/net/tun: %s\n",
+		mslog(s, NULL, LOG_ERR, "Can't open /dev/net/tun: %s",
 		      strerror(e));
 		return -1;
 	}
@@ -683,18 +682,18 @@ static int os_open_tun(main_server_st *s, struct proc_st *proc)
 
 	if (ioctl(tunfd, TUNSETIFF, (void *)&ifr) < 0) {
 		e = errno;
-		mslog(s, NULL, LOG_ERR, "%s: TUNSETIFF: %s\n",
+		mslog(s, NULL, LOG_ERR, "%s: TUNSETIFF: %s",
 		      proc->tun_lease.name, strerror(e));
 		goto fail;
 	}
 	memcpy(proc->tun_lease.name, ifr.ifr_name, IFNAMSIZ);
-	mslog(s, proc, LOG_DEBUG, "assigning tun device %s\n",
+	mslog(s, proc, LOG_DEBUG, "assigning tun device %s",
 	      proc->tun_lease.name);
 
 	/* we no longer use persistent tun */
 	if (ioctl(tunfd, TUNSETPERSIST, (void *)0) < 0) {
 		e = errno;
-		mslog(s, NULL, LOG_ERR, "%s: TUNSETPERSIST: %s\n",
+		mslog(s, NULL, LOG_ERR, "%s: TUNSETPERSIST: %s",
 		      proc->tun_lease.name, strerror(e));
 		goto fail;
 	}
@@ -704,7 +703,7 @@ static int os_open_tun(main_server_st *s, struct proc_st *proc)
 		ret = ioctl(tunfd, TUNSETOWNER, t);
 		if (ret < 0) {
 			e = errno;
-			mslog(s, NULL, LOG_INFO, "%s: TUNSETOWNER: %s\n",
+			mslog(s, NULL, LOG_INFO, "%s: TUNSETOWNER: %s",
 			      proc->tun_lease.name, strerror(e));
 			goto fail;
 		}
@@ -715,7 +714,7 @@ static int os_open_tun(main_server_st *s, struct proc_st *proc)
 		ret = ioctl(tunfd, TUNSETGROUP, t);
 		if (ret < 0) {
 			e = errno;
-			mslog(s, NULL, LOG_ERR, "%s: TUNSETGROUP: %s\n",
+			mslog(s, NULL, LOG_ERR, "%s: TUNSETGROUP: %s",
 			      proc->tun_lease.name, strerror(e));
 			/* kernels prior to 2.6.23 do not have this ioctl()
 			 * and return this error. In that case we ignore the
@@ -747,7 +746,7 @@ int open_tun(main_server_st *s, struct proc_st *proc)
 	if (tunfd < 0) {
 		int e = errno;
 
-		mslog(s, NULL, LOG_ERR, "Can't open tun device: %s\n",
+		mslog(s, NULL, LOG_ERR, "Can't open tun device: %s",
 		      strerror(e));
 		return -1;
 	}
@@ -797,7 +796,7 @@ void close_tun(main_server_st *s, struct proc_st *proc)
 		if (ret != 0) {
 			e = errno;
 			mslog(s, NULL, LOG_ERR,
-			      "%s: Error destroying interface: %s\n",
+			      "%s: Error destroying interface: %s",
 			      proc->tun_lease.name, strerror(e));
 		}
 	}

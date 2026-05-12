@@ -891,15 +891,14 @@ static void sec_mod_child_watcher_cb(struct ev_loop *loop, ev_child *w,
 
 	if (WIFSIGNALED(w->rstatus)) {
 		if (WTERMSIG(w->rstatus) == SIGSEGV)
-			mslog(s, NULL, LOG_ERR,
-			      "Sec-mod %u died with sigsegv\n",
+			mslog(s, NULL, LOG_ERR, "Sec-mod %u died with sigsegv",
 			      (unsigned int)w->pid);
 		else if (WTERMSIG(w->rstatus) == SIGSYS)
-			mslog(s, NULL, LOG_ERR, "Sec-mod %u died with sigsys\n",
+			mslog(s, NULL, LOG_ERR, "Sec-mod %u died with sigsys",
 			      (unsigned int)w->pid);
 		else
 			mslog(s, NULL, LOG_ERR,
-			      "Sec-mod %u died with signal %d\n",
+			      "Sec-mod %u died with signal %d",
 			      (unsigned int)w->pid, (int)WTERMSIG(w->rstatus));
 	}
 
@@ -941,14 +940,13 @@ static void worker_child_watcher_cb(struct ev_loop *loop, ev_child *w,
 
 	if (WIFSIGNALED(w->rstatus)) {
 		if (WTERMSIG(w->rstatus) == SIGSEGV)
-			mslog(s, NULL, LOG_ERR, "Child %u died with sigsegv\n",
+			mslog(s, NULL, LOG_ERR, "Child %u died with sigsegv",
 			      (unsigned int)w->pid);
 		else if (WTERMSIG(w->rstatus) == SIGSYS)
-			mslog(s, NULL, LOG_ERR, "Child %u died with sigsys\n",
+			mslog(s, NULL, LOG_ERR, "Child %u died with sigsys",
 			      (unsigned int)w->pid);
 		else
-			mslog(s, NULL, LOG_ERR,
-			      "Child %u died with signal %d\n",
+			mslog(s, NULL, LOG_ERR, "Child %u died with signal %d",
 			      (unsigned int)w->pid, (int)WTERMSIG(w->rstatus));
 	}
 
@@ -1084,7 +1082,7 @@ static void reload_sig_watcher_cb(struct ev_loop *loop, ev_signal *w,
 		* used key. */
 		ret = secmod_reload(&s->sec_mod_instances[i]);
 		if (ret < 0) {
-			mslog(s, NULL, LOG_ERR, "could not reload sec-mod!\n");
+			mslog(s, NULL, LOG_ERR, "could not reload sec-mod!");
 			ev_feed_signal_event(loop, SIGTERM);
 		}
 	}
@@ -1877,7 +1875,7 @@ static bool set_env_from_ws(main_server_st *s)
 		}
 		if (rr < 0) {
 			mslog(s, NULL, LOG_ERR,
-			      "snapshot restoration failed (%d)\n", rr);
+			      "snapshot restoration failed (%d)", rr);
 			goto cleanup;
 		}
 
@@ -1900,31 +1898,31 @@ static bool set_env_from_ws(main_server_st *s)
 	msg_size = worker_startup_msg__get_packed_size(&msg);
 	if (msg_size == 0) {
 		mslog(s, NULL, LOG_ERR,
-		      "worker_startup_msg__get_packed_size failed\n");
+		      "worker_startup_msg__get_packed_size failed");
 		goto cleanup;
 	}
 
 	msg_buffer = talloc_size(ws, msg_size);
 	if (!msg_buffer) {
-		mslog(s, NULL, LOG_ERR, "talloc_size failed\n");
+		mslog(s, NULL, LOG_ERR, "talloc_size failed");
 		goto cleanup;
 	}
 	msg_size = worker_startup_msg__pack(&msg, msg_buffer);
 	if (msg_size == 0) {
-		mslog(s, NULL, LOG_ERR, "worker_startup_msg__pack failed\n");
+		mslog(s, NULL, LOG_ERR, "worker_startup_msg__pack failed");
 		goto cleanup;
 	}
 	string_size = BASE64_ENCODE_RAW_LENGTH(msg_size) + 1;
 	string_buffer = talloc_size(ws, string_size);
 	if (!msg_buffer) {
-		mslog(s, NULL, LOG_ERR, "talloc_size failed\n");
+		mslog(s, NULL, LOG_ERR, "talloc_size failed");
 		goto cleanup;
 	}
 
 	oc_base64_encode((const char *)msg_buffer, msg_size, string_buffer,
 			 string_size);
 	if (setenv(OCSERV_ENV_WORKER_STARTUP_MSG, string_buffer, 1)) {
-		mslog(s, NULL, LOG_ERR, "setenv failed\n");
+		mslog(s, NULL, LOG_ERR, "setenv failed");
 		goto cleanup;
 	}
 

@@ -84,7 +84,7 @@ ssize_t tun_write(int sockfd, const void *buf, size_t len)
 			complained = 1;
 			oc_syslog(
 				LOG_ERR,
-				"tun_write: Unknown packet (len %d) received %02x %02x %02x %02x...\n",
+				"tun_write: Unknown packet (len %d) received %02x %02x %02x %02x...",
 				(int)len, data[0], data[1], data[2], data[3]);
 		}
 		return -1;

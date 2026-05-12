@@ -209,7 +209,7 @@ static int handle_cookie_auth_res(main_server_st *s, struct proc_st *proc,
 		ret = result;
 	} else {
 		proc->status = PS_AUTH_FAILED;
-		mslog(s, proc, LOG_ERR, "unexpected auth result: %d\n", result);
+		mslog(s, proc, LOG_ERR, "unexpected auth result: %d", result);
 		ret = ERR_BAD_COMMAND;
 	}
 
@@ -259,7 +259,7 @@ int handle_worker_commands(main_server_st *s, struct proc_st *proc)
 	}
 
 	mslog(s, proc, LOG_DEBUG,
-	      "main received worker's message '%s' of %u bytes\n",
+	      "main received worker's message '%s' of %u bytes",
 	      cmd_request_to_str(cmd), (unsigned int)length);
 
 	raw = talloc_size(proc, length);

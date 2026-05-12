@@ -74,7 +74,7 @@ void *main_ban_db_init(main_server_st *s)
 	struct htable *db = talloc(s, struct htable);
 
 	if (db == NULL) {
-		oc_syslog(LOG_ERR, "error initializing ban DB\n");
+		oc_syslog(LOG_ERR, "error initializing ban DB");
 		exit(EXIT_FAILURE);
 	}
 

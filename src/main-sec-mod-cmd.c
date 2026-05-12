@@ -113,13 +113,13 @@ int handle_sec_mod_commands(sec_mod_instance_st *sec_mod_instance)
 	if (ret < 5 || cmd <= MIN_SECM_CMD || cmd >= MAX_SECM_CMD ||
 	    length > MAX_MSG_SIZE) {
 		mslog(s, NULL, LOG_ERR,
-		      "main received invalid message from sec-mod of %u bytes (cmd: %u)\n",
+		      "main received invalid message from sec-mod of %u bytes (cmd: %u)",
 		      (unsigned int)length, (unsigned int)cmd);
 		return ERR_BAD_COMMAND;
 	}
 
 	mslog(s, NULL, LOG_DEBUG,
-	      "main received message '%s' from sec-mod of %u bytes\n",
+	      "main received message '%s' from sec-mod of %u bytes",
 	      cmd_request_to_str(cmd), (unsigned int)length);
 
 	raw = talloc_size(pool, length);

@@ -31,7 +31,7 @@ void init_fd_limits_default(main_server_st *s)
 	int ret = getrlimit(RLIMIT_NOFILE, &s->fd_limits_default_set);
 
 	if (ret < 0) {
-		oc_syslog(LOG_ERR, "error in getrlimit: %s\n", strerror(errno));
+		oc_syslog(LOG_ERR, "error in getrlimit: %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 #endif
@@ -65,9 +65,8 @@ void set_main_fd_limits(main_server_st *s)
 		new_set.rlim_max = s->fd_limits_default_set.rlim_max;
 		ret = setrlimit(RLIMIT_NOFILE, &new_set);
 		if (ret < 0) {
-			fprintf(stderr,
-				"error in setrlimit(%u): %s (cur: %u)\n", max,
-				strerror(errno),
+			fprintf(stderr, "error in setrlimit(%u): %s (cur: %u)",
+				max, strerror(errno),
 				(unsigned int)s->fd_limits_default_set.rlim_cur);
 		}
 	}

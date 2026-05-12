@@ -209,7 +209,7 @@ static int process_worker_packet(void *pool, int cfd, pid_t pid,
 #endif
 	PROTOBUF_ALLOCATOR(pa, pool);
 
-	seclog(sec, LOG_DEBUG, "cmd [size=%d] %s\n", (int)buffer_size,
+	seclog(sec, LOG_DEBUG, "cmd [size=%d] %s", (int)buffer_size,
 	       cmd_request_to_str(cmd));
 	data.data = buffer;
 	data.size = buffer_size;
@@ -219,7 +219,7 @@ static int process_worker_packet(void *pool, int cfd, pid_t pid,
 	case CMD_SEC_GET_PK:
 		pkm = sec_get_pk_msg__unpack(&pa, data.size, data.data);
 		if (pkm == NULL) {
-			seclog(sec, LOG_INFO, "error unpacking sec get pk\n");
+			seclog(sec, LOG_INFO, "error unpacking sec get pk");
 			return -1;
 		}
 
@@ -255,7 +255,7 @@ static int process_worker_packet(void *pool, int cfd, pid_t pid,
 	case CMD_SEC_SIGN_HASH:
 		op = sec_op_msg__unpack(&pa, data.size, data.data);
 		if (op == NULL) {
-			seclog(sec, LOG_INFO, "error unpacking sec op\n");
+			seclog(sec, LOG_INFO, "error unpacking sec op");
 			return -1;
 		}
 
@@ -297,7 +297,7 @@ static int process_worker_packet(void *pool, int cfd, pid_t pid,
 	case CMD_SEC_DECRYPT:
 		op = sec_op_msg__unpack(&pa, data.size, data.data);
 		if (op == NULL) {
-			seclog(sec, LOG_INFO, "error unpacking sec op\n");
+			seclog(sec, LOG_INFO, "error unpacking sec op");
 			return -1;
 		}
 
@@ -356,7 +356,7 @@ static int process_worker_packet(void *pool, int cfd, pid_t pid,
 		auth_init =
 			sec_auth_init_msg__unpack(&pa, data.size, data.data);
 		if (auth_init == NULL) {
-			seclog(sec, LOG_INFO, "error unpacking auth init\n");
+			seclog(sec, LOG_INFO, "error unpacking auth init");
 			return -1;
 		}
 
@@ -370,7 +370,7 @@ static int process_worker_packet(void *pool, int cfd, pid_t pid,
 		auth_cont =
 			sec_auth_cont_msg__unpack(&pa, data.size, data.data);
 		if (auth_cont == NULL) {
-			seclog(sec, LOG_INFO, "error unpacking auth cont\n");
+			seclog(sec, LOG_INFO, "error unpacking auth cont");
 			return -1;
 		}
 
@@ -420,7 +420,7 @@ static int process_worker_packet(void *pool, int cfd, pid_t pid,
 
 		if (ret < 0) {
 			seclog(sec, LOG_DEBUG,
-			       "could not delete resumption data.");
+			       "could not delete resumption data");
 		}
 	}
 
@@ -444,7 +444,7 @@ static int process_worker_packet(void *pool, int cfd, pid_t pid,
 			msg.reply =
 				SESSION_RESUME_REPLY_MSG__RESUME__REP__FAILED;
 			seclog(sec, LOG_DEBUG,
-			       "could not fetch resumption data.");
+			       "could not fetch resumption data");
 		} else {
 			msg.reply = SESSION_RESUME_REPLY_MSG__RESUME__REP__OK;
 		}
@@ -456,7 +456,7 @@ static int process_worker_packet(void *pool, int cfd, pid_t pid,
 			(pack_func)session_resume_reply_msg__pack);
 
 		if (ret < 0) {
-			seclog(sec, LOG_ERR, "could not send reply cmd %d.",
+			seclog(sec, LOG_ERR, "could not send reply cmd %d",
 			       (unsigned int)cmd);
 			return ERR_BAD_COMMAND;
 		}
@@ -482,7 +482,7 @@ static int process_packet_from_main(void *pool, int fd, sec_mod_st *sec,
 
 	PROTOBUF_ALLOCATOR(pa, pool);
 
-	seclog(sec, LOG_DEBUG, "cmd [size=%d] %s\n", (int)buffer_size,
+	seclog(sec, LOG_DEBUG, "cmd [size=%d] %s", (int)buffer_size,
 	       cmd_request_to_str(cmd));
 	data.data = buffer;
 	data.size = buffer_size;
@@ -495,7 +495,7 @@ static int process_packet_from_main(void *pool, int fd, sec_mod_st *sec,
 			       NULL);
 		if (ret < 0) {
 			seclog(sec, LOG_ERR,
-			       "could not send reload reply to main!\n");
+			       "could not send reload reply to main!");
 			return ERR_BAD_COMMAND;
 		}
 		break;
@@ -509,7 +509,7 @@ static int process_packet_from_main(void *pool, int fd, sec_mod_st *sec,
 		msg = ban_ip_reply_msg__unpack(&pa, data.size, data.data);
 		if (msg == NULL) {
 			seclog(sec, LOG_INFO,
-			       "error unpacking auth ban ip reply\n");
+			       "error unpacking auth ban ip reply");
 			return ERR_BAD_COMMAND;
 		}
 
@@ -523,7 +523,7 @@ static int process_packet_from_main(void *pool, int fd, sec_mod_st *sec,
 
 		msg = secm_session_open_msg__unpack(&pa, data.size, data.data);
 		if (msg == NULL) {
-			seclog(sec, LOG_INFO, "error unpacking session open\n");
+			seclog(sec, LOG_INFO, "error unpacking session open");
 			return ERR_BAD_COMMAND;
 		}
 
@@ -537,8 +537,7 @@ static int process_packet_from_main(void *pool, int fd, sec_mod_st *sec,
 
 		msg = secm_session_close_msg__unpack(&pa, data.size, data.data);
 		if (msg == NULL) {
-			seclog(sec, LOG_INFO,
-			       "error unpacking session close\n");
+			seclog(sec, LOG_INFO, "error unpacking session close");
 			return ERR_BAD_COMMAND;
 		}
 
@@ -745,7 +744,7 @@ static int serve_request_main(sec_mod_st *sec, int fd, uint8_t *buffer,
 	seclog(sec, LOG_DEBUG, "received request %s", cmd_request_to_str(cmd));
 	if (cmd <= MIN_SECM_CMD || cmd >= MAX_SECM_CMD) {
 		seclog(sec, LOG_ERR,
-		       "received invalid message from main of %u bytes (cmd: %u)\n",
+		       "received invalid message from main of %u bytes (cmd: %u)",
 		       (unsigned int)length, (unsigned int)cmd);
 		return ERR_BAD_COMMAND;
 	}
@@ -888,7 +887,7 @@ static void read_private_key(sec_mod_st *sec, vhost_cfg_st *vhost,
 		}
 		vhost->key[i] = p;
 	}
-	seclog(sec, LOG_DEBUG, "%sloaded %d keys\n", PREFIX_VHOST(vhost),
+	seclog(sec, LOG_DEBUG, "%sloaded %d keys", PREFIX_VHOST(vhost),
 	       vhost->key_size);
 }
 

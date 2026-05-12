@@ -565,7 +565,7 @@ static void send_stats_to_secmod(worker_st *ws, time_t now,
 			if (e == -1) {
 				e = errno;
 				oclog(ws, LOG_DEBUG,
-				      "could not wait for sec-mod: %s\n",
+				      "could not wait for sec-mod: %s",
 				      strerror(e));
 			}
 		}
@@ -579,7 +579,7 @@ static void send_stats_to_secmod(worker_st *ws, time_t now,
 		} else {
 			e = errno;
 			oclog(ws, LOG_WARNING,
-			      "could not send periodic stats to sec-mod: %s\n",
+			      "could not send periodic stats to sec-mod: %s",
 			      strerror(e));
 		}
 	}
@@ -973,7 +973,7 @@ void vpn_server(struct worker_st *ws)
 	http_req_init(ws);
 
 	if (WSRCONFIG(ws)->listen_proxy_proto) {
-		oclog(ws, LOG_DEBUG, "proxy-hdr: peer is %s\n",
+		oclog(ws, LOG_DEBUG, "proxy-hdr: peer is %s",
 		      ws->remote_ip_str);
 	}
 
@@ -1274,7 +1274,7 @@ static void mtu_discovery_init(worker_st *ws, struct dtls_st *dtls,
 
 	if (!WSRCONFIG(ws)->try_mtu)
 		oclog(ws, LOG_DEBUG,
-		      "Initializing MTU discovery; initial MTU: %u\n", mtu);
+		      "Initializing MTU discovery; initial MTU: %u", mtu);
 
 	ws->last_good_mtu = mtu;
 	ws->last_bad_mtu = mtu;
@@ -1589,13 +1589,13 @@ hsk_restart:
 		if (ret < 0 && gnutls_error_is_fatal(ret) != 0) {
 			if (ret == GNUTLS_E_FATAL_ALERT_RECEIVED)
 				oclog(ws, LOG_ERR,
-				      "error in DTLS handshake: %s: %s\n",
+				      "error in DTLS handshake: %s: %s",
 				      gnutls_strerror(ret),
 				      gnutls_alert_get_name(gnutls_alert_get(
 					      dtls->dtls_session)));
 			else
 				oclog(ws, LOG_ERR,
-				      "error in DTLS handshake: %s\n",
+				      "error in DTLS handshake: %s",
 				      gnutls_strerror(ret));
 			dtls->udp_state = UP_DISABLED;
 			ev_io_stop(worker_loop, &dtls->io);
@@ -1616,7 +1616,7 @@ hsk_restart:
 
 			dtls->udp_state = UP_ACTIVE;
 			oclog(ws, LOG_DEBUG,
-			      "DTLS handshake completed (link MTU: %u, data MTU: %u)\n",
+			      "DTLS handshake completed (link MTU: %u, data MTU: %u)",
 			      ws->link_mtu, data_mtu);
 			ws->dtls_active_session++;
 			oclog(ws, LOG_DEBUG,
@@ -1763,7 +1763,7 @@ static int tun_mainloop(struct worker_st *ws, struct timespec *tnow)
 	    tnow->tv_sec >
 		    ws->udp_recv_time + WSRCONFIG(ws)->switch_to_tcp_timeout) {
 		oclog(ws, LOG_DEBUG,
-		      "No UDP data received for %li seconds, using TCP instead\n",
+		      "No UDP data received for %li seconds, using TCP instead",
 		      tnow->tv_sec - ws->udp_recv_time);
 		DTLS_ACTIVE(ws)->udp_state = UP_INACTIVE;
 	}
@@ -1776,7 +1776,7 @@ static int tun_mainloop(struct worker_st *ws, struct timespec *tnow)
 		ret = ws->dtls_selected_comp->compress(ws->decomp + 8,
 						       sizeof(ws->decomp) - 8,
 						       ws->buffer + 8, l);
-		oclog(ws, LOG_TRANSFER_DEBUG, "compressed %d to %d\n", (int)l,
+		oclog(ws, LOG_TRANSFER_DEBUG, "compressed %d to %d", (int)l,
 		      ret);
 		if (ret > 0 && ret < l) {
 			dtls_to_send.data = ws->decomp;
@@ -1798,7 +1798,7 @@ static int tun_mainloop(struct worker_st *ws, struct timespec *tnow)
 		ret = ws->cstp_selected_comp->compress(ws->decomp + 8,
 						       sizeof(ws->decomp) - 8,
 						       ws->buffer + 8, l);
-		oclog(ws, LOG_TRANSFER_DEBUG, "compressed %d to %d\n", (int)l,
+		oclog(ws, LOG_TRANSFER_DEBUG, "compressed %d to %d", (int)l,
 		      ret);
 		if (ret > 0 && ret < l) {
 			cstp_to_send.data = ws->decomp;
@@ -1812,7 +1812,7 @@ static int tun_mainloop(struct worker_st *ws, struct timespec *tnow)
 	if (bandwidth_update(&ws->b_tx, dtls_to_send.size, tnow) != 0) {
 		tls_retry = 0;
 
-		oclog(ws, LOG_TRANSFER_DEBUG, "sending %d byte(s)\n", l);
+		oclog(ws, LOG_TRANSFER_DEBUG, "sending %d byte(s)", l);
 
 		if (DTLS_ACTIVE(ws)->udp_state == UP_ACTIVE) {
 			ws->tun_bytes_out += dtls_to_send.size;
@@ -1827,7 +1827,7 @@ static int tun_mainloop(struct worker_st *ws, struct timespec *tnow)
 				mtu_not_ok(ws, DTLS_ACTIVE(ws));
 
 				oclog(ws, LOG_TRANSFER_DEBUG,
-				      "retrying (TLS) %d\n", l);
+				      "retrying (TLS) %d", l);
 				tls_retry = 1;
 			} else if (ret >= 1 + DATA_MTU(ws, ws->link_mtu) &&
 				   WSRCONFIG(ws)->try_mtu != 0) {
@@ -2053,7 +2053,7 @@ static int connect_handler(worker_st *ws)
 	 * asks for CSCOSSLC/tunnel instead of /CSCOSSLC/tunnel */
 	if (strcmp(req->url, "/CSCOSSLC/tunnel") != 0 &&
 	    strcmp(req->url, "CSCOSSLC/tunnel") != 0) {
-		oclog(ws, LOG_INFO, "bad connect request: '%s'\n", req->url);
+		oclog(ws, LOG_INFO, "bad connect request: '%s'", req->url);
 		response_404(ws, 1);
 		cstp_fatal_close(ws, GNUTLS_A_ACCESS_DENIED);
 		exit_worker(ws);
@@ -2548,7 +2548,7 @@ static int connect_handler(worker_st *ws)
 
 	/* send any compression methods */
 	if (ws->dtls_selected_comp) {
-		oclog(ws, LOG_INFO, "selected DTLS compression method %s\n",
+		oclog(ws, LOG_INFO, "selected DTLS compression method %s",
 		      ws->dtls_selected_comp->name);
 		ret = cstp_printf(ws, "X-DTLS-Content-Encoding: %s\r\n",
 				  ws->dtls_selected_comp->name);
@@ -2556,7 +2556,7 @@ static int connect_handler(worker_st *ws)
 	}
 
 	if (ws->cstp_selected_comp) {
-		oclog(ws, LOG_INFO, "selected CSTP compression method %s\n",
+		oclog(ws, LOG_INFO, "selected CSTP compression method %s",
 		      ws->cstp_selected_comp->name);
 		ret = cstp_printf(ws, "X-CSTP-Content-Encoding: %s\r\n",
 				  ws->cstp_selected_comp->name);
@@ -2591,7 +2591,7 @@ exit:
 	exit_worker_reason(ws, terminate_reason);
 
 send_error:
-	oclog(ws, LOG_DEBUG, "error sending data\n");
+	oclog(ws, LOG_DEBUG, "error sending data");
 	exit_worker(ws);
 
 	return -1;
@@ -2700,7 +2700,7 @@ static int parse_data(struct worker_st *ws, uint8_t *buf, size_t buf_size,
 			plain_size = ws->cstp_selected_comp->decompress(
 				ws->decomp, sizeof(ws->decomp), plain,
 				plain_size);
-			oclog(ws, LOG_DEBUG, "decompressed %zu to %zd\n",
+			oclog(ws, LOG_DEBUG, "decompressed %zu to %zd",
 			      buf_size - 8, plain_size);
 		} else { /* DTLS */
 			if (ws->dtls_selected_comp == NULL) {
@@ -2712,7 +2712,7 @@ static int parse_data(struct worker_st *ws, uint8_t *buf, size_t buf_size,
 			plain_size = ws->dtls_selected_comp->decompress(
 				ws->decomp, sizeof(ws->decomp), plain,
 				plain_size);
-			oclog(ws, LOG_DEBUG, "decompressed %zu to %zd\n",
+			oclog(ws, LOG_DEBUG, "decompressed %zu to %zd",
 			      buf_size - 1, plain_size);
 		}
 

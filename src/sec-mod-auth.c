@@ -398,7 +398,7 @@ static int handle_sec_auth_res(int cfd, sec_mod_st *sec, client_entry_st *e,
 		ret = send_sec_auth_reply_msg(cfd, sec, e);
 		if (ret < 0) {
 			e->status = PS_AUTH_FAILED;
-			seclog(sec, LOG_ERR, "could not send reply auth cmd.");
+			seclog(sec, LOG_ERR, "could not send reply auth cmd");
 			return ret;
 		}
 		return 0; /* wait for another command */
@@ -410,7 +410,7 @@ static int handle_sec_auth_res(int cfd, sec_mod_st *sec, client_entry_st *e,
 		ret = check_group(sec, e);
 		if (ret < 0) {
 			e->status = PS_AUTH_FAILED;
-			seclog(sec, LOG_ERR, "could not accept group.");
+			seclog(sec, LOG_ERR, "could not accept group");
 			return ret;
 		}
 
@@ -432,7 +432,7 @@ static int handle_sec_auth_res(int cfd, sec_mod_st *sec, client_entry_st *e,
 		ret = send_sec_auth_reply(cfd, sec, e, AUTH__REP__OK);
 		if (ret < 0) {
 			e->status = PS_AUTH_FAILED;
-			seclog(sec, LOG_ERR, "could not send reply auth cmd.");
+			seclog(sec, LOG_ERR, "could not send reply auth cmd");
 			return ret;
 		}
 
@@ -446,14 +446,14 @@ static int handle_sec_auth_res(int cfd, sec_mod_st *sec, client_entry_st *e,
 
 		ret = send_sec_auth_reply(cfd, sec, e, AUTH__REP__FAILED);
 		if (ret < 0) {
-			seclog(sec, LOG_ERR, "could not send reply auth cmd.");
+			seclog(sec, LOG_ERR, "could not send reply auth cmd");
 			return ret;
 		}
 
 		if (result < 0) {
 			ret = result;
 		} else {
-			seclog(sec, LOG_ERR, "unexpected auth result: %d\n",
+			seclog(sec, LOG_ERR, "unexpected auth result: %d",
 			       result);
 			ret = ERR_BAD_COMMAND;
 		}

@@ -107,7 +107,7 @@ int handle_commands_from_main(struct worker_st *ws)
 
 	length = ret;
 
-	oclog(ws, LOG_DEBUG, "worker received message %s of %u bytes\n",
+	oclog(ws, LOG_DEBUG, "worker received message %s of %u bytes",
 	      cmd_request_to_str(cmd), (unsigned int)length);
 
 	/*cmd_data_len = ret - 1;*/
@@ -238,7 +238,7 @@ void ocsigaltstack(struct worker_st *ws)
 	if (mprotect(ss.ss_sp, SIGSTKSZ, PROT_READ | PROT_WRITE) == -1) {
 		e = errno;
 		free(ss.ss_sp);
-		oclog(ws, LOG_ERR, "mprotect: %s\n", strerror(e));
+		oclog(ws, LOG_ERR, "mprotect: %s", strerror(e));
 		exit(EXIT_FAILURE);
 	}
 	ss.ss_size = SIGSTKSZ;
@@ -246,7 +246,7 @@ void ocsigaltstack(struct worker_st *ws)
 	if (sigaltstack(&ss, NULL) == -1) {
 		e = errno;
 		free(ss.ss_sp);
-		oclog(ws, LOG_ERR, "sigaltstack: %s\n", strerror(e));
+		oclog(ws, LOG_ERR, "sigaltstack: %s", strerror(e));
 		exit(EXIT_FAILURE);
 	}
 #endif
