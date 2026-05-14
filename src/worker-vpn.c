@@ -964,6 +964,7 @@ void vpn_server(struct worker_st *ws)
 	if (ws->cert_auth_ok)
 		ws_switch_auth_to(ws, AUTH_TYPE_CERTIFICATE);
 
+	settings.on_message_begin = http_message_begin_cb;
 	settings.on_url = http_url_cb;
 	settings.on_header_field = http_header_field_cb;
 	settings.on_header_value = http_header_value_cb;
@@ -1005,6 +1006,10 @@ restart:
 		    parser.method == HTTP_CONNECT) {
 			llhttp_resume_after_upgrade(&parser);
 			break;
+		} else if (lerr == HPE_PAUSED) {
+			oclog(ws, LOG_INFO,
+			      "closing connection: unexpected pipelined data");
+			exit_worker(ws);
 		} else if (lerr != HPE_OK) {
 			oclog(ws, LOG_INFO, "error parsing HTTP request: %s",
 			      llhttp_errno_name(lerr));
@@ -1056,7 +1061,11 @@ restart:
 
 			lerr = llhttp_execute(&parser, (void *)ws->buffer,
 					      nrecvd);
-			if (lerr != HPE_OK) {
+			if (lerr == HPE_PAUSED) {
+				oclog(ws, LOG_HTTP_DEBUG,
+				      "closing connection: unexpected pipelined data");
+				exit_worker(ws);
+			} else if (lerr != HPE_OK) {
 				oclog(ws, LOG_HTTP_DEBUG,
 				      "error parsing HTTP POST request: %s",
 				      llhttp_errno_name(lerr));
