@@ -111,6 +111,11 @@ results=$(LD_PRELOAD=libsocket_wrapper.so curl -I -X GET -s https://$ADDRESS:$PO
 CheckHeaders "$results"
 echo "ok"
 
+echo -n "Testing /svc ... "
+results=$(LD_PRELOAD=libsocket_wrapper.so curl -I -X GET -s https://$ADDRESS:$PORT/svc --insecure)
+CheckHeaders "$results"
+echo "ok"
+
 cleanup
 
 exit 0

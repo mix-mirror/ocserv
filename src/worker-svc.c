@@ -71,6 +71,10 @@ int get_svc_handler(worker_st *ws, unsigned int http_ver)
 	if (ret < 0)
 		goto fail;
 
+	ret = add_owasp_headers(ws);
+	if (ret < 0)
+		goto fail;
+
 	/* end of headers */
 	ret = cstp_puts(ws, "\r\n");
 	if (ret < 0)
