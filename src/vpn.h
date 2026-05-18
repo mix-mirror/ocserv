@@ -119,6 +119,12 @@ inline static const char *proto_to_str(fw_proto_t proto)
 #define AC_PKT_COMPRESSED 8 /* Compressed data */
 #define AC_PKT_TERM_SERVER 9 /* Server kick */
 
+/* Disconnect reason for AC_PKT_DISCONN */
+#define AC_BYE_USER_DISCONNECT 0xb0 /* User requested to disconnect */
+#define AC_BYE_LOCAL_ERROR 0x70 /* E.g., unable to modify routing table */
+#define AC_BYE_VPN_RECONNECT 0x91 /* VPN tunnel is reconnecting */
+#define AC_BYE_VPN_PAUSE 0xd1 /* VPN tunnel is paused */
+
 #define REKEY_METHOD_SSL 1
 #define REKEY_METHOD_NEW_TUNNEL 2
 

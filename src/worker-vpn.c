@@ -2679,19 +2679,27 @@ static int parse_data(struct worker_st *ws, uint8_t *buf, size_t buf_size,
 		 * an intention to reconnect (e.g., because network was
 		 * changed). We separate the error codes to ensure we do
 		 * not interpret the intention incorrectly (see #281). */
-		if (plain_size > 0 && plain[0] == 0xb0) {
-			exit_worker_reason(ws, REASON_USER_DISCONNECT);
-		} else {
-			if (plain_size > 0) {
+		if (plain_size > 0) {
+			const uint8_t bye_reason = plain[0];
+
+			switch (bye_reason) {
+			case AC_BYE_USER_DISCONNECT:
+				oclog(ws, LOG_DEBUG,
+				      "User requested to disconnect");
+				exit_worker_reason(ws, REASON_USER_DISCONNECT);
+			case AC_BYE_VPN_RECONNECT:
+				oclog(ws, LOG_DEBUG,
+				      "VPN tunnel is reconnecting");
+				exit_worker_reason(ws, REASON_TEMP_DISCONNECT);
+			default:
 				oclog_hex(ws, LOG_DEBUG,
 					  "bye packet with unknown payload",
 					  plain, plain_size, 0);
 				return -1;
 			}
-
-			exit_worker_reason(ws, REASON_TEMP_DISCONNECT);
 		}
-		break;
+		exit_worker_reason(ws, REASON_TEMP_DISCONNECT);
+
 	case AC_PKT_COMPRESSED:
 		/* decompress */
 		if (is_dtls == 0) { /* CSTP */
