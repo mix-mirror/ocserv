@@ -33,6 +33,7 @@
 #include <limits.h>
 #include <assert.h>
 #include <nettle/sha1.h>
+#include <nettle/version.h>
 #include "common.h"
 #include "defs.h"
 #include "common/base64-helper.h"
@@ -59,7 +60,11 @@ static void safe_hash(const uint8_t *data, unsigned int data_size,
 	sha1_init(&ctx);
 
 	sha1_update(&ctx, data_size, data);
+#if NETTLE_VERSION_MAJOR >= 4
+	sha1_digest(&ctx, output);
+#else
 	sha1_digest(&ctx, 20, output);
+#endif
 }
 
 char *calc_safe_id(const uint8_t *data, unsigned int size, char *output,

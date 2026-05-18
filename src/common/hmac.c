@@ -26,6 +26,7 @@
 #include <gnutls/crypto.h>
 #include <gnutls/abstract.h>
 #include <nettle/hmac.h>
+#include <nettle/version.h>
 #include <common.h>
 #include <hmac.h>
 #include <stdbool.h>
@@ -51,7 +52,7 @@ void generate_hmac(size_t key_length, const uint8_t *key,
 		}
 	}
 
-#if NETTLE_MAJOR >= 4
+#if NETTLE_VERSION_MAJOR >= 4
 	hmac_sha256_digest(&ctx, digest);
 #else
 	hmac_sha256_digest(&ctx, HMAC_DIGEST_SIZE, digest);
