@@ -58,10 +58,15 @@ ssize_t tun_write(int sockfd, const void *buf, size_t len)
 {
 	uint32_t head;
 	const uint8_t *data = buf;
-	uint8_t ip_v = data[0] >> 4;
+	uint8_t ip_v;
 	static int complained;
 	struct iovec iov[2];
 	int ret;
+
+	if (len == 0)
+		return 0;
+
+	ip_v = data[0] >> 4;
 
 	if (ip_v == 6)
 		head = htonl(AF_INET6);
@@ -70,10 +75,8 @@ ssize_t tun_write(int sockfd, const void *buf, size_t len)
 	else {
 		if (!complained) {
 			complained = 1;
-			oc_syslog(
-				LOG_ERR,
-				"tun_write: Unknown packet (len %d) received %02x %02x %02x %02x...",
-				(int)len, data[0], data[1], data[2], data[3]);
+			oc_syslog(LOG_ERR, "tun_write: Unknown packet (len %d)",
+				  (int)len);
 		}
 		return -1;
 	}
