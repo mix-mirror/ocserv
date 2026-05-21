@@ -97,6 +97,7 @@ always_scripts = [
   'test-replay',
   'test-fw-normalize-route',
   'test-http-limits',
+  'test-http-smuggling',
 ]
 
 foreach s : always_scripts

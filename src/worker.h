@@ -369,6 +369,7 @@ int http_header_value_cb(llhttp_t *parser, const char *at, size_t length);
 int http_header_field_cb(llhttp_t *parser, const char *at, size_t length);
 int http_header_complete_cb(llhttp_t *parser);
 int http_message_complete_cb(llhttp_t *parser);
+int http_message_begin_cb(llhttp_t *parser);
 int http_body_cb(llhttp_t *parser, const char *at, size_t length);
 void http_req_deinit(worker_st *ws);
 void http_req_reset(worker_st *ws);

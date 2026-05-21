@@ -12,6 +12,8 @@
   option (enabled by default)
 - Limited HTTP header size to 16 KB to complement the existing 256 KB
   body limit
+- Fixed HTTP request desynchronization: pipelined requests in the same
+  TLS record are now rejected instead of being processed out of order (#716)
 - Fix build issue on FreeBSD (#704)
 - Build against Nettle 4.
 - Removed unnecessary for openconnect client handlers to reduce attack surface:

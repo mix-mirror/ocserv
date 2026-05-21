@@ -915,6 +915,19 @@ int http_message_complete_cb(llhttp_t *parser)
 	return 0;
 }
 
+int http_message_begin_cb(llhttp_t *parser)
+{
+	struct worker_st *ws = parser->data;
+	struct http_req_st *req = &ws->req;
+
+	/* headers_complete is 0 at the start of each keep-alive cycle
+	 * (http_req_reset() clears it).  If it is already 1 here a second
+	 * message has started before the first was dispatched — reject. */
+	if (req->headers_complete)
+		return HPE_PAUSED;
+	return 0;
+}
+
 int http_body_cb(llhttp_t *parser, const char *at, size_t length)
 {
 	struct worker_st *ws = parser->data;
