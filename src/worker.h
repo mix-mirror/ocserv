@@ -320,6 +320,10 @@ typedef struct worker_st {
 	uint64_t tun_bytes_in;
 	uint64_t tun_bytes_out;
 
+	/* packet held while writing to tun fd returns EAGAIN; NULL otherwise */
+	uint8_t *tun_pending;
+	size_t tun_pending_len;
+
 	/* information on the tun device addresses and network */
 	struct vpn_st vinfo;
 	unsigned int default_route;

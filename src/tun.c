@@ -752,6 +752,7 @@ int open_tun(main_server_st *s, struct proc_st *proc)
 		return -1;
 	}
 
+	set_non_block(tunfd);
 	set_cloexec_flag(tunfd, 1);
 
 	if (proc->tun_lease.name[0] == 0) {

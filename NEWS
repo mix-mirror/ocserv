@@ -19,6 +19,7 @@
   body limit
 - Fixed HTTP request desynchronization: pipelined requests in the same
   TLS record are now rejected instead of being processed out of order (#716)
+- Fixes packet loss when sending large volumes of traffic through the VPN (#423)
 - Fix build issue on FreeBSD (#704)
 - Build against Nettle 4 (#697)
 - Removed unnecessary for openconnect client handlers to reduce attack surface:

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2023 Nikos Mavrogiannopoulos
+ * Copyright (C) 2013-2026 Nikos Mavrogiannopoulos
  * Copyright (C) 2015, 2016 Red Hat, Inc.
  *
  * This file is part of ocserv.
@@ -106,6 +106,11 @@ static inline void worker_exit(int status)
 
 #define WORKER_MAINTENANCE_TIME (10.)
 
+/* Maximum packets drained from the TUN device per watcher callback before
+ * yielding back to the event loop.  Bounds worst-case latency added to the
+ * DTLS/TLS receive path while still avoiding one epoll_wait() per packet. */
+#define TUN_BURST_MAX 8
+
 struct worker_st *global_ws;
 
 static int terminate;
@@ -115,6 +120,7 @@ static struct ev_loop *worker_loop;
 ev_io command_watcher;
 ev_io tls_watcher;
 ev_io tun_watcher;
+ev_io tun_write_watcher;
 ev_timer period_check_watcher;
 ev_signal term_sig_watcher;
 ev_signal int_sig_watcher;
@@ -1868,6 +1874,8 @@ static int tun_mainloop(struct worker_st *ws, struct timespec *tnow)
 
 		if (is_data(ws->buffer + 8, l)) /* do not account ICMP */
 			ws->last_nc_msg = tnow->tv_sec;
+
+		return 1;
 	}
 
 	return 0;
@@ -2610,10 +2618,51 @@ send_error:
 	return -1;
 }
 
+static int tun_enqueue_write(struct worker_st *ws, const uint8_t *data,
+			     size_t len)
+{
+	int ret;
+
+	if (ws->tun_pending != NULL) {
+		/* invariant violation: readers should be paused when a packet
+		 * is pending; this path should never be reached */
+		oclog(ws, LOG_ERR, "tun write slot busy, dropping %zu byte(s)",
+		      len);
+		return 0;
+	}
+
+	do {
+		ret = tun_write(ws->tun_fd, data, len);
+	} while (ret < 0 && errno == EINTR);
+	if (ret >= 0)
+		return 0;
+	if (errno != EAGAIN) {
+		oclog(ws, LOG_ERR, "tun write error: %s", strerror(errno));
+		return -1;
+	}
+
+	ws->tun_pending = talloc_memdup(ws, data, len);
+	if (ws->tun_pending == NULL) {
+		oclog(ws, LOG_DEBUG,
+		      "tun packet allocation failed, dropping %zu byte(s)",
+		      len);
+		return 0;
+	}
+	ws->tun_pending_len = len;
+
+	/* pause input watchers until tun_write_watcher_cb drains the slot */
+	ev_io_stop(worker_loop, &tls_watcher);
+	if (ev_is_active(&DTLS_ACTIVE(ws)->io))
+		ev_io_stop(worker_loop, &DTLS_ACTIVE(ws)->io);
+	ev_io_start(worker_loop, &tun_write_watcher);
+
+	return 0;
+}
+
 static int parse_data(struct worker_st *ws, uint8_t *buf, size_t buf_size,
 		      time_t now, unsigned int is_dtls)
 {
-	int ret, e;
+	int ret;
 	uint8_t *plain;
 	ssize_t plain_size;
 	unsigned int head;
@@ -2747,13 +2796,10 @@ static int parse_data(struct worker_st *ws, uint8_t *buf, size_t buf_size,
 	case AC_PKT_DATA:
 		oclog(ws, LOG_TRANSFER_DEBUG, "writing %zd byte(s) to TUN",
 		      plain_size);
-		ret = tun_write(ws->tun_fd, plain, plain_size);
-		if (ret == -1) {
-			e = errno;
-			oclog(ws, LOG_ERR, "could not write data to tun: %s",
-			      strerror(e));
+
+		if (tun_enqueue_write(ws, plain, plain_size) < 0)
 			return -1;
-		}
+
 		ws->tun_bytes_in += plain_size;
 
 		if (is_data(plain, plain_size)) /* do not account ICMP */
@@ -2912,15 +2958,20 @@ static void tun_watcher_cb(EV_P_ ev_io *w, int revents)
 {
 	struct timespec tnow;
 	struct worker_st *ws = ev_userdata(loop);
-	int ret;
+	int ret, i;
 
 	gettime(&tnow);
 
-	ret = tun_mainloop(ws, &tnow);
-	if (ret < 0) {
-		oclog(ws, LOG_DEBUG, "tun_mainloop failed %d", ret);
-		terminate_reason = REASON_ERROR;
-		cstp_send_terminate(ws);
+	for (i = 0; i < TUN_BURST_MAX; i++) {
+		ret = tun_mainloop(ws, &tnow);
+		if (ret < 0) {
+			oclog(ws, LOG_DEBUG, "tun_mainloop failed %d", ret);
+			terminate_reason = REASON_ERROR;
+			cstp_send_terminate(ws);
+			/* unreachable */
+		} else if (ret == 0) {
+			break;
+		}
 	}
 }
 
@@ -2947,6 +2998,41 @@ static void dtls_watcher_cb(EV_P_ ev_io *w, int revents)
 		dtls->dtls_tptr.rx_time.tv_nsec = 0;
 	}
 #endif
+}
+
+static void tun_write_watcher_cb(EV_P_ ev_io *w, int revents)
+{
+	struct worker_st *ws = ev_userdata(loop);
+	int ret;
+
+	if (revents & EV_ERROR) {
+		terminate_reason = REASON_ERROR;
+		cstp_send_terminate(ws);
+		/* unreachable */
+	}
+
+	do {
+		ret = tun_write(ws->tun_fd, ws->tun_pending,
+				ws->tun_pending_len);
+	} while (ret < 0 && errno == EINTR);
+
+	if (ret < 0) {
+		if (errno == EAGAIN)
+			return;
+		oclog(ws, LOG_ERR, "tun write error: %s", strerror(errno));
+		terminate_reason = REASON_ERROR;
+		cstp_send_terminate(ws);
+		/* unreachable */
+	}
+
+	talloc_free(ws->tun_pending);
+	ws->tun_pending = NULL;
+	ws->tun_pending_len = 0;
+
+	ev_io_start(EV_A_ & tls_watcher);
+	if (DTLS_ACTIVE(ws)->udp_state > UP_WAIT_FD)
+		ev_io_start(EV_A_ & DTLS_ACTIVE(ws)->io);
+	ev_io_stop(EV_A_ w);
 }
 
 static void term_sig_watcher_cb(struct ev_loop *loop, ev_signal *w, int revents)
@@ -3030,6 +3116,11 @@ static int worker_event_loop(struct worker_st *ws)
 
 	ev_init(&DTLS_ACTIVE(ws)->io, dtls_watcher_cb);
 	ev_init(&DTLS_INACTIVE(ws)->io, dtls_watcher_cb);
+
+	ws->tun_pending = NULL;
+	ws->tun_pending_len = 0;
+	ev_init(&tun_write_watcher, tun_write_watcher_cb);
+	ev_io_set(&tun_write_watcher, ws->tun_fd, EV_WRITE);
 
 	ev_init(&tun_watcher, tun_watcher_cb);
 	ev_io_set(&tun_watcher, ws->tun_fd, EV_READ);

@@ -121,7 +121,7 @@ ssize_t tun_read(int sockfd, void *buf, size_t len)
 #else
 ssize_t tun_write(int sockfd, const void *buf, size_t len)
 {
-	return force_write(sockfd, buf, len);
+	return write(sockfd, buf, len);
 }
 
 ssize_t tun_read(int sockfd, void *buf, size_t len)
