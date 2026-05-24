@@ -63,6 +63,7 @@ static inline void worker_exit(int status)
 #include <poll.h>
 #include <math.h>
 #include <ev.h>
+#include "worker-tun.h"
 
 #if defined(__linux__) && !defined(IPV6_PATHMTU)
 #define IPV6_PATHMTU 61

@@ -49,23 +49,11 @@
 #include <ccan/list/list.h>
 #include "vhost.h"
 #include "log.h"
-
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
-#include <net/if_var.h>
-#include <netinet/in_var.h>
-#endif
-#if defined(__OpenBSD__)
-#include <netinet6/in6_var.h>
-#endif
-#if defined(__DragonFly__)
-#include <net/tun/if_tun.h>
-#endif
-
-#if defined(__OpenBSD__) || defined(TUNSIFHEAD)
-#define TUN_AF_PREFIX 1
-#endif
+#include "worker-tun.h"
 
 #ifdef TUN_AF_PREFIX
+/* BSD-specific code, in linux tun_write and tun_read are
+ * just write and read. */
 ssize_t tun_write(int sockfd, const void *buf, size_t len)
 {
 	uint32_t head;
@@ -117,32 +105,4 @@ ssize_t tun_read(int sockfd, void *buf, size_t len)
 		ret -= sizeof(uint32_t);
 	return ret;
 }
-
-#else
-ssize_t tun_write(int sockfd, const void *buf, size_t len)
-{
-	return write(sockfd, buf, len);
-}
-
-ssize_t tun_read(int sockfd, void *buf, size_t len)
-{
-	return read(sockfd, buf, len);
-}
 #endif
-
-#ifndef __FreeBSD__
-int tun_claim(int sockfd)
-{
-	return 0;
-}
-#else
-/*
- * FreeBSD has a mechanism by which a tunnel has a single controlling process,
- * and only that one process may close it.  When the controlling process closes
- * the tunnel, the state is torn down.
- */
-int tun_claim(int sockfd)
-{
-	return ioctl(sockfd, TUNSIFPID, 0);
-}
-#endif /* !__FreeBSD__ */

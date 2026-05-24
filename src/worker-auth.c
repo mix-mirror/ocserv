@@ -39,6 +39,7 @@
 #include <vpn.h>
 #include "html.h"
 #include <worker.h>
+#include <worker-tun.h>
 #include <common.h>
 #include <tlslib.h>
 
