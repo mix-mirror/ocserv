@@ -227,7 +227,7 @@ static void method_status(method_ctx *ctx, int cfd, uint8_t *msg,
 		rep.max_auth_time =
 			MAX(rep.max_auth_time,
 			    ctx->s->sec_mod_instances[i].max_auth_time);
-		rep.avg_auth_time = ctx->s->sec_mod_instances[i].avg_auth_time;
+		rep.avg_auth_time += ctx->s->sec_mod_instances[i].avg_auth_time;
 	}
 	if (ctx->s->sec_mod_instance_count != 0) {
 		rep.avg_auth_time /= ctx->s->sec_mod_instance_count;
