@@ -296,6 +296,7 @@ typedef struct worker_st {
 
 	char username[MAX_USERNAME_SIZE];
 	char groupname[MAX_GROUPNAME_SIZE];
+	unsigned int groupname_url_forced;
 
 	char cert_username[MAX_USERNAME_SIZE];
 	char **cert_groups;

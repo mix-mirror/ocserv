@@ -206,6 +206,38 @@ static int append_group_str(worker_st *ws, str_st *str, const char *group)
 	return 0;
 }
 
+static int resolve_selected_group(worker_st *ws, const char *group,
+				  char *resolved, size_t resolved_size)
+{
+	unsigned int i;
+
+	if (group == NULL || group[0] == 0)
+		return 0;
+
+	if (WSRCONFIG(ws)->n_group_list == 0) {
+		strlcpy(resolved, group, resolved_size);
+		return 1;
+	}
+
+	for (i = 0; i < WSRCONFIG(ws)->n_group_list; i++) {
+		if (strcmp(WSRCONFIG(ws)->group_list[i], group) == 0) {
+			strlcpy(resolved, WSRCONFIG(ws)->group_list[i],
+				resolved_size);
+			return 1;
+		}
+
+		if (WSRCONFIG(ws)->friendly_group_list != NULL &&
+		    WSRCONFIG(ws)->friendly_group_list[i] != NULL &&
+		    strcmp(WSRCONFIG(ws)->friendly_group_list[i], group) == 0) {
+			strlcpy(resolved, WSRCONFIG(ws)->group_list[i],
+				resolved_size);
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 int get_auth_handler2(worker_st *ws, unsigned int http_ver, const char *pmsg,
 		      unsigned int pcounter)
 {
@@ -271,7 +303,7 @@ int get_auth_handler2(worker_st *ws, unsigned int http_ver, const char *pmsg,
 			return -1;
 	}
 
-	ret = cstp_puts(ws, "Content-Type: text/xml\r\n");
+	ret = cstp_puts(ws, "Content-Type: text/xml; charset=utf-8\r\n");
 	if (ret < 0) {
 		ret = -1;
 		goto cleanup;
@@ -393,6 +425,7 @@ int get_auth_handler2(worker_st *ws, unsigned int http_ver, const char *pmsg,
 
 			/* we send a list of possible groups only if user is not forcing group e.g. by url to disable dialog on client side */
 			if (ws->groupname[0] == 0 &&
+			    ws->groupname_url_forced == 0 &&
 			    WSRCONFIG(ws)->default_select_group) {
 				ret = str_append_printf(
 					&str, "<option>%s</option>\n",
@@ -440,7 +473,7 @@ int get_auth_handler2(worker_st *ws, unsigned int http_ver, const char *pmsg,
 			}
 
 			/* we send a list of possible groups only if user is not forcing group e.g. by url to disable dialog on client side */
-			if (ws->groupname[0] == 0) {
+			if (ws->groupname_url_forced == 0) {
 				for (i = 0; i < WSRCONFIG(ws)->n_group_list;
 				     i++) {
 					if (ws->groupname[0] != 0 &&
@@ -747,6 +780,7 @@ static int recv_cookie_auth_reply(worker_st *ws)
 			} else {
 				ws->groupname[0] = 0;
 			}
+			ws->groupname_url_forced = 0;
 
 			if (msg->session_id.len != sizeof(ws->session_id)) {
 				oclog(ws, LOG_ERR,
@@ -1138,7 +1172,7 @@ int post_common_handler(worker_st *ws, unsigned int http_ver, const char *imsg)
 			goto fail;
 	}
 
-	ret = cstp_puts(ws, "Content-Type: text/xml\r\n");
+	ret = cstp_puts(ws, "Content-Type: text/xml; charset=utf-8\r\n");
 	if (ret < 0)
 		goto fail;
 
@@ -1542,6 +1576,7 @@ int post_auth_handler(worker_st *ws, unsigned int http_ver)
 	char *username = NULL;
 	char *password = NULL;
 	char *groupname = NULL;
+	char unlisted_groupname[MAX_GROUPNAME_SIZE] = { 0 };
 	char *msg = NULL;
 	unsigned int def_group = 0;
 	unsigned int pcounter = 0;
@@ -1554,11 +1589,14 @@ int post_auth_handler(worker_st *ws, unsigned int http_ver)
 	if (ws->auth_state == S_AUTH_INACTIVE) {
 		SecAuthInitMsg ireq = SEC_AUTH_INIT_MSG__INIT;
 
+		ws->groupname_url_forced = 0;
+
 		/* If the URL is not a known one and more than a character, we parse it as a group indicator */
 		if (WSRCONFIG(ws)->select_group_by_url != 0 &&
 		    http_post_known_service_check(ws, req->url) == NULL &&
 		    strlen(req->url) > 1) {
 			groupname = talloc_strdup(ws->req.body, req->url + 1);
+			ws->groupname_url_forced = 1;
 			ret = 0;
 		}
 
@@ -1584,57 +1622,26 @@ int post_auth_handler(worker_st *ws, unsigned int http_ver)
 		if (ret < 0) {
 			oclog(ws, LOG_HTTP_DEBUG, "failed reading groupname");
 		} else {
+			ws->groupname[0] = 0;
 			if (WSRCONFIG(ws)->default_select_group != NULL &&
 			    strcmp(groupname,
 				   WSRCONFIG(ws)->default_select_group) == 0) {
 				def_group = 1;
+			} else if (ws->groupname_url_forced != 0) {
+				strlcpy(ws->groupname, groupname,
+					sizeof(ws->groupname));
+				ireq.group_name = ws->groupname;
 			} else {
 				/* Some anyconnect clients send the group friendly name instead of
 				 * the actual value; see #267 */
-				ws->groupname[0] = 0;
-				if (WSRCONFIG(ws)->friendly_group_list !=
-				    NULL) {
-					unsigned int found = 0, i;
-
-					for (i = 0;
-					     i < WSRCONFIG(ws)->n_group_list;
-					     i++) {
-						if (strcmp(WSRCONFIG(ws)
-								   ->group_list
-									   [i],
-							   groupname) == 0) {
-							found = 1;
-							break;
-						}
-					}
-
-					if (!found)
-						for (i = 0;
-						     i <
-						     WSRCONFIG(ws)->n_group_list;
-						     i++) {
-							if (WSRCONFIG(ws)->friendly_group_list
-									    [i] !=
-								    NULL &&
-							    strcmp(WSRCONFIG(ws)->friendly_group_list
-									   [i],
-								   groupname) ==
-								    0) {
-								strlcpy(ws->groupname,
-									WSRCONFIG(
-										ws)
-										->group_list
-											[i],
-									sizeof(ws->groupname));
-								break;
-							}
-						}
+				if (resolve_selected_group(
+					    ws, groupname, ws->groupname,
+					    sizeof(ws->groupname)) != 0) {
+					ireq.group_name = ws->groupname;
+				} else {
+					strlcpy(unlisted_groupname, groupname,
+						sizeof(unlisted_groupname));
 				}
-
-				if (ws->groupname[0] == 0)
-					strlcpy(ws->groupname, groupname,
-						sizeof(ws->groupname));
-				ireq.group_name = ws->groupname;
 			}
 		}
 		talloc_free(groupname);
@@ -1720,7 +1727,8 @@ int post_auth_handler(worker_st *ws, unsigned int http_ver)
 			}
 
 			if (def_group == 0 && ws->cert_groups_size > 0 &&
-			    ws->groupname[0] == 0) {
+			    ws->groupname[0] == 0 &&
+			    unlisted_groupname[0] == 0) {
 				oclog(ws, LOG_HTTP_DEBUG,
 				      "user has not selected a group");
 				return get_auth_handler2(
@@ -1733,6 +1741,13 @@ int post_auth_handler(worker_st *ws, unsigned int http_ver)
 			ireq.cert_group_names = ws->cert_groups;
 			ireq.n_cert_group_names = ws->cert_groups_size;
 			ireq.auth_type |= AUTH_TYPE_CERTIFICATE;
+		}
+
+		if (ireq.group_name == NULL && unlisted_groupname[0] != 0 &&
+		    ireq.auth_type != 0) {
+			strlcpy(ws->groupname, unlisted_groupname,
+				sizeof(ws->groupname));
+			ireq.group_name = ws->groupname;
 		}
 
 		ireq.vhost = ws->vhost->name;
