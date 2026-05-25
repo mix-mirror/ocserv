@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,13 +31,13 @@
 #include <sys/ioctl.h>
 #include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>
-#include <ccan/hash/hash.h>
+#include "ccan/hash/hash.h"
 
-#include <main.h>
-#include <sec-mod-resume.h>
-#include <common.h>
-#include <ip-util.h>
-#include <tlslib.h>
+#include "main.h"
+#include "sec-mod-resume.h"
+#include "common/common.h"
+#include "ip-util.h"
+#include "tlslib.h"
 
 int handle_resume_delete_req(sec_mod_st *sec, const SessionResumeFetchMsg *req)
 {

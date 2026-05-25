@@ -18,10 +18,10 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
-#ifndef ACCT_PAM_H
-#define ACCT_PAM_H
+#ifndef OC_ACCT_PAM_H
+#define OC_ACCT_PAM_H
 
-#include <sec-mod-acct.h>
+#include "sec-mod-acct.h"
 
 extern const struct acct_mod_st pam_acct_funcs;
 

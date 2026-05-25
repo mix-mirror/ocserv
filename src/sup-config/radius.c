@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,15 +27,15 @@
 #include <grp.h>
 #include <fcntl.h>
 #include <limits.h>
-#include <common.h>
-#include <ip-util.h>
+#include "common/common.h"
+#include "ip-util.h"
 
 #ifdef HAVE_RADIUS
 
-#include <vpn.h>
-#include <main.h>
-#include <sec-mod-sup-config.h>
-#include <auth/radius.h>
+#include "vpn.h"
+#include "main.h"
+#include "sec-mod-sup-config.h"
+#include "auth/radius.h"
 #include "log.h"
 
 static int get_sup_config(ReloadableConfig *cfg, client_entry_st *entry,

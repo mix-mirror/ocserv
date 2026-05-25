@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 #include "ip-util.h"
 #include "common/common.h"
 #include <string.h>

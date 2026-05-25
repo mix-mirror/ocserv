@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #ifdef WITH_COVERAGE
 #include <unistd.h>
@@ -52,13 +52,13 @@ static inline void worker_exit(int status)
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
-#include <system.h>
+#include "common/system.h"
 #include <time.h>
-#include <gettime.h>
-#include <common.h>
-#include <html.h>
+#include "gettime.h"
+#include "common/common.h"
+#include "html.h"
 #include <ctype.h>
-#include <worker-bandwidth.h>
+#include "worker-bandwidth.h"
 #include <signal.h>
 #include <poll.h>
 #include <math.h>
@@ -69,16 +69,16 @@ static inline void worker_exit(int status)
 #define IPV6_PATHMTU 61
 #endif
 
-#include <vpn.h>
+#include "vpn.h"
 #include "ipc.pb-c.h"
-#include <worker.h>
-#include <tlslib.h>
+#include "worker.h"
+#include "tlslib.h"
 #include <llhttp.h>
 
 #if defined(CAPTURE_LATENCY_SUPPORT)
 #include <linux/net_tstamp.h>
 #include <linux/errqueue.h>
-#include <worker-latency.h>
+#include "worker-latency.h"
 #endif
 
 #define MIN_MTU(ws) (((ws)->vinfo.ipv6 != NULL) ? 1280 : 800)

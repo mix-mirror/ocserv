@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>
@@ -26,12 +26,12 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#include <base64-helper.h>
+#include "common/base64-helper.h"
 
-#include <vpn.h>
+#include "vpn.h"
 #include "html.h"
-#include <worker.h>
-#include <tlslib.h>
+#include "worker.h"
+#include "tlslib.h"
 
 int get_svc_handler(worker_st *ws, unsigned int http_ver)
 {

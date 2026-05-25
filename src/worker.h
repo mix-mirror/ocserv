@@ -21,24 +21,23 @@
 #ifndef OC_WORKER_H
 #define OC_WORKER_H
 
-#include <config.h>
+#include "config.h"
 #include <syslog.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
 #include <unistd.h>
 #include <net/if.h>
-#include <vpn.h>
-#include <tlslib.h>
-#include <common.h>
-#include <str.h>
-#include <worker-bandwidth.h>
+#include "vpn.h"
+#include "tlslib.h"
+#include "str.h"
+#include "worker-bandwidth.h"
 #include <stdbool.h>
 #include <sys/un.h>
 #include <sys/uio.h>
-#include <hmac.h>
+#include "common/hmac.h"
 #include "vhost.h"
-#include "ev.h"
+#include <ev.h>
 #include "common/common.h"
 
 #include "log.h"

@@ -18,15 +18,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <gnutls/gnutls.h>
 #include <gnutls/dtls.h>
 #include <math.h>
 #include <linux/net_tstamp.h>
 #include <linux/errqueue.h>
-#include <worker.h>
-#include <worker-latency.h>
+#include "worker.h"
+#include "worker-latency.h"
 
 ssize_t dtls_pull_latency(gnutls_transport_ptr_t ptr, void *data, size_t size)
 {

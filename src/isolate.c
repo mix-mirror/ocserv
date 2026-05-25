@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/resource.h>
 #include <grp.h>
-#include <worker.h>
-#include <main.h>
+#include "worker.h"
+#include "main.h"
 #include <limits.h>
 #include <unistd.h>
 

@@ -1,5 +1,5 @@
-#ifndef CTL_H
-#define CTL_H
+#ifndef OC_OCCTL_CTL_H
+#define OC_OCCTL_CTL_H
 
 #define OCCTL_UNIX_SOCKET "/var/run/occtl.socket"
 

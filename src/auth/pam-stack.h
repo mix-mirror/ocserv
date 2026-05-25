@@ -19,7 +19,7 @@
 #ifndef PAM_STACK_H
 #define PAM_STACK_H
 
-#include <config.h>
+#include "config.h"
 #include <stdlib.h>
 #ifdef __linux__
 #include <sys/mman.h>

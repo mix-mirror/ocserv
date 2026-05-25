@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #if defined(LINUX_NAMESPACES)
 
@@ -30,8 +30,8 @@
 #include <errno.h>
 #include <string.h>
 
-#include <common-config.h>
-#include <namespace.h>
+#include "common-config.h"
+#include "namespace.h"
 
 /* get default namespace file descriptor to be able to place fd in a given
  * namespace

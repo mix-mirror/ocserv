@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -34,7 +34,7 @@
 #include <assert.h>
 #include <nettle/sha1.h>
 #include <nettle/version.h>
-#include "common.h"
+#include "common/common.h"
 #include "defs.h"
 #include "common/base64-helper.h"
 #include "log.h"

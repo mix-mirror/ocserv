@@ -21,7 +21,7 @@
 #ifndef OC_WORKER_BANDWIDTH_H
 #define OC_WORKER_BANDWIDTH_H
 
-#include <gettime.h>
+#include "gettime.h"
 #include <time.h>
 #include <unistd.h>
 

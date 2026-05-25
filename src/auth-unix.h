@@ -1,7 +1,7 @@
 #ifndef OC_AUTH_UNIX_H
 #define OC_AUTH_UNIX_H
 
-#include <config.h>
+#include "config.h"
 
 #if defined(HAVE_GSSAPI) || defined(HAVE_PAM)
 #define HAVE_GET_USER_AUTH_GROUP

@@ -19,11 +19,10 @@
  * along with this program.  If not, see
  * <http://www.gnu.org/licenses/>.
  */
-
 #ifndef OC_STR_H
 #define OC_STR_H
 
-#include <config.h>
+#include "config.h"
 #include <stdint.h>
 
 #define STR_TAB_INIT(t, s_t) memset(t, 0, s_t)

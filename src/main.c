@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,18 +28,18 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <system.h>
+#include "common/system.h"
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <sys/resource.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "gnulib/cloexec.h"
-#include <script-list.h>
+#include "script-list.h"
 
 #include <gnutls/x509.h>
 #include <gnutls/crypto.h>
-#include <tlslib.h>
+#include "tlslib.h"
 #include "setproctitle.h"
 #ifdef HAVE_LIBWRAP
 #include <tcpd.h>
@@ -50,22 +50,22 @@
 #ifdef HAVE_LIBSYSTEMD
 #include <systemd/sd-daemon.h>
 #endif
-#include <main.h>
-#include <main-ctl.h>
-#include <main-ban.h>
-#include <route-add.h>
-#include <worker.h>
-#include <proc-search.h>
-#include <tun.h>
+#include "main.h"
+#include "main-ctl.h"
+#include "main-ban.h"
+#include "route-add.h"
+#include "worker.h"
+#include "proc-search.h"
+#include "tun.h"
 #include <grp.h>
-#include <ip-lease.h>
-#include <ccan/list/list.h>
-#include <hmac.h>
-#include <base64-helper.h>
-#include <snapshot.h>
-#include <main-limits.h>
-#include <sockdiag.h>
-#include <namespace.h>
+#include "ip-lease.h"
+#include "ccan/list/list.h"
+#include "common/hmac.h"
+#include "common/base64-helper.h"
+#include "common/snapshot.h"
+#include "main-limits.h"
+#include "common/sockdiag.h"
+#include "namespace.h"
 
 #ifdef HAVE_GSSAPI
 #include <libtasn1.h>

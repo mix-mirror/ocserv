@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>
@@ -33,11 +33,11 @@
 #include <unistd.h>
 #include <limits.h>
 
-#include <vpn.h>
-#include <worker.h>
-#include "common.h"
+#include "vpn.h"
+#include "worker.h"
+#include "common/common.h"
 #include "ipc.pb-c.h"
-#include <tlslib.h>
+#include "tlslib.h"
 
 static int recv_resume_fetch_reply(worker_st *ws, int sd, gnutls_datum_t *sdata)
 {

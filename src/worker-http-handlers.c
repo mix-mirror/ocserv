@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>
@@ -34,9 +34,9 @@
 #include <unistd.h>
 #include <limits.h>
 
-#include <vpn.h>
-#include <worker.h>
-#include <tlslib.h>
+#include "vpn.h"
+#include "worker.h"
+#include "tlslib.h"
 
 #define HTML_404 "<html><body><h1>404 Not Found</h1></body></html>\r\n"
 #define HTML_401 "<html><body><h1>401 Unauthorized</h1></body></html>\r\n"

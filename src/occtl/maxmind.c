@@ -18,7 +18,7 @@
  *   Nikos Mavrogiannopoulos
  */
 
-#include <config.h>
+#include "config.h"
 #include <sys/socket.h>
 #include <stdio.h>
 #include <stdlib.h>

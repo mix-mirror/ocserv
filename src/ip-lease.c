@@ -15,16 +15,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 #include <stdbool.h>
 
 #include <stdio.h>
 
-#include <ip-lease.h>
-#include <main.h>
-#include <ip-util.h>
+#include "ip-lease.h"
+#include "main.h"
+#include "ip-util.h"
 #include <gnutls/crypto.h>
-#include <icmp-ping.h>
+#include "icmp-ping.h"
 #include <arpa/inet.h>
 
 static void ip_from_seed(uint8_t *seed, unsigned int seed_size, void *ip,

@@ -18,11 +18,10 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
-
 #ifndef OC_GETTIME_H
 #define OC_GETTIME_H
 
-#include <config.h>
+#include "config.h"
 #include <time.h>
 #include <sys/time.h>
 

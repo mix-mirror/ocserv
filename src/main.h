@@ -27,17 +27,17 @@
 #include <sys/resource.h>
 #include <unistd.h>
 #include <net/if.h>
-#include <vpn.h>
-#include <tlslib.h>
+#include "vpn.h"
+#include "tlslib.h"
 #include "ipc.pb-c.h"
-#include <common.h>
+#include "common/common.h"
 #include <sys/un.h>
 #include <sys/uio.h>
 #include <signal.h>
 #include <ev.h>
-#include <hmac.h>
+#include "common/hmac.h"
 #include "vhost.h"
-#include <namespace.h>
+#include "namespace.h"
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
 #include <limits.h>

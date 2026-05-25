@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #ifdef HAVE_GSSAPI
 
@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <vpn.h>
+#include "vpn.h"
 #include <ctype.h>
 #include "gssapi.h"
 #include "auth/common.h"
@@ -33,7 +33,7 @@
 #include <gssapi/gssapi.h>
 #include <gssapi/gssapi_ext.h>
 #include <gssapi/gssapi_krb5.h>
-#include <base64-helper.h>
+#include "common/base64-helper.h"
 #include "common-config.h"
 
 #include "log.h"

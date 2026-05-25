@@ -17,8 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
-#include <system.h>
+#include "config.h"
+#include "common/system.h"
 #include <unistd.h>
 #ifdef __linux__
 #include <sys/prctl.h>
@@ -32,7 +32,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <string.h>
-#include <defs.h>
+#include "defs.h"
 #include "log.h"
 
 void kill_on_parent_kill(int sig)

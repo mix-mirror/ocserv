@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <fcntl.h>
 #include <sys/types.h>
@@ -34,7 +34,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include "gnulib/cloexec.h"
-#include <ip-lease.h>
+#include "ip-lease.h"
 
 #if defined(HAVE_LINUX_IF_TUN_H)
 #include <linux/if_tun.h>
@@ -43,10 +43,10 @@
 #endif
 
 #include <netdb.h>
-#include <vpn.h>
-#include <tun.h>
-#include <main.h>
-#include <ccan/list/list.h>
+#include "vpn.h"
+#include "tun.h"
+#include "main.h"
+#include "ccan/list/list.h"
 #include "vhost.h"
 #include "log.h"
 #include "worker-tun.h"

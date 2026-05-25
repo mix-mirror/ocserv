@@ -16,7 +16,6 @@
  * Authors:
  *   Nikos Mavrogiannopoulos <n.mavrogiannopoulos@gmail.com>
  */
-
 #ifndef GEOIP_H
 #define GEOIP_H
 

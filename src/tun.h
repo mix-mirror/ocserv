@@ -21,9 +21,9 @@
 #ifndef OC_TUN_H
 #define OC_TUN_H
 
-#include <vpn.h>
+#include "vpn.h"
 #include <string.h>
-#include <ccan/list/list.h>
+#include "ccan/list/list.h"
 
 struct tun_lease_st {
 	char name[IFNAMSIZ];

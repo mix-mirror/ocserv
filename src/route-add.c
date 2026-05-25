@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 #include <stdbool.h>
 
 #include <stdio.h>
@@ -29,10 +29,10 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include <route-add.h>
-#include <main.h>
-#include <str.h>
-#include <common.h>
+#include "route-add.h"
+#include "main.h"
+#include "str.h"
+#include "common/common.h"
 
 static int call_script(main_server_st *s, proc_st *proc, const char *cmd)
 {

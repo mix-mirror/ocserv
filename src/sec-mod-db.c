@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,18 +32,18 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <system.h>
+#include "common/system.h"
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <sys/un.h>
-#include <common.h>
+#include "common/common.h"
 #include <syslog.h>
-#include <vpn.h>
-#include <base64-helper.h>
-#include <tlslib.h>
-#include <sec-mod.h>
-#include <ccan/hash/hash.h>
-#include <ccan/htable/htable.h>
+#include "vpn.h"
+#include "common/base64-helper.h"
+#include "tlslib.h"
+#include "sec-mod.h"
+#include "ccan/hash/hash.h"
+#include "ccan/htable/htable.h"
 
 #include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>

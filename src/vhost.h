@@ -22,9 +22,9 @@
 #define OC_VHOST_H
 
 /* Virtual host entries; common between main and sec-mod */
-#include <config.h>
+#include "config.h"
 #include "tlslib.h"
-#include <cfg.pb-c.h>
+#include "cfg.pb-c.h"
 
 #define MAX_PIN_SIZE GNUTLS_PKCS11_MAX_PIN_LEN
 typedef struct pin_st {

@@ -21,8 +21,8 @@
 #ifndef OC_SEC_MOD_ACCT_H
 #define OC_SEC_MOD_ACCT_H
 
-#include <main.h>
-#include <sec-mod-auth.h>
+#include "main.h"
+#include "sec-mod-auth.h"
 
 typedef struct acct_mod_st {
 	unsigned int type; /* ACCT_TYPE_ */

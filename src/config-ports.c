@@ -15,17 +15,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <common-config.h>
+#include "common-config.h"
 #include <ctype.h>
 #include <talloc.h>
 #include "log.h"
 
-#include <vpn.h>
+#include "vpn.h"
 
 static int append_port(void *pool, FwPortSt ***fw_ports, size_t *n_fw_ports,
 		       int port, fw_proto_t proto, unsigned int negate)

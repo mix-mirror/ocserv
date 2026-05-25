@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 #include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
@@ -24,10 +24,10 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <arpa/inet.h>
-#include <base64-helper.h>
+#include "common/base64-helper.h"
 
-#include <worker.h>
-#include <main.h>
+#include "worker.h"
+#include "main.h"
 #include "sec-mod.h"
 #include "log.h"
 

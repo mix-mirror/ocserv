@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <fcntl.h>
 #include <sys/resource.h>
 #include <grp.h>
 
-#include <main.h>
+#include "main.h"
 #include <limits.h>
 
 void init_fd_limits_default(main_server_st *s)

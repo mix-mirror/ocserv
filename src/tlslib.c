@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>
@@ -35,12 +35,12 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <limits.h>
-#include <tlslib.h>
-#include <ccan/hash/hash.h>
-#include <vpn.h>
-#include <main.h>
-#include <worker.h>
-#include <common.h>
+#include "tlslib.h"
+#include "ccan/hash/hash.h"
+#include "vpn.h"
+#include "main.h"
+#include "worker.h"
+#include "common/common.h"
 #include <sys/un.h>
 #include <sys/uio.h>
 #include <sys/types.h>

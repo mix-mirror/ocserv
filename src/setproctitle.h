@@ -21,7 +21,7 @@
 #ifndef OC_SETPROCTITLE_H
 #define OC_SETPROCTITLE_H
 
-#include <config.h>
+#include "config.h"
 
 #ifndef HAVE_SETPROCTILE
 

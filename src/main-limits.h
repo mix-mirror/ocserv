@@ -15,9 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef MAIN_LIMITS_H
-#define MAIN_LIMITS_H
+#ifndef OC_MAIN_LIMITS_H
+#define OC_MAIN_LIMITS_H
 
 void init_fd_limits_default(struct main_server_st *s);
 

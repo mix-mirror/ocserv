@@ -70,8 +70,8 @@
 
 /* Ported to ocserv by Nikos Mavrogiannopoulos */
 
-#include <config.h>
-#include <main.h>
+#include "config.h"
+#include "main.h"
 #include <net/if.h>
 #ifdef HAVE_NETINET_IN_SYSTM_H
 #include <netinet/in_systm.h>
@@ -85,7 +85,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <gnutls/crypto.h>
-#include <icmp-ping.h>
+#include "icmp-ping.h"
 #include <poll.h>
 
 #ifndef ICMP_DEST_UNREACH

@@ -20,7 +20,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 #include <stdbool.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -30,12 +30,12 @@
 #include <errno.h>
 #include <signal.h>
 #include <ctype.h>
-#include <ctl.h>
-#include <ctl.pb-c.h>
-#include <occtl/occtl.h>
-#include <common.h>
+#include "occtl/ctl.h"
+#include "ctl.pb-c.h"
+#include "occtl/occtl.h"
+#include "common/common.h"
 #include <arpa/inet.h>
-#include <system.h>
+#include "common/system.h"
 #include <termios.h>
 #include <unistd.h>
 #include <sys/select.h>
@@ -45,10 +45,10 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <assert.h>
-#include <ccan/str/hex/hex.h>
+#include "ccan/str/hex/hex.h"
 #include "geoip.h"
-#include <vpn.h>
-#include <base64-helper.h>
+#include "vpn.h"
+#include "common/base64-helper.h"
 
 /* In JSON output include fields which were no longer available after 0.11.7
  */

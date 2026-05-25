@@ -17,8 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
-#include <worker.h>
+#include "config.h"
+#include "worker.h"
 
 #ifdef HAVE_LIBSECCOMP
 

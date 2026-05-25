@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <time.h>
-#include "common.h"
+#include "common/common.h"
 
 #ifdef HAVE_ORIG_READLINE
 #include <readline/readline.h>

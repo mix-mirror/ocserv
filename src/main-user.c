@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,20 +32,20 @@
 #include <sys/ioctl.h>
 #include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>
-#include <tlslib.h>
+#include "tlslib.h"
 #ifdef HAVE_LIBUTIL
 #include <utmpx.h>
 #endif
-#include <gettime.h>
+#include "gettime.h"
 
-#include <vpn.h>
-#include <str.h>
-#include <tun.h>
-#include <main.h>
-#include <main-ctl.h>
-#include <ip-lease.h>
-#include <script-list.h>
-#include <ccan/list/list.h>
+#include "vpn.h"
+#include "str.h"
+#include "tun.h"
+#include "main.h"
+#include "main-ctl.h"
+#include "ip-lease.h"
+#include "script-list.h"
+#include "ccan/list/list.h"
 
 #ifndef OCSERV_FW_SCRIPT
 #define OCSERV_FW_SCRIPT "/usr/libexec/ocserv-fw"

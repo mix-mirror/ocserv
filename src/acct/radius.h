@@ -18,10 +18,10 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
-#ifndef ACCT_RADIUS_H
-#define ACCT_RADIUS_H
+#ifndef OC_ACCT_RADIUS_H
+#define OC_ACCT_RADIUS_H
 
-#include <sec-mod-auth.h>
+#include "sec-mod-auth.h"
 
 extern const struct acct_mod_st radius_acct_funcs;
 

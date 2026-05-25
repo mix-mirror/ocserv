@@ -21,7 +21,7 @@
 #ifndef OC_SCRIPT_LIST_H
 #define OC_SCRIPT_LIST_H
 
-#include <main.h>
+#include "main.h"
 #include <sys/types.h>
 #include <signal.h>
 #include <ev.h>

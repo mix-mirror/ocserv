@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -25,9 +25,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <vpn.h>
-#include <worker.h>
-#include "common.h"
+#include "vpn.h"
+#include "worker.h"
+#include "common/common.h"
 
 #ifdef HAVE_GSSAPI
 

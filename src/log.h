@@ -183,4 +183,4 @@ inline static unsigned int log_check_priority(int oc_priority, int log_prio,
 	return 1;
 }
 
-#endif /* OC_LOG_H */
+#endif

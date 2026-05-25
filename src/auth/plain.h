@@ -18,10 +18,10 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
-#ifndef PLAIN_H
-#define PLAIN_H
+#ifndef OC_AUTH_PLAIN_H
+#define OC_AUTH_PLAIN_H
 
-#include <sec-mod-auth.h>
+#include "sec-mod-auth.h"
 
 extern const struct auth_mod_st plain_auth_funcs;
 

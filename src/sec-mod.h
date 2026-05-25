@@ -22,10 +22,10 @@
 #define OC_SEC_MOD_H
 
 #include <gnutls/abstract.h>
-#include <ccan/htable/htable.h>
+#include "ccan/htable/htable.h"
 #include <nettle/base64.h>
-#include <tlslib.h>
-#include <hmac.h>
+#include "tlslib.h"
+#include "common/hmac.h"
 #include "common/common.h"
 
 #include "vhost.h"

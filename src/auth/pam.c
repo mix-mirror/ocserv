@@ -17,16 +17,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <vpn.h>
+#include "vpn.h"
 #include "pam.h"
 #include "common-config.h"
 #include "auth-unix.h"
-#include <sec-mod-auth.h>
-#include <ccan/hash/hash.h>
+#include "sec-mod-auth.h"
+#include "ccan/hash/hash.h"
 #include "log.h"
 
 #ifdef HAVE_PAM

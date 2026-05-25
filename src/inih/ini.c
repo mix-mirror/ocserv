@@ -17,7 +17,7 @@ https://github.com/benhoyt/inih
 
 /* This is ocserv's addition; needed for our definitions
  * to take precedence over defaults. */
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <ctype.h>

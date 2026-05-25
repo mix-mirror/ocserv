@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,27 +29,27 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <system.h>
+#include "common/system.h"
 #include <errno.h>
 #include <limits.h>
 #include <sys/ioctl.h>
 #include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>
-#include <tlslib.h>
-#include "common.h"
+#include "tlslib.h"
+#include "common/common.h"
 #include "str.h"
 #include "setproctitle.h"
-#include <sec-mod.h>
-#include <ip-lease.h>
-#include <route-add.h>
-#include <ipc.pb-c.h>
-#include <script-list.h>
+#include "sec-mod.h"
+#include "ip-lease.h"
+#include "route-add.h"
+#include "ipc.pb-c.h"
+#include "script-list.h"
 #include "gnulib/cloexec.h"
 
-#include <vpn.h>
-#include <main.h>
-#include <main-ban.h>
-#include <ccan/list/list.h>
+#include "vpn.h"
+#include "main.h"
+#include "main-ban.h"
+#include "ccan/list/list.h"
 
 #ifdef HAVE_MALLOC_TRIM
 #include <malloc.h>

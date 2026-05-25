@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>
@@ -33,15 +33,15 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <limits.h>
-#include <ipc.pb-c.h>
-#include <base64-helper.h>
+#include "ipc.pb-c.h"
+#include "common/base64-helper.h"
 
-#include <vpn.h>
+#include "vpn.h"
 #include "html.h"
-#include <worker.h>
-#include <worker-tun.h>
-#include <common.h>
-#include <tlslib.h>
+#include "worker.h"
+#include "worker-tun.h"
+#include "common/common.h"
+#include "tlslib.h"
 
 #include <llhttp.h>
 

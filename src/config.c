@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,20 +27,20 @@
 #include <grp.h>
 #include <fcntl.h>
 #include <limits.h>
-#include <common.h>
-#include <ip-util.h>
+#include "common/common.h"
+#include "ip-util.h"
 #include <ctype.h>
-#include <auth/pam.h>
-#include <acct/pam.h>
-#include <auth/radius.h>
-#include <acct/radius.h>
-#include <auth/plain.h>
-#include <auth/gssapi.h>
-#include <auth/openidconnect.h>
-#include <auth/common.h>
-#include <sec-mod-sup-config.h>
-#include <sec-mod-acct.h>
-#include "inih/ini.h"
+#include "auth/pam.h"
+#include "acct/pam.h"
+#include "auth/radius.h"
+#include "acct/radius.h"
+#include "auth/plain.h"
+#include "auth/gssapi.h"
+#include "auth/openidconnect.h"
+#include "auth/common.h"
+#include "sec-mod-sup-config.h"
+#include "sec-mod-acct.h"
+#include <inih/ini.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -48,16 +48,16 @@
 #include <netdb.h>
 #include <assert.h>
 
-#include <vpn.h>
-#include <cfg.pb-c.h>
-#include <main.h>
-#include <tlslib.h>
-#include <occtl/ctl.h>
+#include "vpn.h"
+#include "cfg.pb-c.h"
+#include "main.h"
+#include "tlslib.h"
+#include "occtl/ctl.h"
 #include <gnutls/crypto.h>
 #include "common-config.h"
 
 #include <getopt.h>
-#include <snapshot.h>
+#include "common/snapshot.h"
 
 #define OLD_DEFAULT_CFG_FILE "/etc/ocserv.conf"
 #define DEFAULT_CFG_FILE "/etc/ocserv/ocserv.conf"

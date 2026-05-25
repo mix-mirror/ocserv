@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,20 +26,20 @@
 #include <sys/socket.h>
 #include <signal.h>
 #include <sys/un.h>
-#include <main.h>
-#include <vpn.h>
+#include "main.h"
+#include "vpn.h"
 #include "gnulib/cloexec.h"
-#include <ip-lease.h>
+#include "ip-lease.h"
 
 #include <errno.h>
-#include <system.h>
-#include <main-ctl.h>
-#include <main-ban.h>
-#include <ccan/container_of/container_of.h>
+#include "common/system.h"
+#include "main-ctl.h"
+#include "main-ban.h"
+#include "ccan/container_of/container_of.h"
 
-#include <ctl.pb-c.h>
-#include <ipc.pb-c.h>
-#include <str.h>
+#include "ctl.pb-c.h"
+#include "ipc.pb-c.h"
+#include "str.h"
 
 typedef struct method_ctx {
 	main_server_st *s;

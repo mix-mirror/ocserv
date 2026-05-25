@@ -18,9 +18,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 #ifndef JSON_H
 #define JSON_H
+
 char *json_escape_val(char *tmp, unsigned int tmp_size, const char *val);
 
 #endif

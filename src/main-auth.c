@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,17 +33,17 @@
 #include <sys/ioctl.h>
 #include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>
-#include <tlslib.h>
-#include <script-list.h>
-#include <ip-lease.h>
-#include <proc-search.h>
+#include "tlslib.h"
+#include "script-list.h"
+#include "ip-lease.h"
+#include "proc-search.h"
 #include "str.h"
 
-#include <vpn.h>
-#include <tun.h>
-#include <main.h>
-#include <ccan/list/list.h>
-#include <common.h>
+#include "vpn.h"
+#include "tun.h"
+#include "main.h"
+#include "ccan/list/list.h"
+#include "common/common.h"
 
 int send_cookie_auth_reply(main_server_st *s, struct proc_st *proc, AUTHREP r)
 {

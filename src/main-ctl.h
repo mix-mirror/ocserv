@@ -1,7 +1,7 @@
 #ifndef OC_MAIN_CTL_H
 #define OC_MAIN_CTL_H
 
-#include <occtl/ctl.h>
+#include "occtl/ctl.h"
 #include <ev.h>
 
 int ctl_handler_init(main_server_st *s);

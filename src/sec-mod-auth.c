@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,25 +33,24 @@
 #include <sys/ioctl.h>
 #include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>
-#include <tlslib.h>
-#include <script-list.h>
-#include <ip-lease.h>
+#include "tlslib.h"
+#include "script-list.h"
+#include "ip-lease.h"
 #include "str.h"
 
-#include <vpn.h>
-#include <tun.h>
-#include <main.h>
-#include <ccan/list/list.h>
-#include <sec-mod-auth.h>
-#include <auth/plain.h>
-#include <common.h>
-#include <auth/pam.h>
-#include <sec-mod.h>
-#include <vpn.h>
-#include <base64-helper.h>
-#include <sec-mod-sup-config.h>
-#include <sec-mod-acct.h>
-#include <hmac.h>
+#include "vpn.h"
+#include "tun.h"
+#include "main.h"
+#include "ccan/list/list.h"
+#include "sec-mod-auth.h"
+#include "auth/plain.h"
+#include "common/common.h"
+#include "auth/pam.h"
+#include "sec-mod.h"
+#include "common/base64-helper.h"
+#include "sec-mod-sup-config.h"
+#include "sec-mod-acct.h"
+#include "common/hmac.h"
 
 #ifdef HAVE_GSSAPI
 #include <gssapi/gssapi.h>

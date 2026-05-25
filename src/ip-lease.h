@@ -21,11 +21,11 @@
 #ifndef OC_IP_LEASE_H
 #define OC_IP_LEASE_H
 
-#include <vpn.h>
+#include "vpn.h"
 #include <string.h>
 #include <sys/socket.h>
-#include <ccan/hash/hash.h>
-#include <main.h>
+#include "ccan/hash/hash.h"
+#include "main.h"
 
 struct ip_lease_st {
 	/* In IPv4 this is the same as rip, in IPv6

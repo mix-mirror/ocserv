@@ -14,11 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 #ifndef OC_NAMESPACE_H
 #define OC_NAMESPACE_H
 
-#include <config.h>
+#include "config.h"
 
 struct netns_fds {
 	int default_fd;

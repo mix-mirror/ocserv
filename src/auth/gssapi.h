@@ -18,10 +18,10 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
-#ifndef GSSAPI_H
-#define GSSAPI_H
+#ifndef OC_AUTH_GSSAPI_H
+#define OC_AUTH_GSSAPI_H
 
-#include <sec-mod-auth.h>
+#include "sec-mod-auth.h"
 
 extern const struct auth_mod_st gssapi_auth_funcs;
 

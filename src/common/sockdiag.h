@@ -18,11 +18,10 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
+#ifndef OC_COMMON_SOCKDIAG_H
+#define OC_COMMON_SOCKDIAG_H
 
-#ifndef SOCKDIAG_H
-#define SOCKDIAG_H
-
-#include <config.h>
+#include "config.h"
 
 int sockdiag_query_unix_domain_socket_queue_length(const char *socket_name,
 						   int *sock_rqueue,

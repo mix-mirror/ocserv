@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>
@@ -39,9 +39,9 @@
 #include <sys/socket.h>
 #include <net/if.h>
 
-#include <vpn.h>
-#include <worker.h>
-#include <tlslib.h>
+#include "vpn.h"
+#include "worker.h"
+#include "tlslib.h"
 
 #ifdef HAVE_SIGALTSTACK
 #include <signal.h>

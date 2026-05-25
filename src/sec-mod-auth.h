@@ -21,8 +21,8 @@
 #ifndef OC_SEC_MOD_AUTH_H
 #define OC_SEC_MOD_AUTH_H
 
-#include <main.h>
-#include <sec-mod.h>
+#include "main.h"
+#include "sec-mod.h"
 
 #define MAX_AUTH_REQS 8
 

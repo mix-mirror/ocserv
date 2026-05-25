@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,17 +30,17 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <system.h>
+#include "common/system.h"
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <sys/un.h>
-#include <common.h>
-#include <main.h>
-#include <sec-mod.h>
-#include <tlslib.h>
-#include <ipc.pb-c.h>
-#include <sec-mod-sup-config.h>
-#include <sec-mod-resume.h>
+#include "common/common.h"
+#include "main.h"
+#include "sec-mod.h"
+#include "tlslib.h"
+#include "ipc.pb-c.h"
+#include "sec-mod-sup-config.h"
+#include "sec-mod-resume.h"
 #include "gnulib/cloexec.h"
 #include <assert.h>
 

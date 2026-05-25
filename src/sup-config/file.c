@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,17 +27,17 @@
 #include <grp.h>
 #include <fcntl.h>
 #include <limits.h>
-#include <common.h>
-#include <ip-util.h>
+#include "common/common.h"
+#include "ip-util.h"
 #include <ctype.h>
 
-#include "inih/ini.h"
+#include <inih/ini.h>
 #include "log.h"
 
-#include <vpn.h>
-#include <main.h>
-#include <common-config.h>
-#include <sec-mod-sup-config.h>
+#include "vpn.h"
+#include "main.h"
+#include "common-config.h"
+#include "sec-mod-sup-config.h"
 
 #define READ_RAW_MULTI_LINE(varname, num) \
 	_add_multi_line_val(pool, &varname, &num, value)

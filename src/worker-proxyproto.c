@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <sys/types.h>
 #include <netinet/in.h>
@@ -25,7 +25,7 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 
-#include <worker.h>
+#include "worker.h"
 
 /* This file implements the Proxy Protocol v2, as described in:
  * http://www.haproxy.org/download/1.6/doc/proxy-protocol.txt

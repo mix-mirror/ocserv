@@ -13,10 +13,10 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
-#ifndef OPENIDCONNECT_H
-#define OPENIDCONNECT_H
+#ifndef OC_AUTH_OPENIDCONNECT_H
+#define OC_AUTH_OPENIDCONNECT_H
 
-#include <sec-mod-auth.h>
+#include "sec-mod-auth.h"
 
 extern const struct auth_mod_st oidc_auth_funcs;
 

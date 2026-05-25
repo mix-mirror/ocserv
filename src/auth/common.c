@@ -17,8 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
-#include <auth/common.h>
+#include "config.h"
+#include "auth/common.h"
 
 const char pass_msg_second[] = "Please enter your challenge password.";
 const char pass_msg_failed[] = "Login failed.\nPlease enter your password.";

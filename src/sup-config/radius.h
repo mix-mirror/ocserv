@@ -21,7 +21,7 @@
 #ifndef SUP_CONFIG_RADIUS_H
 #define SUP_CONFIG_RADIUS_H
 
-#include <sec-mod-sup-config.h>
+#include "sec-mod-sup-config.h"
 
 extern struct config_mod_st radius_sup_config;
 

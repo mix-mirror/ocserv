@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,18 +30,18 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <system.h>
+#include "common/system.h"
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <sys/un.h>
-#include <common.h>
-#include <vpn.h>
-#include <tlslib.h>
-#include <main.h>
-#include <main-ban.h>
+#include "common/common.h"
+#include "vpn.h"
+#include "tlslib.h"
+#include "main.h"
+#include "main-ban.h"
 #include <arpa/inet.h>
-#include <ccan/hash/hash.h>
-#include <ccan/htable/htable.h>
+#include "ccan/hash/hash.h"
+#include "ccan/htable/htable.h"
 #include <ifaddrs.h>
 #include <sys/socket.h>
 

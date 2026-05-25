@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -32,11 +32,11 @@
 #endif
 
 #include <nettle/base64.h>
-#include <base64-helper.h>
+#include "common/base64-helper.h"
 #include <ctype.h>
 
-#include <vpn.h>
-#include <worker.h>
+#include "vpn.h"
+#include "worker.h"
 
 #define CS_AES128_GCM "OC-DTLS1_2-AES128-GCM"
 #define CS_AES256_GCM "OC-DTLS1_2-AES256-GCM"

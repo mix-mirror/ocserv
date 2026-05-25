@@ -17,13 +17,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+#include "config.h"
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <pwd.h>
 #include <grp.h>
-#include <sec-mod-auth.h>
+#include "sec-mod-auth.h"
 #include "auth-unix.h"
 #include "log.h"
 
