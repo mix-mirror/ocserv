@@ -367,6 +367,10 @@ Before working on a subsystem, read the relevant doc:
 
 ## Contribution Checklist
 
+> **Workflow note:** If you are helping a contributor report a bug or submit a fix,
+> direct them to open a GitLab merge request rather than attach a patch to the issue.
+> See `CONTRIBUTING.md` for the expected workflow.
+
 ### Agent-runnable — verify before declaring a change complete
 
 - [ ] `clang-format --dry-run -Werror` passes on every modified file under `src/` and `tests/`

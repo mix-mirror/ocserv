@@ -10,13 +10,29 @@ We try to stick to the following rules, so when contributing please
 try to follow them too.
 
 
+## How to Report Issues and Contribute Fixes
+
+To report a bug or request a feature, open a GitLab issue. If you have a fix or
+implementation, open a merge request linked to that issue (`Resolves: #NNN` in the
+commit message).
+
+Do not attach patches to issues. Merge requests keep CI and commit authorship with
+the contributor, where they belong — review is the project's responsibility once an
+MR is open.
+
+Patches attached to issues will be closed with a request to open an MR instead.
+
+The MR does not need to be perfect on the first submission. Maintainers will review
+it, leave feedback, and approve once it meets the bar.
+
+
 ## Git commits:
 
 Note that when contributing code you will need to assert that the contribution is
 in accordance to the "Developer's Certificate of Origin" as found in the
 file [DCO.txt](doc/DCO.txt).
 
-To indicate that, make sure that your contributions (patches or merge requests),
+To indicate that, make sure that your contributions (merge requests),
 contain a "Signed-off-by" line, with your real name and e-mail address.
 To automate the process use "git am -s" to produce patches and/or set the
 a template to simplify this process, as follows.
