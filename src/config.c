@@ -1283,6 +1283,10 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 		if (error_on_vhost(vhost->name, "limit-worker-memory"))
 			return 0;
 		READ_TF_VC(limit_worker_memory);
+	} else if (strcmp(name, "sec-mod-db-cleanup-time") == 0) {
+		if (error_on_vhost(vhost->name, "sec-mod-db-cleanup-time"))
+			return 0;
+		READ_NUMERIC_VC(sec_mod_db_cleanup_time);
 	} else if (strcmp(name, "predictable-ips") == 0) {
 		READ_TF_VC(predictable_ips);
 	} else if (strcmp(name, "use-utmp") == 0) {

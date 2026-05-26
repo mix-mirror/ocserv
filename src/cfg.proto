@@ -122,6 +122,7 @@ message ReloadableConfig {
   optional bool   no_udp                 = 54; /* [scope: vhost user] */
   optional bool   expose_iroutes         = 55; /* [scope: vhost] */
   optional uint32 limit_worker_memory   =  56; /* [scope: global] */
+  optional uint32 sec_mod_db_cleanup_time = 57; /* [scope: global] undocumented; 0 = use built-in default (310 s) */
 
   /* ------------------------------------------------------------------ */
   /* Strings — NULL pointer means "not set"; no has_X for proto2 strings */

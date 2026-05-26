@@ -282,9 +282,10 @@ def main():
     # Deprecated aliases that map to a canonical global option and call
     # error_on_vhost() but intentionally have no sample.config entry.
     DEPRECATED_GLOBAL_ALIASES = {
-        "use-seccomp",       # replaced by isolate-workers
-        "min-reauth-time",   # replaced by ban-time
-        "use-dbus",          # replaced by use-occtl
+        "use-seccomp",            # replaced by isolate-workers
+        "min-reauth-time",        # replaced by ban-time
+        "use-dbus",               # replaced by use-occtl
+        "sec-mod-db-cleanup-time", # internal/undocumented; test-only knob
     }
 
     # (c) Every error_on_vhost option must be annotated [... global] in sample.config

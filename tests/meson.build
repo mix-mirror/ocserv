@@ -173,13 +173,21 @@ if have_cwrap
   endforeach
 
   if have_cwrap_pam
+    # Detection module for the pam_auth_deinit coroutine-safety test (#657).
+    pam_abort_mod = shared_module('pam_abort_test', 'pam-abort-mod.c',
+      dependencies: [pam_dep],
+      name_prefix:  '',
+      install:      false,
+    )
+
     # Generate PAM test data files from templates into builddir/data/pam/
     # common.sh expects: ${builddir}/data/pam/{nss-passwd,nss-group,ocserv}
     pam_conf = configuration_data({
-      'ROOTUID':    run_command('id', '-u', check: true).stdout().strip(),
-      'ROOTGID':    run_command('id', '-g', check: true).stdout().strip(),
-      'PAMWRAPDIR': cwrap_pam_dep.get_variable(pkgconfig: 'modules',
-                                               default_value: '/usr/lib/pam_wrapper'),
+      'ROOTUID':       run_command('id', '-u', check: true).stdout().strip(),
+      'ROOTGID':       run_command('id', '-g', check: true).stdout().strip(),
+      'PAMWRAPDIR':    cwrap_pam_dep.get_variable(pkgconfig: 'modules',
+                                                  default_value: '/usr/lib/pam_wrapper'),
+      'PAM_ABORT_MOD': pam_abort_mod.full_path(),
     })
     subdir('data/pam')
 
@@ -190,6 +198,12 @@ if have_cwrap
         workdir: test_workdir,
       )
     endforeach
+
+    test('test-pam-abort', find_program('test-pam-abort'),
+      env:     test_env,
+      timeout: 90,
+      workdir: test_workdir,
+    )
 
     if get_option('kerberos-tests')
       test('kerberos', find_program('kerberos'),

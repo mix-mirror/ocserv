@@ -35,3 +35,10 @@ configure_file(
   configuration: pam_conf,
   install:       false,
 )
+
+configure_file(
+  input:         'ocserv-abort.in',
+  output:        'ocserv-abort',
+  configuration: pam_conf,
+  install:       false,
+)

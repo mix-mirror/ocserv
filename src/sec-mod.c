@@ -627,6 +627,12 @@ static void handle_alarm(int signo)
 	need_maintenance = 1;
 }
 
+static unsigned int maintenance_time(sec_mod_st *sec)
+{
+	unsigned int t = GETRCONFIG(sec)->sec_mod_db_cleanup_time;
+	return (t > 0) ? t : MAINTENANCE_TIME;
+}
+
 static void handle_sigterm(int signo)
 {
 	need_exit = 1;
@@ -718,7 +724,7 @@ static void check_other_work(sec_mod_st *sec)
 		send_stats_to_main(sec);
 		seclog(sec, LOG_DEBUG, "active sessions %d",
 		       sec_mod_client_db_elems(sec));
-		alarm(MAINTENANCE_TIME);
+		alarm(maintenance_time(sec));
 		need_maintenance = 0;
 	}
 }
@@ -1094,7 +1100,7 @@ void sec_mod_server(void *main_pool, void *config_pool,
 	}
 
 	sigprocmask(SIG_BLOCK, &blockset, &sig_default_set);
-	alarm(MAINTENANCE_TIME);
+	alarm(maintenance_time(sec));
 	seclog(sec, LOG_INFO, "sec-mod initialized (socket: %s)", SOCKET_FILE);
 
 	for (;;) {
