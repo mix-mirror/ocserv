@@ -28,7 +28,8 @@
   * /ca.pem
   * /ca.cer
 - Fix incorrect local address when using PROXY protocol with IPv6 (#711).
-- Fix calculation of avg_auth_time acros sec-mod instances (#736)
+- Fix calculation of avg_auth_time across sec-mod instances (#736)
+- The bundled llhttp was updated to 9.4.1.
 
 
 * Version 1.4.2 (released 2026-04-16)
