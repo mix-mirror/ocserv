@@ -22,7 +22,7 @@ PIDFILE=ocserv-pid.$$.tmp
 CLIPID=oc-pid.$$.tmp
 srcdir=${srcdir:-.}
 OUTFILE=ss.$$.tmp
-SS=$(which ss)
+SS=$(command -v ss)
 
 function finish {
   echo " * Cleaning up..."

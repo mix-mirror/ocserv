@@ -24,8 +24,8 @@ PIDFILE=ocserv-pid.$$.tmp
 CLIPID=oc-pid.$$.tmp
 HACONFIG=haproxy.conf.$$.tmp
 PATH=${PATH}:/usr/sbin
-HAPROXY=$(which haproxy)
-IP=$(which ip)
+HAPROXY=$(command -v haproxy)
+IP=$(command -v ip)
 
 . `dirname $0`/common.sh
 

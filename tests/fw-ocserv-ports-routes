@@ -36,7 +36,7 @@ PIDFILE=ocserv-pid.$$.tmp
 CLIPID=oc-pid.$$.tmp
 TMPFILE=cookie.$$.tmp
 PATH=${PATH}:/usr/sbin
-IP=$(which ip)
+IP=$(command -v ip)
 
 . "$(dirname $0)/common.sh"
 
