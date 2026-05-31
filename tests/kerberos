@@ -27,7 +27,7 @@ PIDFILE=ocserv-pid.$$.tmp
 KRB5PIDFILE=krb5-pid.$$.tmp
 CLIPID=oc-pid.$$.tmp
 PATH=${PATH}:/usr/sbin
-IP=$(which ip)
+IP=$(command -v ip)
 OUTFILE=traffic.$$.tmp
 # This port needs to be fixed to 443 due to KKDCP
 PORT=443

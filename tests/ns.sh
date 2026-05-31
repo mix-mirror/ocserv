@@ -36,7 +36,7 @@
 
 
 PATH=${PATH}:/usr/sbin
-IP=$(which ip)
+IP=$(command -v ip)
 
 if test "$(id -u)" != "0";then
 	echo "This test must be run as root"

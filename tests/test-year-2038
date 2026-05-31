@@ -29,7 +29,7 @@ CLIPID=oc-pid.$$.tmp
 PATH=${PATH}:/usr/sbin
 OUTFILE=occtl-faketime.$$.tmp
 USERNAME=test
-FAKETIME_CMD=$(which faketime)
+FAKETIME_CMD=$(command -v faketime)
 FAKETIME_DATE=2038-10-01
 
 if test -z "${FAKETIME_CMD}";then
