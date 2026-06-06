@@ -32,7 +32,7 @@
 #include <radcli/radcli.h>
 #endif
 
-struct radius_vhost_ctx {
+struct radius_vhost_ctx_st {
 	rc_handle *rh;
 	char nas_identifier[64];
 	char group_separator[2]; /* separator used in OU= Class attributes */
@@ -72,7 +72,7 @@ struct radius_ctx_st {
 	unsigned int retries;
 	unsigned int id;
 
-	struct radius_vhost_ctx *vctx;
+	struct radius_vhost_ctx_st *vctx;
 	char *state;
 	unsigned int passwd_counter;
 	size_t prev_prompt_hash;
