@@ -247,8 +247,17 @@ cleanup_client_server() {
 	test -n "${CLIPID}" && test -f "${CLIPID}" && kill $(cat ${CLIPID}) >/dev/null 2>&1
 	test -n "${CLIPID}" && rm -f "${CLIPID}" >/dev/null 2>&1
 	sleep 2
-	test -n "${PID}" && kill ${PID} >/dev/null 2>&1
-	test -n "${PID}" && wait ${PID} 2>/dev/null
+	if test -n "${PID}"; then
+		kill ${PID} >/dev/null 2>&1
+		# Wait up to 10 s for graceful exit; force-kill if main is stuck
+		# (e.g. blocked on a sec-mod IPC call during shutdown).
+		for _cleanup_i in $(seq 1 10); do
+			kill -0 "${PID}" 2>/dev/null || break
+			sleep 1
+		done
+		kill -9 "${PID}" 2>/dev/null
+		wait ${PID} 2>/dev/null
+	fi
 	test -n "${PIDFILE}" && rm -f "${PIDFILE}" >/dev/null 2>&1
 	test -n "${CONFIG}" && rm -f "${CONFIG}" >/dev/null 2>&1
 }
