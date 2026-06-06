@@ -21,6 +21,8 @@
 #ifndef OC_DEFS_H
 #define OC_DEFS_H
 
+#include "defs.h"
+
 #include <syslog.h>
 
 /* syslog value extensions */

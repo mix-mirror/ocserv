@@ -21,7 +21,9 @@
 #ifndef OC_ICMP_PING_H
 #define OC_ICMP_PING_H
 
-#include "main.h"
+#include <netinet/in.h>
+
+struct main_server_st;
 
 /* returns the number of positive replies received or
  * 0 if no host with this IP exists. */

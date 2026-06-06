@@ -1,6 +1,8 @@
 #ifndef OC_VASPRINTF_H
 #define OC_VASPRINTF_H
+
 #include "config.h"
+
 #include <string.h>
 
 #ifndef HAVE_VASPRINTF

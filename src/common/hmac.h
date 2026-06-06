@@ -22,6 +22,10 @@
 #define OC_COMMON_HMAC_H
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+struct hmac_component_st;
 
 #define HMAC_DIGEST_SIZE 32
 

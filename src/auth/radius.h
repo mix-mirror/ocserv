@@ -21,8 +21,10 @@
 #ifndef OC_AUTH_RADIUS_H
 #define OC_AUTH_RADIUS_H
 
-#include "sec-mod-auth.h"
+#include "config.h"
+
 #include "common/common.h"
+#include "sec-mod-auth.h"
 
 #ifdef HAVE_RADIUS
 

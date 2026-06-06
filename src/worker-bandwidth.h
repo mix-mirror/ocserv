@@ -22,8 +22,10 @@
 #define OC_WORKER_BANDWIDTH_H
 
 #include "gettime.h"
-#include <time.h>
+
 #include <unistd.h>
+
+#include <time.h>
 
 #define COUNT_UPDATE_MS 500
 

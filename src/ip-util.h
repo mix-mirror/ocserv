@@ -22,8 +22,8 @@
 #ifndef OC_IP_UTIL_H
 #define OC_IP_UTIL_H
 
-#include <sys/socket.h>
 #include <netinet/in.h>
+#include <sys/socket.h>
 
 // Lower MTU bound is the value defined in RFC 791
 #define RFC_791_MTU (68)

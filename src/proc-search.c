@@ -17,11 +17,13 @@
 
 #include "config.h"
 
-#include <stdio.h>
-
 #include "proc-search.h"
-#include "main.h"
+
+#include "ccan/hash/hash.h"
 #include "common/common.h"
+#include "main.h"
+
+#include <stdio.h>
 
 struct find_ip_st {
 	struct sockaddr_storage *sockaddr;

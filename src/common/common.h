@@ -22,14 +22,19 @@
 #ifndef OC_COMMON_COMMON_H
 #define OC_COMMON_COMMON_H
 
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include "ipc.pb-c.h"
-#include <talloc.h>
-#include <time.h>
-#include <string.h>
+
 #include <nettle/base64.h>
+#include <talloc.h>
+
+#include <netinet/in.h>
+#include <sys/socket.h>
+
 #include <errno.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+#include <time.h>
 
 void _talloc_free2(void *ctx, void *ptr);
 void *_talloc_size2(void *ctx, size_t size);

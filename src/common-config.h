@@ -22,7 +22,9 @@
 #define OC_COMMON_CONFIG_H
 
 #include "config.h"
+
 #include "vpn.h"
+
 #include "ipc.pb-c.h"
 
 char *sanitize_config_value(void *pool, const char *value);

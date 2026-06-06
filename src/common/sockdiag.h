@@ -21,8 +21,6 @@
 #ifndef OC_COMMON_SOCKDIAG_H
 #define OC_COMMON_SOCKDIAG_H
 
-#include "config.h"
-
 int sockdiag_query_unix_domain_socket_queue_length(const char *socket_name,
 						   int *sock_rqueue,
 						   int *sock_wqueue);

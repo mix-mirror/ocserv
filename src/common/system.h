@@ -22,8 +22,10 @@
 #define OC_COMMON_SYSTEM_H
 
 #include "config.h"
+
+#include <sys/types.h>
+
 #include <signal.h>
-#include <unistd.h>
 
 #ifdef HAVE_SIGHANDLER_T
 #define SIGHANDLER_T sighandler_t

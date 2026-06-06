@@ -18,6 +18,9 @@
 #ifndef OC_ISOLATE_H
 #define OC_ISOLATE_H
 
+struct main_server_st;
+struct worker_st;
+
 void set_worker_fd_limits(struct worker_st *);
 void set_worker_mem_limits(struct worker_st *);
 

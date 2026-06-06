@@ -22,22 +22,27 @@
 #ifndef OC_MAIN_H
 #define OC_MAIN_H
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/resource.h>
-#include <unistd.h>
-#include <net/if.h>
-#include "vpn.h"
-#include "tlslib.h"
-#include "ipc.pb-c.h"
 #include "common/common.h"
-#include <sys/un.h>
-#include <sys/uio.h>
-#include <signal.h>
-#include <ev.h>
 #include "common/hmac.h"
-#include "vhost.h"
+#include "log.h"
 #include "namespace.h"
+#include "tlslib.h"
+#include "vhost.h"
+#include "vpn.h"
+
+#include "ipc.pb-c.h"
+
+#include <ev.h>
+
+#include <net/if.h>
+#include <sys/resource.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <sys/un.h>
+#include <unistd.h>
+
+#include <signal.h>
 
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
 #include <limits.h>
@@ -52,15 +57,13 @@ extern char **saved_argv;
 extern struct ev_loop *main_loop;
 extern ev_timer maintenance_watcher;
 
-#include "log.h"
-
-#define MAIN_MAINTENANCE_TIME (900)
+#define MAIN_MAINTENANCE_TIME 900
 
 int cmd_parser(void *pool, int argc, char **argv, struct list_head *head,
 	       bool worker);
 
 #if defined(CAPTURE_LATENCY_SUPPORT)
-#define LATENCY_AGGREGATION_TIME (60)
+#define LATENCY_AGGREGATION_TIME 60
 #endif
 
 #define MINIMUM_USERS_PER_SEC_MOD 500

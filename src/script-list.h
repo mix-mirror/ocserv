@@ -22,9 +22,12 @@
 #define OC_SCRIPT_LIST_H
 
 #include "main.h"
-#include <sys/types.h>
-#include <signal.h>
+
 #include <ev.h>
+
+#include <sys/types.h>
+
+#include <signal.h>
 
 void script_child_watcher_cb(struct ev_loop *loop, ev_child *w, int revents);
 

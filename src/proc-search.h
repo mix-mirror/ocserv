@@ -21,11 +21,12 @@
 #ifndef OC_PROC_SEARCH_H
 #define OC_PROC_SEARCH_H
 
+typedef struct main_server_st main_server_st;
+struct proc_st;
+
 #include "vpn.h"
-#include <string.h>
+
 #include <sys/socket.h>
-#include "ccan/hash/hash.h"
-#include "main.h"
 
 struct proc_st *proc_search_single_ip(struct main_server_st *s,
 				      struct sockaddr_storage *sockaddr,

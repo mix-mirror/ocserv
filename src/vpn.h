@@ -22,19 +22,22 @@
 #define OC_VPN_H
 
 #include "config.h"
-#include <gnutls/gnutls.h>
-#include <llhttp.h>
+
+#include "auth/common.h"
 #include "ccan/htable/htable.h"
 #include "ccan/list/list.h"
-#include <sys/types.h>
+
+#include "cfg.pb-c.h"
+#include "ipc.pb-c.h"
+
+#include <llhttp.h>
+#include <gnutls/gnutls.h>
+
 #include <sys/socket.h>
-#include <unistd.h>
+#include <sys/types.h>
 #include <net/if.h>
 #include <netinet/in.h>
-#include "auth/common.h"
-
-#include "ipc.pb-c.h"
-#include "cfg.pb-c.h"
+#include <unistd.h>
 
 #ifdef __GNUC__
 #define _OCSERV_GCC_VERSION \

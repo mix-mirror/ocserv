@@ -21,8 +21,8 @@
 #ifndef OC_ROUTE_ADD_H
 #define OC_ROUTE_ADD_H
 
-#include "vpn.h"
-#include "main.h"
+struct main_server_st;
+struct proc_st;
 
 int apply_iroutes(struct main_server_st *s, struct proc_st *proc);
 void remove_iroutes(struct main_server_st *s, struct proc_st *proc);

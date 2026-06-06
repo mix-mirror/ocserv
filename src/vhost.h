@@ -23,7 +23,10 @@
 
 /* Virtual host entries; common between main and sec-mod */
 #include "config.h"
+
 #include "tlslib.h"
+#include "vpn.h"
+
 #include "cfg.pb-c.h"
 
 #define MAX_PIN_SIZE GNUTLS_PKCS11_MAX_PIN_LEN

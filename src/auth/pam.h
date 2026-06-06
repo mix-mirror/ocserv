@@ -22,14 +22,16 @@
 #define OC_AUTH_PAM_H
 
 #include "config.h"
+
 #include "sec-mod-auth.h"
 
 #ifdef HAVE_PAM
 
-#include <security/pam_appl.h>
-#include "str.h"
-#include "pcl.h"
 #include "pam-stack.h"
+#include "pcl.h"
+#include "str.h"
+
+#include <security/pam_appl.h>
 
 extern const struct auth_mod_st pam_auth_funcs;
 

@@ -26,11 +26,15 @@ struct netns_fds {
 
 #if defined(LINUX_NAMESPACES)
 
+struct static_cfg_st;
+
 int socket_netns(const struct netns_fds *, int domain, int type, int protocol);
 int open_namespaces(struct netns_fds *netns, struct static_cfg_st *config);
 int close_namespaces(struct netns_fds *netns);
 
 #else /* __linux__ */
+
+#include <sys/socket.h>
 
 #define open_namespaces(netns, config) (-1)
 #define close_namespaces(netns) (-1)

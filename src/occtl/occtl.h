@@ -1,9 +1,6 @@
 #ifndef OCCTL_H
 #define OCCTL_H
 
-#include <stdbool.h>
-#include <stdlib.h>
-#include <time.h>
 #include "common/common.h"
 
 #ifdef HAVE_ORIG_READLINE
@@ -12,6 +9,10 @@
 #else
 #include <readline.h>
 #endif
+
+#include <stdbool.h>
+#include <stdlib.h>
+#include <time.h>
 
 #define DATE_TIME_FMT "%Y-%m-%d %H:%M"
 #define MAX_TMPSTR_SIZE 64

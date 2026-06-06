@@ -20,12 +20,14 @@
 #define PAM_STACK_H
 
 #include "config.h"
-#include <stdlib.h>
+
 #ifdef __linux__
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include <unistd.h>
 #endif
+
+#include <stdlib.h>
 
 /* Minimum coroutine stack; lower values caused silent heap corruption
  * (#619, #657).  The actual size is read from RLIMIT_STACK at runtime. */

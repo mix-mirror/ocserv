@@ -22,7 +22,7 @@
 #define OC_COMMON_SNAPSHOT_H
 
 struct snapshot_t;
-struct snapshot_iter_t;
+struct htable_iter;
 
 /**
  * snapshot_init - initialize the file snapshot collection

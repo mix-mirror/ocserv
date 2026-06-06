@@ -21,10 +21,17 @@
 #ifndef OC_LOG_H
 #define OC_LOG_H
 
+#include "defs.h"
+
+#include <syslog.h>
+
 #include <stdint.h>
 #include <stdio.h>
-#include <syslog.h>
-#include "defs.h"
+
+struct main_server_st;
+struct proc_st;
+struct sec_mod_st;
+struct worker_st;
 
 extern int syslog_open;
 extern int global_log_prio;
