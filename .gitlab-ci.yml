@@ -406,7 +406,7 @@ asan/clang/Fedora:
   script:
   - chmod -R o-w tests/data/raddb
   - git submodule update --init
-  - CC=clang CFLAGS="-fsanitize=address -fno-optimize-sibling-calls -fno-omit-frame-pointer -g -O1" meson setup build -Dpam=disabled -Db_lundef=false
+  - CC=clang CFLAGS="-fsanitize=address -fno-optimize-sibling-calls -fno-omit-frame-pointer -g -O1" meson setup build -Dpam=disabled -Db_lundef=false -Dserial-heavy-tests=true
   - ninja -C build -j$JOBS
   - DISABLE_ASAN_BROKEN_TESTS=1 meson test -C build --num-processes $JOBS --no-rebuild
   tags:

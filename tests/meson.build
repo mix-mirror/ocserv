@@ -298,14 +298,8 @@ if get_option('root-tests')
     'disconnect-user', 'disconnect-user2', 'terminate-commands',
     'ping-leases', 'test-ban-local', 'test-client-bypass-protocol',
     'ipv6-small-net', 'test-camouflage', 'test-camouflage-norealm',
-    'vhost-traffic', 'defvhost-traffic', 'session-timeout',
+    'vhost-traffic', 'defvhost-traffic',
     'test-occtl', 'test-occtl-commands', 'no-ipv6-ocv3',
-    # cipher / traffic tests
-    'traffic', 'bandwidth', 'lz4-compression', 'lzs-compression',
-    'aes256-cipher', 'aes128-cipher',
-    'oc-aes256-gcm-cipher', 'oc-aes128-gcm-cipher',
-    'ac-aes128-gcm-cipher', 'ac-aes256-gcm-cipher',
-    'no-dtls-cipher', 'psk-negotiate', 'psk-negotiate-match',
     'test-config-per-group', 'test-config-per-group-url-pass',
     'test-config-per-group-url-cert', 'test-multiple-client-ip',
   ]
@@ -315,6 +309,29 @@ if get_option('root-tests')
       env:     test_env,
       timeout: 300,
       workdir: test_workdir,
+    )
+  endforeach
+
+  # iperf3-heavy tests: each spawns many worker processes under load.
+  # Under ASAN, concurrent execution exhausts per-process shadow memory and
+  # triggers a worker-crash / reconnect storm.  Serialise them when
+  # -Dserial-heavy-tests=true is set (used by the ASAN CI job).
+  heavy_root_scripts = [
+    'session-timeout',
+    'traffic', 'bandwidth', 'lz4-compression', 'lzs-compression',
+    'aes256-cipher', 'aes128-cipher',
+    'oc-aes256-gcm-cipher', 'oc-aes128-gcm-cipher',
+    'ac-aes128-gcm-cipher', 'ac-aes256-gcm-cipher',
+    'no-dtls-cipher', 'psk-negotiate', 'psk-negotiate-match',
+  ]
+
+  _heavy_parallel = not get_option('serial-heavy-tests')
+  foreach s : heavy_root_scripts
+    test(s, find_program(s),
+      env:         test_env,
+      timeout:     300,
+      workdir:     test_workdir,
+      is_parallel: _heavy_parallel,
     )
   endforeach
 
