@@ -15,13 +15,11 @@ tags
 *.o
 *.a
 doc/ocserv.tmp
-doc/ocserv.8
 src/version.def
 src/ocpasswd/ocpasswd
 src/ocpasswd/libcmd-ocpasswd.a
 src/stamp-man
 doc/stamp-man
-doc/ocpasswd.8
 src/pcl/libpcl.a
 src/version.inc
 src/libcmd-ocserv.a
@@ -39,7 +37,6 @@ src/libipc.a
 src/occtl/occtl
 .dirstamp
 config.h.in
-doc/occtl.8
 tests/docker-ocserv/ocpasswd
 tests/docker-ocserv/occtl
 tests/docker-ocserv/ocserv
