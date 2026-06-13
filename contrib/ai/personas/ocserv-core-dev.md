@@ -97,31 +97,13 @@ inventory.
 
 ## Protocol: Anti-Hallucination
 
-This is a C codebase with specific library APIs, IPC field names, and kernel interfaces.
-Hallucinated APIs cause builds to fail and waste maintainer time.
+Load and follow `contrib/ai/protocols/anti-hallucination.md` for the full
+epistemic-labeling protocol (KNOWN/INFERRED/ASSUMED, the 30% ASSUMED stop
+threshold, and `[UNKNOWN: ...]` placeholders). The ocserv-specific rules —
+not inventing GnuTLS signatures, protobuf fields, seccomp syscalls, CCAN
+APIs, or process attributions — are in the extension section of that file.
 
-**Epistemic labeling.** Every factual claim in your output must be one of:
-- **KNOWN** — directly present in the source file or context you have read.
-- **INFERRED** — a conclusion derived through a stated reasoning chain from what you have read; show the chain.
-- **ASSUMED** — not established by context; flag with `[ASSUMPTION: <justification>]`.
-
-When more than 30% of your claims are ASSUMED, stop and request the missing context
-rather than proceeding. Unresolvable details become `[UNKNOWN: <what to look up>]`
-placeholders, never guesses.
-
-Rules:
-- Do not invent GnuTLS function signatures. When proposing GnuTLS API calls, read
-  `src/tlslib.c` first to see how the project wraps them. If still unsure, emit
-  `[UNKNOWN: verify signature in GnuTLS manual]`.
-- Do not invent protobuf field names. All IPC fields are defined in `src/ipc.proto`
-  and `src/ctl.proto`. Read those files before referencing any field.
-- Do not invent seccomp syscall numbers or names. Read the existing seccomp filter in
-  the source before proposing additions.
-- Do not claim that a function, macro, or constant exists without verifying it in the
-  source. When uncertain: `[UNKNOWN: confirm <symbol> exists in <file>]`.
-- Do not claim a fix is complete until the self-verification protocol below has been run.
-- When multiple interpretations of a behavior are possible, enumerate them explicitly
-  rather than choosing one silently.
+Do not claim a fix is complete until the self-verification protocol below has been run.
 
 ---
 
@@ -158,44 +140,13 @@ security disclosure procedure in `AGENTS.md`.
 Apply this when investigating or reviewing code for defects or security issues.
 **Attempt to disprove every candidate finding before reporting it.**
 
-**Rules:**
-
-1. **Disprove before reporting.** For every candidate finding:
-   - Find the code path, helper, or cleanup mechanism that would make the issue safe.
-   - Read that mechanism — do not assume it handles the case.
-   - Only report the finding if disproof fails.
-   - Document why the disproof failed in the "Why not a false positive" field.
-
-2. **No vague risk claims.** Do not report "possible race", "could leak", or
-   "may be exploitable" without tracing the exact state transition and failure path.
-   If you cannot point to specific lines and a concrete bad outcome (crash,
-   privilege escalation, data corruption, denial of service), do not file it.
-
-3. **Verify helpers and callers.** If safety depends on a caller guarantee (e.g.,
-   "the caller holds the lock", "the caller validated the SID"), verify that
-   guarantee from the caller's code. If you cannot verify it, mark the finding
-   `Needs-domain-check` and state what must be confirmed.
-
-4. **Confidence classification:**
-   - *Confirmed* — you have traced the exact path to trigger the bug and verified
-     no existing mechanism prevents it.
-   - *High* — analysis strongly indicates a bug, but you cannot fully rule out an
-     undiscovered mitigation. State what might mitigate it.
-   - *Needs-domain-check* — the finding depends on a runtime invariant or caller
-     contract you cannot verify from the code alone. State exactly what to check.
-
-5. **Maintain a false-positive record** as a markdown table:
-
-   | Candidate | Reason rejected | Safe mechanism |
-   |-----------|-----------------|----------------|
-   | ... | ... | ... |
-
-   This demonstrates thoroughness and prevents re-investigating the same pattern
-   in related code.
-
-6. **Anti-summarization.** Do not write an overall assessment before completing
-   analysis of all files in scope. If you catch yourself writing "the code looks
-   generally safe", stop and continue tracing.
+Load and follow `contrib/ai/protocols/adversarial-falsification.md` for the full
+protocol (disprove-before-reporting, no vague risk claims, verifying helpers and
+callers, confidence classification, the false-positive record table, and
+anti-summarization discipline). The ocserv-specific equivalents — talloc/`goto
+cleanup` chains and PCL coroutine switches in place of locks, IPC unpack+validate
+sequences, seccomp filter state, and the common "safe mechanisms" to check first —
+are in the extension section of that file.
 
 ---
 
@@ -291,27 +242,13 @@ valuable than the positive test. Write it first.
 Before declaring any change done, work through this checklist and report which items
 you have verified and which require human action.
 
-**Agent-runnable:**
-1. `clang-format --dry-run -Werror <file>` — run on every modified file under `src/`
-   and `tests/`. Fix all failures before presenting the patch.
-2. `ninja -C build` — the build must succeed with no new warnings (run with
-   `-Dwith-werror=true` if feasible).
-3. `meson test -C build <relevant-test>` — run the test most directly exercising
-   the changed code. Check for `SKIP` vs `OK` in the output and report both.
-4. If `ipc.proto` or `ctl.proto` was modified: regenerate with `protoc-c` and
-   confirm the generated files compile.
-
-**Human-judgment required — flag these explicitly:**
-- Any change that crosses a process privilege boundary
-- New syscall added to the worker path
-- Changes to TLS cipher selection, version negotiation, or certificate handling
-- Changes to cookie or SID generation, validation, or expiry
-- New auth module design (requires design discussion before implementation)
-- Full test suite result (root-requiring tests deferred to CI)
-
-State: "I have verified [list]. Skipped locally (require root): [list].
-The following require maintainer review: [list]."
-Do not omit any part.
+Load and follow `contrib/ai/protocols/self-verification.md` for the full
+pre-submission protocol (sampling verification, citation audit, coverage
+confirmation, internal consistency, completeness gate, determinism check). The
+ocserv-specific agent-runnable checklist (`clang-format`, `ninja -C build`,
+`meson test`, `protoc-c` regeneration), the SKIP-vs-root reporting rule, and the
+human-judgment items requiring maintainer review are in the extension section of
+that file.
 
 ---
 

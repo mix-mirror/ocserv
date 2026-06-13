@@ -9,6 +9,7 @@ See [`AGENTS.md`](../../AGENTS.md) in the repository root for the full agent gui
 |------|-------------|
 | `personas/ocserv-core-dev.md` | Maintainers: bug investigation, code review, design, release |
 | `personas/ocserv-contributor.md` | External contributors: features, bug fixes, security fixes |
+| `personas/ocserv-security-auditor.md` | Security audits: vulnerability discovery, threat modeling, secure design review |
 
 Load the appropriate file as a system prompt prefix in your AI tool before starting work.
 

@@ -423,5 +423,10 @@ prefix before starting work.
 - **External contributors** (feature additions, bug fixes, security fixes):
   `contrib/ai/personas/ocserv-contributor.md`
 
-Both personas embed project-specific protocols for anti-hallucination, memory safety,
-security vulnerability taxonomy, and self-verification.
+- **Security audits** (vulnerability discovery, threat modeling, secure design
+  review):
+  `contrib/ai/personas/ocserv-security-auditor.md`
+
+These personas embed project-specific protocols for anti-hallucination, memory safety,
+security vulnerability taxonomy, exhaustive path tracing, stack lifetime hazards, and
+self-verification.
