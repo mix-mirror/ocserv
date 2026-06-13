@@ -13,6 +13,15 @@ See [`AGENTS.md`](../../AGENTS.md) in the repository root for the full agent gui
 
 Load the appropriate file as a system prompt prefix in your AI tool before starting work.
 
+## Requirements
+
+The `protocols/requirements-*.md` files in this directory generate the
+structured requirements documents under
+[`doc/requirements/`](../../doc/requirements/README.md). When extending those
+documents, re-apply the same protocol that originally generated the target
+file (see the document map in `doc/requirements/README.md`) rather than
+hand-writing requirements in a different style.
+
 ## Acknowledgment
 
 The structure of this framework — composable persona and protocol files that can be

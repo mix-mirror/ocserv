@@ -6,6 +6,11 @@ the worker processes. The following sections describe the purpose and tasks
 assigned to each component, and the last section describes the communication
 protocol between them.
 
+For normative, testable requirements derived from this design and from the
+current implementation, see [`doc/requirements/`](requirements/README.md).
+This document explains *how* ocserv works; `doc/requirements/` states *what
+must hold*.
+
 
 # VPN overview
 

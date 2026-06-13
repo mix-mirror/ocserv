@@ -56,6 +56,62 @@ solely because they do not work on BSD.
 
 ---
 
+## Requirements-First Workflow
+
+`doc/requirements/` is the normative description of what ocserv must do (see
+`doc/requirements/README.md` for the document map, ID scheme, and per-requirement
+format). For any change that alters observable behavior — new feature, bug fix, or
+behavior-changing refactor — work in this order:
+
+1. **Requirement first.**
+   - Find the requirement(s) covering the area you're changing (search
+     `doc/requirements/` for the relevant `REQ-*` IDs, or use the document map to
+     find the right file by process/subsystem).
+   - If your change alters what an existing requirement describes, **update that
+     requirement first**, re-applying the protocol in `contrib/ai/protocols/` that
+     generated its document so the new entry matches the rest of the file. Do not
+     leave a requirement describing the old behavior once the code changes — but do
+     not break other requirements or use-cases in the process (see below). If a
+     requirement is independently wrong and needs revising for reasons unrelated to
+     this change, do that in its own dedicated merge request instead.
+   - If no requirement covers the new behavior, add one in the appropriate document,
+     following its existing ID prefix, category tags, and per-requirement format.
+   - For bug fixes: if the bug is a violation of an existing requirement, cite its ID
+     in the commit/MR. If the bug reveals a gap in the requirements, extend or add a
+     requirement describing the *correct* behavior before fixing the code.
+2. **Tests second.** Write or update the positive and negative tests implied by the
+   requirement's **Acceptance** criteria (see "Testing New Functionality" below)
+   *before* touching implementation code. For bug fixes, confirm the new test
+   reproduces the bug and fails against the unmodified code.
+3. **Code last.** Implement the change so the new/updated tests pass, and so the
+   code, the requirement, and `doc/ocserv.8.md`/`doc/sample.config` (where
+   applicable) all agree.
+
+Do not jump straight to step 3 — a code change with no corresponding requirement
+update is incomplete, even if it builds and passes existing tests.
+
+### Do not break existing requirements or use-cases
+
+Before submitting a merge request, check that the change does not silently
+invalidate requirements or use-cases other than the one you set out to change:
+
+- Search `doc/requirements/` for `REQ-*`/`AC-*`/`OC-*` entries citing the files,
+  functions, or config options you touched, and confirm each still holds. If one no
+  longer holds, either your change is wrong, or that requirement was wrong to begin
+  with (mark it `REVIEW` if unsure which) — never leave code and a `DERIVED`
+  requirement contradicting each other.
+- A requirement that's wrong for reasons unrelated to your change belongs in its own
+  dedicated merge request — with rationale and evidence it doesn't break other
+  use-cases — not bundled into this one.
+- Run the full local test suite (`ninja -C build test`), not just the test for the
+  area you changed — requirements frequently span files (e.g. config scope/
+  inheritance, IPC message contracts) and a regression often shows up as a failure
+  in a test you didn't expect to touch.
+- If your change affects config scope, inheritance, or vhost behavior, also run
+  `tests/check-config-scope.py` (see `doc/requirements/internal/config.md`).
+
+---
+
 ## Build System
 
 The project uses **meson**.
@@ -378,9 +434,14 @@ Before working on a subsystem, read the relevant doc:
 
 ### Agent-runnable — verify before declaring a change complete
 
+- [ ] Relevant `doc/requirements/` entries added or updated *before* the code
+      change (see "Requirements-First Workflow" above)
 - [ ] `clang-format --dry-run -Werror` passes on every modified file under `src/` and `tests/`
 - [ ] `ninja -C build` succeeds
 - [ ] Relevant test passes: `meson test -C build <test-name>`
+- [ ] Full suite passes: `ninja -C build test` (no regressions in unrelated tests)
+- [ ] Existing `doc/requirements/` entries touching the changed files/functions
+      still hold (none silently contradicted)
 - [ ] Every commit has `Signed-off-by:`
 
 ### Human-judgment required — flag in the MR, do not decide unilaterally
