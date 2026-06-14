@@ -31,14 +31,48 @@
 #include <getopt.h>
 #include <crypt.h>
 #include <locale.h>
+#include <assert.h>
 
 #define DEFAULT_OCPASSWD "/etc/ocserv/ocpasswd"
 
+#ifndef HAVE_CRYPT_GENSALT
+
+static const char alphabet[] =
+	"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ./";
+
 #define SALT_SIZE 16
+static char *crypt_gensalt(const char *prefix, unsigned long count,
+			   const char *rbytes, int nrbytes)
+{
+	uint8_t _salt[SALT_SIZE];
+	static char salt[SALT_SIZE + 1];
+	int ret;
+
+	/* Check this is the supported use-case */
+	assert(prefix == NULL && count == 0);
+	assert(rbytes == NULL && nrbytes == 0);
+
+	/* Generate random bytes using GnuTLS */
+	ret = gnutls_rnd(GNUTLS_RND_NONCE, _salt, sizeof(_salt));
+	if (ret < 0) {
+		fprintf(stderr, "Error generating nonce: %s\n",
+			gnutls_strerror(ret));
+		exit(EXIT_FAILURE);
+	}
+
+	/* Encode bytes into crypt-compatible nul-terminated Base64 */
+	for (size_t i = 0; i < sizeof(_salt); i++)
+		salt[i] = alphabet[_salt[i] & 0x3F];
+	salt[SALT_SIZE] = '\0';
+
+	return salt;
+}
+#endif
+
 static void crypt_int(const char *fpasswd, const char *username,
 		      const char *groupname, const char *passwd)
 {
-	char *cr_salt, *cr_passwd;
+	const char *cr_salt, *cr_passwd;
 	char *tmp_passwd;
 	unsigned int fpasswd_len = strlen(fpasswd);
 	unsigned int tmp_passwd_len;
