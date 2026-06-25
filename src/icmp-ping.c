@@ -80,10 +80,11 @@
 #include <netinet/ip_icmp.h>
 #include <netinet/icmp6.h>
 #include <sys/select.h>
-#include <sys/time.h>
+#include <time.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdint.h>
 #include <gnutls/crypto.h>
 #include "icmp-ping.h"
 #include <poll.h>
@@ -96,18 +97,19 @@
 #endif
 #endif
 
+// clang-format off
 /* I see RENUMBERED constants in bits/in.h - !!?
  * What a fuck is going on with libc? Is it a glibc joke? */
 #ifdef IPV6_2292HOPLIMIT
-#undef IPV6_HOPLIMIT
-#define IPV6_HOPLIMIT IPV6_2292HOPLIMIT
+# undef IPV6_HOPLIMIT
+# define IPV6_HOPLIMIT IPV6_2292HOPLIMIT
 #endif
+// clang-format on
 
 enum {
 	DEFDATALEN = 56,
 	MAXIPLEN = 60,
 	MAXICMPLEN = 76,
-	MAXPACKET = 65468,
 	MAX_DUP_CHK = (8 * 128),
 	MAXWAIT = 10,
 	PINGINTERVAL = 1, /* 1 second */
@@ -115,28 +117,34 @@ enum {
 
 /* common routines */
 
-static int in_cksum(unsigned short *buf, int sz)
+// clang-format off
+static uint16_t inet_cksum(const void *ptr, int nleft)
 {
-	int nleft = sz;
-	int sum = 0;
-	unsigned short *w = buf;
-	unsigned short ans = 0;
+	const uint16_t *addr = ptr;
 
+	/*
+	 * Our algorithm is simple, using a 32 bit accumulator,
+	 * we add sequential 16 bit words to it, and at the end, fold
+	 * back all the carry bits from the top 16 bits into the lower
+	 * 16 bits.
+	 */
+	unsigned sum = 0;
 	while (nleft > 1) {
-		sum += *w++;
+		sum += *addr++;
 		nleft -= 2;
 	}
 
-	if (nleft == 1) {
-		*(unsigned char *)(&ans) = *(unsigned char *)w;
-		sum += ans;
-	}
+	/* Mop up an odd byte, if necessary */
+	if (nleft == 1)
+		sum += *(uint8_t *)addr;
 
-	sum = (sum >> 16) + (sum & 0xFFFF);
-	sum += (sum >> 16);
-	ans = ~sum;
-	return ans;
+	/* Add back carry outs from top 16 bits to low 16 bits */
+	sum = (sum >> 16) + (sum & 0xffff);     /* add hi 16 to low 16 */
+	sum += (sum >> 16);                     /* add carry */
+
+	return (uint16_t)~sum;
 }
+// clang-format on
 
 inline static int retry(int e)
 {
@@ -151,17 +159,9 @@ inline static int retry(int e)
 static ssize_t recvfrom_timeout(int sockfd, void *buf, size_t len, int flags,
 				struct sockaddr *src_addr, socklen_t *addrlen)
 {
-	int ret;
-	struct pollfd pfd;
+	struct pollfd pfd = { sockfd, POLLIN, 0 };
 
-	pfd.fd = sockfd;
-	pfd.events = POLLIN;
-	pfd.revents = 0;
-
-	ret = poll(&pfd, 1, 250);
-	if (ret == -1)
-		return -1;
-	else if (ret > 0)
+	if (poll(&pfd, 1, 250) > 0)
 		return recvfrom(sockfd, buf, len, 0, src_addr, addrlen);
 	else
 		return -1;
@@ -199,14 +199,14 @@ int icmp_ping4(main_server_st *s, struct sockaddr_in *addr1)
 	memset(pkt, 0, sizeof(packet1));
 	pkt->icmp_type = ICMP_ECHO;
 	pkt->icmp_id = id1;
-	pkt->icmp_cksum = in_cksum((unsigned short *)pkt, sizeof(packet1));
+	pkt->icmp_cksum = inet_cksum((uint16_t *)pkt, sizeof(packet1));
 
 	while (sendto(pingsock, packet1, DEFDATALEN + ICMP_MINLEN, 0,
 		      (struct sockaddr *)addr1, sizeof(*addr1)) == -1 &&
 	       retry(errno))
 		;
-	/* listen for replies */
 
+	/* listen for replies */
 	now = time(NULL);
 	while (time(NULL) - now < PING_TIMEOUT &&
 	       (unreachable + gotreply) < 2) {
