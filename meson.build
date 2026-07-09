@@ -362,6 +362,7 @@ cdata.set('PROC_FS_SUPPORTED',                proc_fs)
 cdata.set('SUPPORT_OIDC_AUTH',                oidc_enabled)
 cdata.set('TRY_SHA2_CRYPT',                   try_sha2_crypt)
 cdata.set('USE_SECCOMP_TRAP',                 get_option('seccomp-trap'))
+cdata.set('ASSUME_GLIBC',                     get_option('assume-glibc'))
 cdata.set('WORKER_MEMORY_LIMIT_TEST',         get_option('worker-memory-limit-test'))
 
 # These three are used in #elif (not #ifdef), so they must be 1 or undef (not empty)

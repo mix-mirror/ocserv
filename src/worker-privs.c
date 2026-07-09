@@ -40,14 +40,24 @@
 
 #ifdef USE_SECCOMP_TRAP
 #define _SECCOMP_ERR SCMP_ACT_TRAP
+#ifdef ASSUME_GLIBC
 #include <execinfo.h>
-#include <signal.h>
+#endif /* ASSUME_GLIBC */
+
 void sigsys_action(int sig, siginfo_t *info, void *ucontext)
 {
+	(void)sig;
+	(void)ucontext;
+
+#ifdef ASSUME_GLIBC
 	char *call_addr = *backtrace_symbols(&info->si_call_addr, 1);
 
 	oc_syslog(LOG_ERR, "Function %s called disabled syscall %d", call_addr,
 		  info->si_syscall);
+#else
+	oc_syslog(LOG_ERR, "seccomp trap: syscall %d at %p", info->si_syscall,
+		  info->si_call_addr);
+#endif /* ASSUME_GLIBC */
 	exit(EXIT_FAILURE);
 }
 
@@ -135,9 +145,12 @@ int disable_system_calls(struct worker_st *ws)
 	ADD_SYSCALL(setitimer, 0);
 	ADD_SYSCALL(getpid, 0);
 
-	/* memory allocation - both are used by different platforms */
+	/* memory allocations used by different platforms */
 	ADD_SYSCALL(brk, 0);
 	ADD_SYSCALL(mmap, 0);
+	ADD_SYSCALL(munmap, 0);
+	ADD_SYSCALL(mremap, 0);
+	ADD_SYSCALL(madvise, 0);
 
 #if defined(SYS_getrandom) || defined(__NR_getrandom)
 	ADD_SYSCALL(getrandom, 0); /* used by gnutls 3.5.x */
