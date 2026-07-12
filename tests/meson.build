@@ -48,6 +48,7 @@ unit_tests = {
   'ipv6-prefix':    {'src': ['ipv6-prefix.c'],   'args': ['-DUNDER_TEST'], 'timeout': 30},
   'proxyproto-v1':  {'src': ['proxyproto-v1.c'], 'args': [], 'timeout': 30},
   'proxyproto-v2':  {'src': ['proxyproto-v2.c'], 'args': [], 'timeout': 30},
+  'route-sanity-check': {'src': ['route-sanity-check.c'], 'args': ['-DUNDER_TEST'], 'timeout': 30},
 }
 
 foreach name, cfg : unit_tests

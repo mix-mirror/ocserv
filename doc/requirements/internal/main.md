@@ -11,6 +11,8 @@ sources:
   - src/main-sec-mod-cmd.c
   - src/main-proc.c
   - src/ip-lease.c
+  - src/route-add.c
+  - src/ip-util.c
   - src/vpn.h
   - doc/design.md#the-main-process
   - doc/requirements/internal/ipc.md
@@ -363,6 +365,42 @@ be retained (so its score history is not lost prematurely).
 `cleanup_banned_entries()`; confirm the entry is retained. Advance time past
 `last_reset + ban_reset_time`; confirm it is now removed.
 **Links:** REQ-MAIN-SEC-003
+
+### REQ-MAIN-SEC-008 — Route strings executed via `route-add-cmd`/`route-del-cmd` MUST be validated as well-formed IPv4/IPv6 CIDR, or the literal keyword `default`
+
+**Requirement:** `ip_route_sanity_check()` MUST reject (return < 0) any route
+string that is not (a) the exact literal string `default`, or (b) a
+syntactically valid IPv4 or IPv6 address plus prefix — the IPv4 address and
+prefix (or dotted netmask) parsed via `inet_pton`/`ipv4_mask_to_int` with
+the prefix numerically in `[0,32]`, and IPv6 addresses parsed via
+`inet_pton(AF_INET6, ...)` with the prefix in `[0,128]`. It MUST NOT return
+success (0) for a string it cannot fully parse as one of these two forms —
+in particular it MUST NOT accept an IPv6 or otherwise dot-free route
+unexamined, MUST NOT pass through a dotted-netmask route unexamined, and
+MUST NOT match `default` as a prefix or substring (e.g. `Default`,
+`default/24`, and `default; <cmd>` MUST all be rejected). This is a
+security boundary: `route()`/`route_adddel()` (`src/route-add.c`) execute
+the validated route, substituted into `route-add-cmd`/`route-del-cmd`, via
+`/bin/sh -c` as root (`src/route-add.c:50`); a route string containing
+shell metacharacters that survives validation is a root command-injection
+vector. The `default` exception exists because `config.c:2199-2200`
+recognizes that exact string, after this check runs, as the documented
+keyword (`doc/sample.config`) for routing all client traffic through the
+VPN — it is not an address and carries no shell metacharacters.
+**Strength:** MUST NOT
+**Status:** DERIVED
+**Source:** src/ip-util.c (`ip_route_sanity_check`); src/route-add.c:37-158
+(`call_script`, `route_adddel`); call sites: src/config.c:731,2195,2210;
+src/sup-config/file.c:254-266; src/sup-config/radius.c:80
+**Acceptance:** negative, local (unit) — `tests/route-sanity-check.c` feeds
+`ip_route_sanity_check()` routes containing shell metacharacters in both
+dot-free form (e.g. `::/0; touch /tmp/x`) and dotted-netmask form (e.g.
+`1.2.3.4/5.6.7.8; touch /tmp/x`), and confirms both are rejected. Positive
+cases (`10.0.0.0/24`, `10.0.0.0/255.255.255.0`, `2001:db8::/32`, `default`)
+MUST be accepted (numeric IPv4 prefixes normalized to a dotted netmask);
+`Default`, `default/24`, and `default; touch /tmp/x` MUST be rejected.
+**Links:** none (first requirement for `src/route-add.c`/`src/ip-util.c`
+route validation)
 
 ---
 

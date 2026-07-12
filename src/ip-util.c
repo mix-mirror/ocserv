@@ -21,6 +21,8 @@
 #include "common/common.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
 #include <talloc.h>
 #include <assert.h>
 #include <stddef.h>
@@ -79,62 +81,6 @@ unsigned int ipv6_prefix_to_mask(struct in6_addr *in6, unsigned int prefix)
 	return 1;
 }
 
-/* check whether a route is on the expected format, and if it cannot be
- * fixed, then returns a negative code.
- *
- * The expected format by clients for IPv4 is xxx.xxx.xxx.xxx/xxx.xxx.xxx.xxx, i.e.,
- * this function converts xxx.xxx.xxx.xxx/prefix to the above for IPv4.
- */
-int ip_route_sanity_check(void *pool, char **_route)
-{
-	char *p;
-	unsigned int prefix;
-	char *route = *_route, *n;
-	char *slash_ptr, *pstr;
-
-	/* this check is valid for IPv4 only */
-	p = strchr(route, '.');
-	if (p == NULL)
-		return 0;
-
-	p = strchr(p, '/');
-	if (p == NULL) {
-		oc_syslog(
-			LOG_ERR,
-			"route '%s' in wrong format, use xxx.xxx.xxx.xxx/xxx.xxx.xxx.xxx",
-			route);
-		return -1;
-	}
-	slash_ptr = p;
-	p++;
-
-	/* if we are in dotted notation exit */
-	if (strchr(p, '.') != 0)
-		return 0;
-
-	/* we are most likely in the xxx.xxx.xxx.xxx/prefix format */
-	prefix = atoi(p);
-
-	pstr = ipv4_prefix_to_strmask(pool, prefix);
-	if (pstr == NULL) {
-		oc_syslog(LOG_ERR, "cannot figure format of route '%s'", route);
-		return -1;
-	}
-
-	*slash_ptr = 0;
-
-	n = talloc_asprintf(pool, "%s/%s", route, pstr);
-	if (n == NULL) {
-		oc_syslog(LOG_ERR, "memory error");
-		return -1;
-	}
-	*_route = n;
-
-	talloc_free(pstr);
-	talloc_free(route);
-	return 0;
-}
-
 static int bit_count(uint32_t i)
 {
 	int c = 0;
@@ -170,6 +116,145 @@ static int ipv4_mask_to_int(const char *prefix)
 		return -1;
 
 	return mask2prefix(in);
+}
+
+/* parses 'str' as a decimal, non-negative integer with no leading/
+ * trailing garbage, in [0, max]; returns 0 and sets *out on success */
+static int parse_uint_full(const char *str, unsigned int max, unsigned int *out)
+{
+	char *end;
+	unsigned long val;
+
+	if (str == NULL || *str == 0)
+		return -1;
+
+	errno = 0;
+	val = strtoul(str, &end, 10);
+	if (errno != 0 || *end != 0 || val > max)
+		return -1;
+
+	*out = (unsigned int)val;
+	return 0;
+}
+
+/* Checks that a route is a well-formed IPv4 or IPv6 address plus
+ * prefix (xxx.xxx.xxx.xxx/prefix, xxx.xxx.xxx.xxx/xxx.xxx.xxx.xxx, or
+ * an IPv6 address/prefix), and returns a negative code for anything
+ * else, including any route containing characters that do not belong
+ * to a valid address or prefix.
+ *
+ * This is a security boundary, not just a format check: the validated
+ * route is later substituted into route-add-cmd/route-del-cmd and
+ * executed via a shell as root (see route_adddel() in route-add.c), so
+ * a route string that is not fully consumed by address/prefix parsing
+ * must be rejected rather than passed through or partially normalized.
+ *
+ * For IPv4, normalizes a numeric /prefix to the equivalent dotted
+ * netmask, matching this function's historical output format.
+ *
+ * The literal string "default" is accepted unchanged: it is not an
+ * address at all, but the documented keyword (sample.config, "route =
+ * default") that config.c recognizes as a request to route all client
+ * traffic through the VPN (config.c:2199-2200). It carries no shell
+ * metacharacters, so accepting it here does not reopen the injection
+ * this function guards against.
+ */
+int ip_route_sanity_check(void *pool, char **_route)
+{
+	char *route = *_route, *n;
+	char *slash_ptr, *addr_part, *prefix_part;
+	struct in_addr in4;
+	struct in6_addr in6;
+	unsigned int prefix;
+	int is_ipv6;
+
+	if (strcmp(route, "default") == 0)
+		return 0;
+
+	is_ipv6 = (strchr(route, ':') != NULL);
+
+	slash_ptr = strchr(route, '/');
+	if (slash_ptr == NULL) {
+		oc_syslog(LOG_ERR,
+			  "route '%s' is missing a /prefix, use address/prefix",
+			  route);
+		return -1;
+	}
+
+	addr_part = talloc_strndup(pool, route, slash_ptr - route);
+	if (addr_part == NULL)
+		return -1;
+	prefix_part = slash_ptr + 1;
+
+	if (is_ipv6) {
+		if (inet_pton(AF_INET6, addr_part, &in6) != 1) {
+			oc_syslog(LOG_ERR,
+				  "route '%s' has an invalid IPv6 address",
+				  route);
+			talloc_free(addr_part);
+			return -1;
+		}
+
+		if (parse_uint_full(prefix_part, 128, &prefix) < 0) {
+			oc_syslog(LOG_ERR,
+				  "route '%s' has an invalid IPv6 prefix",
+				  route);
+			talloc_free(addr_part);
+			return -1;
+		}
+
+		talloc_free(addr_part);
+		return 0;
+	}
+
+	if (inet_pton(AF_INET, addr_part, &in4) != 1) {
+		oc_syslog(LOG_ERR, "route '%s' has an invalid IPv4 address",
+			  route);
+		talloc_free(addr_part);
+		return -1;
+	}
+
+	if (strchr(prefix_part, '.') != NULL) {
+		/* dotted-netmask form; must be a valid, contiguous mask */
+		if (ipv4_mask_to_int(prefix_part) < 0) {
+			oc_syslog(LOG_ERR,
+				  "route '%s' has an invalid IPv4 netmask",
+				  route);
+			talloc_free(addr_part);
+			return -1;
+		}
+		talloc_free(addr_part);
+		return 0;
+	}
+
+	if (parse_uint_full(prefix_part, 32, &prefix) < 0) {
+		oc_syslog(LOG_ERR, "route '%s' has an invalid IPv4 prefix",
+			  route);
+		talloc_free(addr_part);
+		return -1;
+	}
+
+	if (prefix == 0) {
+		n = talloc_asprintf(pool, "%s/0.0.0.0", addr_part);
+	} else {
+		char *pstr = ipv4_prefix_to_strmask(pool, prefix);
+
+		if (pstr == NULL) {
+			talloc_free(addr_part);
+			return -1;
+		}
+		n = talloc_asprintf(pool, "%s/%s", addr_part, pstr);
+		talloc_free(pstr);
+	}
+	talloc_free(addr_part);
+	if (n == NULL) {
+		oc_syslog(LOG_ERR, "memory error");
+		return -1;
+	}
+
+	talloc_free(route);
+	*_route = n;
+	return 0;
 }
 
 /* Converts a route from xxx.xxx.xxx.xxx/xxx.xxx.xxx.xxx format, to
