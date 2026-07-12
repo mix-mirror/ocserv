@@ -434,6 +434,19 @@ int handle_worker_commands(main_server_st *s, struct proc_st *proc)
 			goto cleanup;
 		}
 
+		/* validate before reading any cookie byte below; a
+		 * zero-length "required bytes" field unpacks with
+		 * data == NULL, not a zero-length allocation */
+		if (auth_cookie_req->cookie.data == NULL ||
+		    auth_cookie_req->cookie.len != sizeof(proc->sid)) {
+			mslog(s, proc, LOG_ERR,
+			      "received malformed cookie in AUTH_COOKIE_REQ");
+			auth_cookie_request_msg__free_unpacked(auth_cookie_req,
+							       &pa);
+			ret = ERR_BAD_COMMAND;
+			goto cleanup;
+		}
+
 		proc->sec_mod_instance_index = auth_cookie_req->cookie.data[0] %
 					       s->sec_mod_instance_count;
 

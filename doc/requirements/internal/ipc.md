@@ -190,6 +190,35 @@ sec-mod -> main:   SECM_SESSION_REPLY (secm_session_reply_msg: config, OK/FAILED
 main -> worker:    AUTH_COOKIE_REP  (auth_cookie_reply_msg: OK + tun device, or FAILED)
 ```
 
+### REQ-IPC-018 — AUTH_COOKIE_REQ cookie MUST be validated before any byte is read
+
+**Requirement:** main MUST NOT read any byte of `auth_cookie_request_msg.cookie`
+— including to derive `sec_mod_instance_index` — before confirming
+`cookie.data != NULL` and `cookie.len == sizeof(proc->sid)` (`SID_SIZE`).
+An `AUTH_COOKIE_REQ` failing this check MUST be rejected with
+`ERR_BAD_COMMAND` and MUST NOT crash the main process.
+**Strength:** MUST NOT
+**Status:** DERIVED
+**Source:** src/main-worker-cmd.c:429-438 (validation now precedes the
+`cookie.data[0]` read used to select `sec_mod_instance_index`);
+src/main-auth.c:134 (`handle_auth_cookie_req`'s own, later, equivalent check
+remains as defense-in-depth)
+**Acceptance:** [REVIEW: no automated test covers this requirement. The
+fix is a straightforward reordering (validate before dereference) that a
+maintainer judged didn't warrant a dedicated unit test pinning
+protobuf-c's zero-length-`bytes` behavior. Driving the actual worker→main
+IPC path end-to-end isn't possible with existing infrastructure either —
+a legitimate worker (worker-auth.c:1131-1132) always sends
+`cookie.len == sizeof(ws->cookie)`, so reaching this code with a malformed
+cookie requires a compromised/fabricated worker process speaking raw IPC
+over the fork-inherited socket, which no existing test harness can drive
+(workers are exec'd by main itself; there is no test hook to substitute a
+fake worker binary). Same class of gap as REQ-IPC-017's acceptance note.
+The ordering fix itself is auditable directly from the diff: the validation
+now executes textually and unconditionally before the first cookie byte is
+read.]
+**Links:** REQ-IPC-020, REQ-IPC-021
+
 ### REQ-IPC-020 — AUTH_COOKIE_REQ only from PS_AUTH_INACTIVE
 
 **Requirement:** main MUST reject an `AUTH_COOKIE_REQ` received from a
