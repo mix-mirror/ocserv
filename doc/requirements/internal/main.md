@@ -196,6 +196,40 @@ iterations rather than hanging or erroring.
 **Links:** REQ-SECMOD-SESSION (predictable_ips / ipv4_seed, see
 src/sec-mod-auth.c:570-579)
 
+### REQ-MAIN-NET-004 — With ping-leases enabled, a candidate address is probed with ICMP echo and treated as in-use only on a genuine reply
+
+**Requirement:** The ICMP echo probe (src/icmp-ping.c) is split into a pure
+core, `icmp_echo4()`/`icmp_echo6()`, and an ocserv-facing wrapper,
+`icmp_ping4()`/`icmp_ping6()`. `icmp_echo4(addr, timeout_secs)` MUST send a
+single ICMP echo request to `addr` from a raw socket, and MUST wait up to
+`timeout_secs` seconds, or until it has collected two replies (echo reply +
+destination unreachable), for a response; it MUST return the number of
+`ICMP_ECHOREPLY`/`ICMP6_ECHO_REPLY` messages matching the request's random
+`icmp_id` and received from the exact candidate address, and MUST return 0
+if only a destination-unreachable, a non-matching reply, or no reply at all
+arrived before the timeout. `icmp_echo4()`/`icmp_echo6()` MUST NOT depend on
+`main_server_st`, vhost config, or `mslog` — any internal error (RNG or
+socket setup failure) is reported via `oc_syslog()` instead. The wrapper
+`icmp_ping4(s, addr)`/`icmp_ping6(s, addr)` MUST return 0 immediately
+without sending any packet when `GETRCONFIG(s)->ping_leases` is false (the
+default); otherwise it MUST call the corresponding `icmp_echo*()` with
+`PING_TIMEOUT` (3) seconds, `mslog` the in-use/not-in-use outcome, and
+return that result unchanged.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/icmp-ping.c (`icmp_echo4`, `icmp_ping4`, `icmp_echo6`,
+`icmp_ping6`)
+**Acceptance:** unit, local — (a) call `icmp_echo4()` directly against the
+loopback address and confirm it returns non-zero (the kernel answers its
+own ICMP echo requests over `lo`), with no `main_server_st` involved; (b)
+call `icmp_echo4()` against a non-responding address (e.g. a TEST-NET-1
+address unreachable in the test environment) and confirm it returns 0
+within the given timeout, not a hang; (c) confirm `icmp_ping4()`/
+`icmp_ping6()` (and their `GETRCONFIG`/`mslog` dependency) compile out of
+the test binary when built with `-DUNDER_TEST`, so the unit test cannot
+accidentally depend on them.
+**Links:** —
+
 ### REQ-MAIN-NET-003 — Reconnecting client (steal) transfers IP leases without re-fetching from the pool
 
 **Requirement:** `steal_ip_leases(proc, thief)` (used when a client

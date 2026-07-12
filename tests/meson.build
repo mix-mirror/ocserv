@@ -287,6 +287,17 @@ if get_option('root-tests')
     )
   endforeach
 
+  # icmp-ping-test: exercises icmp_ping4() directly (REQ-MAIN-NET-004).
+  # Needs CAP_NET_RAW for a raw ICMP socket, hence gated under root-tests
+  # alongside the higher-level ping-leases shell test below.
+  icmp_ping_test_exe = executable('icmp-ping-test', 'icmp-ping-test.c',
+    c_args: ['-DUNDER_TEST'],
+    dependencies: test_base_deps + [gnutls_dep],
+    include_directories: test_inc,
+  )
+  test('icmp-ping-test', icmp_ping_test_exe,
+    env: test_env, workdir: test_workdir, timeout: 30)
+
   root_scripts = [
     'haproxy-connect', 'test-iroute', 'test-multi-cookie',
     'test-pass-script', 'idle-timeout', 'idle-timeout-icmpv6', 'test-year-2038',

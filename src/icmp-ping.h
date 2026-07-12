@@ -23,8 +23,16 @@
 
 #include "main.h"
 
-/* returns the number of positive replies received or
- * 0 if no host with this IP exists. */
+/* Pure ICMP echo request/reply probe: no ocserv config or logging
+ * dependency, so it can be unit tested directly. Returns the number of
+ * positive replies received within timeout_secs, or 0 if none arrived
+ * (including the case where a destination-unreachable was received
+ * instead). */
+int icmp_echo4(const struct sockaddr_in *addr1, unsigned int timeout_secs);
+int icmp_echo6(const struct sockaddr_in6 *addr1, unsigned int timeout_secs);
+
+/* ocserv-facing wrappers: honor the ping-leases config option and log
+ * the outcome. Same return convention as icmp_echo4()/icmp_echo6(). */
 int icmp_ping4(main_server_st *s, struct sockaddr_in *addr1);
 int icmp_ping6(main_server_st *s, struct sockaddr_in6 *addr1);
 

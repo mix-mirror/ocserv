@@ -167,31 +167,27 @@ static ssize_t recvfrom_timeout(int sockfd, void *buf, size_t len, int flags,
 		return -1;
 }
 
-int icmp_ping4(main_server_st *s, struct sockaddr_in *addr1)
+int icmp_echo4(const struct sockaddr_in *addr1, unsigned int timeout_secs)
 {
 	struct icmp *pkt;
 	int pingsock, c, e;
 	char packet1[DEFDATALEN + MAXIPLEN + MAXICMPLEN];
-	char buf1[64];
 	time_t now;
 	uint16_t id1;
 	unsigned int gotreply = 0, unreachable = 0;
 
-	if (GETRCONFIG(s)->ping_leases == 0)
-		return 0;
-
 	e = gnutls_rnd(GNUTLS_RND_NONCE, &id1, sizeof(id1));
 	if (e < 0) {
-		mslog(s, NULL, LOG_ERR, "error in the random generator: %s",
-		      gnutls_strerror(e));
+		oc_syslog(LOG_ERR, "error in the random generator: %s",
+			  gnutls_strerror(e));
 		return 0;
 	}
 
 	pingsock = socket(AF_INET, SOCK_RAW, 1);
 	if (pingsock == -1) {
 		e = errno;
-		mslog(s, NULL, LOG_ERR,
-		      "could not open raw socket for ping: %s", strerror(e));
+		oc_syslog(LOG_ERR, "could not open raw socket for ping: %s",
+			  strerror(e));
 		return 0;
 	}
 
@@ -208,7 +204,7 @@ int icmp_ping4(main_server_st *s, struct sockaddr_in *addr1)
 
 	/* listen for replies */
 	now = time(NULL);
-	while (time(NULL) - now < PING_TIMEOUT &&
+	while (time(NULL) - now < (time_t)timeout_secs &&
 	       (unreachable + gotreply) < 2) {
 		struct sockaddr_in from;
 		socklen_t fromlen = sizeof(from);
@@ -246,23 +242,37 @@ int icmp_ping4(main_server_st *s, struct sockaddr_in *addr1)
 
 	close(pingsock);
 
+	return gotreply;
+}
+
+#ifndef UNDER_TEST
+int icmp_ping4(main_server_st *s, struct sockaddr_in *addr1)
+{
+	char buf1[64];
+	int gotreply;
+
+	if (GETRCONFIG(s)->ping_leases == 0)
+		return 0;
+
+	gotreply = icmp_echo4(addr1, PING_TIMEOUT);
+
 	if (gotreply > 0) {
 		mslog(s, NULL, LOG_INFO, "pinged %s and is in use",
 		      human_addr((void *)addr1, sizeof(struct sockaddr_in),
 				 buf1, sizeof(buf1)));
-		return gotreply;
 	} else {
 		mslog(s, NULL, LOG_INFO, "pinged %s and is not in use",
 		      human_addr((void *)addr1, sizeof(struct sockaddr_in),
 				 buf1, sizeof(buf1)));
-		return 0;
 	}
-}
 
-int icmp_ping6(main_server_st *s, struct sockaddr_in6 *addr1)
+	return gotreply;
+}
+#endif /* UNDER_TEST */
+
+int icmp_echo6(const struct sockaddr_in6 *addr1, unsigned int timeout_secs)
 {
 	struct icmp6_hdr *pkt;
-	char buf1[64];
 	int pingsock, c, e;
 #if defined(SOL_RAW) && defined(IPV6_CHECKSUM)
 	int sockopt;
@@ -272,21 +282,18 @@ int icmp_ping6(main_server_st *s, struct sockaddr_in6 *addr1)
 	unsigned int gotreply = 0, unreachable = 0;
 	time_t now;
 
-	if (GETRCONFIG(s)->ping_leases == 0)
-		return 0;
-
 	e = gnutls_rnd(GNUTLS_RND_NONCE, &id1, sizeof(id1));
 	if (e < 0) {
-		mslog(s, NULL, LOG_ERR, "error in the random generator: %s",
-		      gnutls_strerror(e));
+		oc_syslog(LOG_ERR, "error in the random generator: %s",
+			  gnutls_strerror(e));
 		return 0;
 	}
 
 	pingsock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
 	if (pingsock == -1) {
 		e = errno;
-		mslog(s, NULL, LOG_ERR,
-		      "could not open raw socket for ping: %s", strerror(e));
+		oc_syslog(LOG_ERR, "could not open raw socket for ping: %s",
+			  strerror(e));
 		return 0;
 	}
 
@@ -306,7 +313,7 @@ int icmp_ping6(main_server_st *s, struct sockaddr_in6 *addr1)
 
 	/* listen for replies */
 	now = time(NULL);
-	while (time(NULL) - now < PING_TIMEOUT &&
+	while (time(NULL) - now < (time_t)timeout_secs &&
 	       (unreachable + gotreply) < 2) {
 		struct sockaddr_in6 from;
 		socklen_t fromlen = sizeof(from);
@@ -334,15 +341,30 @@ int icmp_ping6(main_server_st *s, struct sockaddr_in6 *addr1)
 
 	close(pingsock);
 
+	return gotreply;
+}
+
+#ifndef UNDER_TEST
+int icmp_ping6(main_server_st *s, struct sockaddr_in6 *addr1)
+{
+	char buf1[64];
+	int gotreply;
+
+	if (GETRCONFIG(s)->ping_leases == 0)
+		return 0;
+
+	gotreply = icmp_echo6(addr1, PING_TIMEOUT);
+
 	if (gotreply > 0) {
 		mslog(s, NULL, LOG_INFO, "pinged %s and is in use",
 		      human_addr((void *)addr1, sizeof(struct sockaddr_in6),
 				 buf1, sizeof(buf1)));
-		return gotreply;
 	} else {
 		mslog(s, NULL, LOG_INFO, "pinged %s and is not in use",
 		      human_addr((void *)addr1, sizeof(struct sockaddr_in6),
 				 buf1, sizeof(buf1)));
-		return 0;
 	}
+
+	return gotreply;
 }
+#endif /* UNDER_TEST */
