@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2018 Nikos Mavrogiannopoulos
+ * Copyright (C) 2013-2026 Nikos Mavrogiannopoulos
  * Copyright (C) 2015-2016 Red Hat, Inc.
  *
  * This file is part of ocserv.
@@ -170,9 +170,9 @@ static ssize_t recv_remaining(int fd, uint8_t *p, ssize_t left)
 			continue;
 		}
 		if (ret == 0)
-			ret = GNUTLS_E_PREMATURE_TERMINATION;
+			return GNUTLS_E_PREMATURE_TERMINATION;
 		if (ret < 0)
-			break;
+			return ret;
 
 		left -= ret;
 		p += ret;

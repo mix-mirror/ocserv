@@ -87,6 +87,72 @@ void receiver(int fd)
 	}
 }
 
+/* Writes a CSTP header announcing a BODY_SIZE-byte body, but only
+ * BODY_SIZE/2 bytes of body, then closes the socket - simulating a
+ * proxy connection dropped mid-packet. A correct _cstp_recv_packet()
+ * must report this as an error, not as a successful, fully-populated
+ * packet built from a truncated buffer. */
+#define NEG_BODY_SIZE 64
+
+void neg_writer(int fd)
+{
+	unsigned char buf[8 + NEG_BODY_SIZE] = { 0 };
+
+	buf[4] = (NEG_BODY_SIZE >> 8) & 0xff;
+	buf[5] = NEG_BODY_SIZE & 0xff;
+
+	assert(write(fd, buf, 8 + NEG_BODY_SIZE / 2) == 8 + NEG_BODY_SIZE / 2);
+
+	close(fd);
+}
+
+void neg_receiver(int fd)
+{
+	worker_st ws = { 0 };
+	unsigned char buf[8 + NEG_BODY_SIZE];
+	int ret;
+
+	ws.conn_fd = fd;
+
+	ret = _cstp_recv_packet(&ws, buf, sizeof(buf));
+	if (verbose)
+		fprintf(stderr, "negative test received %d\n", ret);
+
+	if (ret > 0) {
+		fprintf(stderr,
+			"FAIL: expected error on truncated packet, got %d\n",
+			ret);
+		exit(1);
+	}
+}
+
+void run_negative_test(void)
+{
+	int sockets[2];
+	pid_t child;
+	int status = 0;
+
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) >= 0);
+
+	child = fork();
+	assert(child >= 0);
+
+	if (child) {
+		close(sockets[1]);
+		neg_receiver(sockets[0]);
+		wait(&status);
+		if (WEXITSTATUS(status) != 0) {
+			fprintf(stderr, "negative test child failed %d!\n",
+				(int)WEXITSTATUS(status));
+			exit(1);
+		}
+	} else {
+		close(sockets[0]);
+		neg_writer(sockets[1]);
+		exit(0);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	int sockets[2];
@@ -115,6 +181,8 @@ int main(int argc, char *argv[])
 		writer(sockets[1]);
 		return 0;
 	}
+
+	run_negative_test();
 
 	return 0;
 }

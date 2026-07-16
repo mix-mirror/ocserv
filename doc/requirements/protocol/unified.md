@@ -459,7 +459,13 @@ OC-PROTO itself does not mandate the close-on-violation behavior (it is silent);
 OCSERV's choice (close) is the only behavior on record from any source, so there
 is no competing variant — this is "MAJORITY of 1 source that addresses the
 question at all."
-**Links**: REQ-PROTO-CONN-006
+**Note**: this requirement's `buf_size != 8 + pktlen` check can only detect a
+truncated body if `buf_size` (the worker's `data.size`, ultimately the return
+value of `_cstp_recv_packet`/`recv_remaining` in `src/tlslib.c`) truthfully
+reflects the number of bytes actually read from the socket — see
+REQ-WORKER-NET-004, which makes that precondition hold for the non-TLS
+(UNIX-socket-proxied) CSTP path.
+**Links**: REQ-PROTO-CONN-006, REQ-WORKER-NET-004
 
 ### REQ-PROTO-DATA-002
 **Requirement**: The CSTP/DTLS payload type byte MUST be one of `0x00` (DATA),

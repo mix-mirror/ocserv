@@ -427,6 +427,33 @@ activates for that session even though `udp-port` is globally configured;
 (b) configure `udp-port = 0` and confirm the same.
 **Links:** REQ-WORKER-SEC-003
 
+### REQ-WORKER-NET-004 — Non-TLS CSTP packet reassembly reports failure on incomplete reads, never a truncated packet as success
+
+**Requirement:** `_cstp_recv_packet()`, when `ws->session == NULL` (CSTP
+carried in plaintext over a UNIX socket, e.g. terminated by a
+TLS-terminating proxy in front of ocserv), MUST treat any `recv()` failure
+or peer-closed condition encountered while assembling the 8-byte CSTP
+header or the declared-length body as a hard error for that read, and MUST
+NOT return a byte count implying a complete packet unless the full
+requested length was actually received. `recv_remaining()` MUST return
+either exactly the requested `left` byte count, or a negative error code
+(`GNUTLS_E_PREMATURE_TERMINATION` on peer close, or the `recv()` error
+otherwise) — it MUST NOT return a partial, positive byte count that a
+caller's `ret <= 0` check would treat as success, since that would surface
+stale/uninitialized buffer bytes to `parse_cstp_data` as if they were
+received client data.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/tlslib.c:158-183 (`recv_remaining`), src/tlslib.c:189-225
+(`_cstp_recv_packet`)
+**Acceptance:** negative, local, unit — `tests/cstp-recv.c`: a peer sends a
+full 8-byte CSTP header declaring an N-byte body, writes fewer than N body
+bytes, then closes the socket; confirm `_cstp_recv_packet()` returns a
+negative value, not `8+N` as if the packet were fully received.
+**Links:** REQ-PROTO-DATA-001 (this requirement supplies the precondition —
+a truthful `buf_size` — that REQ-PROTO-DATA-001's length-mismatch check
+depends on)
+
 ## Completeness notes
 
 - **`worker-vpn.c` main loops** (`tls_mainloop`, `dtls_mainloop`,
