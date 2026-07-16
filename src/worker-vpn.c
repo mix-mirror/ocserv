@@ -906,61 +906,53 @@ void vpn_server(struct worker_st *ws)
 		oclog(ws, LOG_DEBUG, "accepted connection");
 	}
 
-	if (ws->conn_type != SOCK_TYPE_UNIX) {
-		/* ws->vhost is being assigned in gnutls_handshake()
-		 * after client hello is received. We set temporarily a value
-		 * as we need to set some cipher priorities for handshake to start. */
-		ws->vhost = find_vhost(ws->vconfig, NULL);
+	/* ws->vhost is being assigned in gnutls_handshake()
+	 * after client hello is received. We set temporarily a value
+	 * as we need to set some cipher priorities for handshake to start. */
+	ws->vhost = find_vhost(ws->vconfig, NULL);
 
-		if (test_for_tcp_health_probe(ws) != 0) {
-			oclog(ws, LOG_DEBUG,
-			      "Received TCP health probe from load-balancer");
-			exit_worker_reason(ws, REASON_HEALTH_PROBE);
-		}
-
-		/* initialize the session */
-		ret = gnutls_init(&session, GNUTLS_SERVER);
-		GNUTLS_FATAL_ERR(ret);
-
-		ret = gnutls_priority_set(session, WSCREDS(ws)->cprio);
-		GNUTLS_FATAL_ERR(ret);
-		gnutls_session_set_ptr(session, ws);
-
-		/* if we have a single vhost, avoid going through a callback to set credentials. */
-		if (!HAVE_VHOSTS(ws)) {
-			SET_VHOST_CREDS;
-		} else {
-#ifdef SIMULATE_CLIENT_HELLO_HOOK
-			peek_client_hello(ws, session, ws->conn_fd);
-#else
-			gnutls_handshake_set_hook_function(
-				session, GNUTLS_HANDSHAKE_CLIENT_HELLO,
-				GNUTLS_HOOK_PRE, hello_hook_func);
-#endif
-		}
-
-		gnutls_transport_set_ptr(
-			session, (gnutls_transport_ptr_t)(long)ws->conn_fd);
-
-		set_resume_db_funcs(session);
-		gnutls_db_set_ptr(session, ws);
-
-		gnutls_handshake_set_timeout(session,
-					     GNUTLS_DEFAULT_HANDSHAKE_TIMEOUT);
-		gnutls_transport_set_pull_timeout_function(session,
-							   tls_pull_timeout);
-		do {
-			ret = gnutls_handshake(session);
-		} while (ret < 0 && gnutls_error_is_fatal(ret) == 0);
-		GNUTLS_ALERT_PRINT(ws, session, ret);
-		GNUTLS_FATAL_ERR(ret);
-
-		oclog(ws, LOG_DEBUG, "TLS handshake completed");
-	} else {
-		ws->vhost = find_vhost(ws->vconfig, NULL);
-
-		oclog(ws, LOG_DEBUG, "Accepted unix connection");
+	if (test_for_tcp_health_probe(ws) != 0) {
+		oclog(ws, LOG_DEBUG,
+		      "Received TCP health probe from load-balancer");
+		exit_worker_reason(ws, REASON_HEALTH_PROBE);
 	}
+
+	/* initialize the session */
+	ret = gnutls_init(&session, GNUTLS_SERVER);
+	GNUTLS_FATAL_ERR(ret);
+
+	ret = gnutls_priority_set(session, WSCREDS(ws)->cprio);
+	GNUTLS_FATAL_ERR(ret);
+	gnutls_session_set_ptr(session, ws);
+
+	/* if we have a single vhost, avoid going through a callback to set credentials. */
+	if (!HAVE_VHOSTS(ws)) {
+		SET_VHOST_CREDS;
+	} else {
+#ifdef SIMULATE_CLIENT_HELLO_HOOK
+		peek_client_hello(ws, session, ws->conn_fd);
+#else
+		gnutls_handshake_set_hook_function(
+			session, GNUTLS_HANDSHAKE_CLIENT_HELLO, GNUTLS_HOOK_PRE,
+			hello_hook_func);
+#endif
+	}
+
+	gnutls_transport_set_ptr(session,
+				 (gnutls_transport_ptr_t)(long)ws->conn_fd);
+
+	set_resume_db_funcs(session);
+	gnutls_db_set_ptr(session, ws);
+
+	gnutls_handshake_set_timeout(session, GNUTLS_DEFAULT_HANDSHAKE_TIMEOUT);
+	gnutls_transport_set_pull_timeout_function(session, tls_pull_timeout);
+	do {
+		ret = gnutls_handshake(session);
+	} while (ret < 0 && gnutls_error_is_fatal(ret) == 0);
+	GNUTLS_ALERT_PRINT(ws, session, ret);
+	GNUTLS_FATAL_ERR(ret);
+
+	oclog(ws, LOG_DEBUG, "TLS handshake completed");
 
 	ws->session = session;
 
@@ -1456,8 +1448,7 @@ static int periodic_check(worker_st *ws, struct timespec *tnow,
 		}
 	}
 
-	if (ws->conn_type != SOCK_TYPE_UNIX &&
-	    DTLS_ACTIVE(ws)->udp_state != UP_DISABLED) {
+	if (DTLS_ACTIVE(ws)->udp_state != UP_DISABLED) {
 		max = get_pmtu_approx(ws);
 		if (max > 0 && max < ws->link_mtu) {
 			oclog(ws, LOG_DEBUG,
@@ -1969,10 +1960,6 @@ static void set_socket_timeout(worker_st *ws, int fd)
 }
 
 /* wild but conservative guess; this ciphersuite has the largest overhead */
-#define MAX_CSTP_CRYPTO_OVERHEAD                                     \
-	(CSTP_OVERHEAD + tls_get_overhead(GNUTLS_TLS1_0,             \
-					  GNUTLS_CIPHER_AES_128_CBC, \
-					  GNUTLS_MAC_SHA1))
 #define MAX_DTLS_CRYPTO_OVERHEAD                                          \
 	(CSTP_DTLS_OVERHEAD + tls_get_overhead(GNUTLS_DTLS1_0,            \
 					       GNUTLS_CIPHER_AES_128_CBC, \
@@ -1996,16 +1983,11 @@ static void calc_mtu_values(worker_st *ws)
 	ws->cstp_proto_overhead += TCP_HEADER_SIZE;
 	ws->dtls_proto_overhead += UDP_HEADER_SIZE;
 
-	if (ws->session == NULL) {
-		ws->cstp_crypto_overhead = MAX_CSTP_CRYPTO_OVERHEAD;
-	} else {
-		ws->cstp_crypto_overhead =
-			CSTP_OVERHEAD +
-			tls_get_overhead(
-				gnutls_protocol_get_version(ws->session),
-				gnutls_cipher_get(ws->session),
-				gnutls_mac_get(ws->session));
-	}
+	ws->cstp_crypto_overhead =
+		CSTP_OVERHEAD +
+		tls_get_overhead(gnutls_protocol_get_version(ws->session),
+				 gnutls_cipher_get(ws->session),
+				 gnutls_mac_get(ws->session));
 
 	/* link MTU is the device MTU */
 	ws->link_mtu = ws->vinfo.mtu;
@@ -2013,15 +1995,9 @@ static void calc_mtu_values(worker_st *ws)
 	if (DTLS_ACTIVE(ws)->udp_state != UP_DISABLED) {
 		/* crypto overhead for DTLS */
 		if (ws->req.use_psk) {
-			if (ws->session == NULL) {
-				ws->dtls_crypto_overhead =
-					MAX_DTLS_CRYPTO_OVERHEAD;
-			} else {
-				ws->dtls_crypto_overhead = tls_get_overhead(
-					GNUTLS_DTLS1_0,
-					gnutls_cipher_get(ws->session),
-					gnutls_mac_get(ws->session));
-			}
+			ws->dtls_crypto_overhead = tls_get_overhead(
+				GNUTLS_DTLS1_0, gnutls_cipher_get(ws->session),
+				gnutls_mac_get(ws->session));
 		} else if (ws->req.selected_ciphersuite) {
 			ws->dtls_crypto_overhead = tls_get_overhead(
 				ws->req.selected_ciphersuite->gnutls_version,
@@ -2197,13 +2173,10 @@ static int connect_handler(worker_st *ws)
 
 	/* Attempt to use the TCP connection maximum segment size to set a more
 	 * precise MTU. */
-	if (ws->conn_type != SOCK_TYPE_UNIX) {
-		max = get_pmtu_approx(ws);
-		if (max > 0 && max < ws->vinfo.mtu) {
-			oclog(ws, LOG_DEBUG,
-			      "reducing MTU due to TCP/PMTU to %u", max);
-			link_mtu_set(ws, DTLS_ACTIVE(ws), max);
-		}
+	max = get_pmtu_approx(ws);
+	if (max > 0 && max < ws->vinfo.mtu) {
+		oclog(ws, LOG_DEBUG, "reducing MTU due to TCP/PMTU to %u", max);
+		link_mtu_set(ws, DTLS_ACTIVE(ws), max);
 	}
 
 	calc_mtu_values(ws);
@@ -2412,8 +2385,7 @@ static int connect_handler(worker_st *ws)
 
 		/* if the peer isn't patched for safe renegotiation, always
 		 * require him to open a new tunnel. */
-		if (ws->session != NULL &&
-		    gnutls_safe_renegotiation_status(ws->session) != 0)
+		if (gnutls_safe_renegotiation_status(ws->session) != 0)
 			method = WSRCONFIG(ws)->rekey_method;
 		else
 			method = REKEY_METHOD_NEW_TUNNEL;

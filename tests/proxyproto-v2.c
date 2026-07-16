@@ -15,10 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* Unit test for proxy protocol v2 TLV parsing, specifically verifying that
- * PP2_SUBTYPE_SSL_CN (0x22) is correctly parsed as a sub-TLV inside the
- * PP2_TYPE_SSL body rather than as a top-level TLV.
- */
+/* Unit test for proxy protocol v2 IPv6 address block parsing. */
 
 #include <config.h>
 #include <stdio.h>
@@ -37,98 +34,6 @@
 /* Proxy protocol v2 signature (12 bytes) */
 static const uint8_t PP2_SIG[] =
 	"\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
-
-/*
- * Build a proxy protocol v2 packet with an IPv4 address block and an optional
- * PP2_TYPE_SSL TLV (with PP2_SUBTYPE_SSL_CN sub-TLV) into buf[].
- * Returns the total number of bytes written.
- *
- * ssl_client_flags: PP2_CLIENT_* flags (0 = omit SSL TLV entirely)
- * ssl_verify:       value for the verify field (0 = certificate verified)
- * cn:               common name string, or NULL to omit the CN sub-TLV
- */
-static size_t build_v2_packet(uint8_t *buf, size_t bufsz,
-			      uint8_t ssl_client_flags, uint32_t ssl_verify,
-			      const char *cn)
-{
-	size_t pos = 0;
-
-	/* --- fixed 16-byte header --- */
-	/* signature */
-	memcpy(buf + pos, PP2_SIG, 12);
-	pos += 12;
-	/* ver_cmd: version 2, PROXY command */
-	buf[pos++] = 0x21;
-	/* family: AF_INET (0x1) | TCP (0x1) */
-	buf[pos++] = 0x11;
-	/* len placeholder (2 bytes, filled in below) */
-	size_t len_offset = pos;
-	buf[pos++] = 0;
-	buf[pos++] = 0;
-
-	/* --- payload starts here --- */
-	size_t payload_start = pos;
-
-	/* IPv4 address block (12 bytes):
-	 *  src IP  1.2.3.4   (4 bytes)
-	 *  dst IP  5.6.7.8   (4 bytes)
-	 *  src port 100      (2 bytes, network order)
-	 *  dst port 443      (2 bytes, network order)
-	 */
-	buf[pos++] = 1;
-	buf[pos++] = 2;
-	buf[pos++] = 3;
-	buf[pos++] = 4;
-	buf[pos++] = 5;
-	buf[pos++] = 6;
-	buf[pos++] = 7;
-	buf[pos++] = 8;
-	buf[pos++] = 0x00;
-	buf[pos++] = 0x64; /* src port 100 */
-	buf[pos++] = 0x01;
-	buf[pos++] = 0xBB; /* dst port 443 */
-
-	if (ssl_client_flags != 0) {
-		/* PP2_TYPE_SSL TLV header — length filled in below */
-		size_t ssl_tlv_hdr = pos;
-		buf[pos++] = 0x20; /* PP2_TYPE_SSL */
-		size_t ssl_len_offset = pos;
-		buf[pos++] = 0;
-		buf[pos++] = 0; /* length placeholder */
-
-		/* pp2_tlv_ssl fixed part (5 bytes):
-		 *   client (1 byte) + verify (4 bytes, network order)
-		 */
-		buf[pos++] = ssl_client_flags;
-		buf[pos++] = (ssl_verify >> 24) & 0xff;
-		buf[pos++] = (ssl_verify >> 16) & 0xff;
-		buf[pos++] = (ssl_verify >> 8) & 0xff;
-		buf[pos++] = (ssl_verify) & 0xff;
-
-		if (cn != NULL) {
-			size_t cn_len = strlen(cn);
-			/* PP2_SUBTYPE_SSL_CN sub-TLV */
-			buf[pos++] = 0x22; /* PP2_TYPE_SSL_CN */
-			buf[pos++] = (cn_len >> 8) & 0xff;
-			buf[pos++] = cn_len & 0xff;
-			memcpy(buf + pos, cn, cn_len);
-			pos += cn_len;
-		}
-
-		/* back-fill SSL TLV length (body after the 3-byte TLV header) */
-		uint16_t ssl_body_len = (uint16_t)(pos - ssl_tlv_hdr - 3);
-		buf[ssl_len_offset] = (ssl_body_len >> 8) & 0xff;
-		buf[ssl_len_offset + 1] = ssl_body_len & 0xff;
-	}
-
-	/* back-fill payload length in fixed header */
-	uint16_t payload_len = (uint16_t)(pos - payload_start);
-	buf[len_offset] = (payload_len >> 8) & 0xff;
-	buf[len_offset + 1] = payload_len & 0xff;
-
-	assert(pos <= bufsz);
-	return pos;
-}
 
 /*
  * Build a proxy protocol v2 packet with an IPv6 address block into buf[].
@@ -215,117 +120,7 @@ int main(void)
 	int ret;
 
 	/* ------------------------------------------------------------------ */
-	/* Test 1: valid SSL TLV with CN sub-TLV — cert_auth_ok and username   */
-	/* ------------------------------------------------------------------ */
-	memset(&ws, 0, sizeof(ws));
-	ws.conn_type = SOCK_TYPE_UNIX; /* triggers TLV parsing */
-
-	/*
-	 * PP2_CLIENT_SSL (0x01) | PP2_CLIENT_CERT_SESS (0x04) = 0x05
-	 * verify = 0  =>  cert verified
-	 * CN = "testuser"
-	 */
-	pkt_len = build_v2_packet(pkt, sizeof(pkt), 0x05, 0, "testuser");
-	ret = run_parse(&ws, pkt, pkt_len);
-	if (ret != 0) {
-		fprintf(stderr, "Test 1: parse failed (%d)\n", ret);
-		return 1;
-	}
-	if (!ws.cert_auth_ok) {
-		fprintf(stderr, "Test 1: cert_auth_ok not set\n");
-		return 1;
-	}
-	if (strcmp(ws.cert_username, "testuser") != 0) {
-		fprintf(stderr,
-			"Test 1: cert_username='%s', expected 'testuser'\n",
-			ws.cert_username);
-		return 1;
-	}
-
-	/* ------------------------------------------------------------------ */
-	/* Test 2: verify != 0 — cert NOT accepted, no CN extracted            */
-	/* ------------------------------------------------------------------ */
-	memset(&ws, 0, sizeof(ws));
-	ws.conn_type = SOCK_TYPE_UNIX;
-
-	pkt_len = build_v2_packet(pkt, sizeof(pkt), 0x05, 1 /* verify!=0 */,
-				  "testuser");
-	ret = run_parse(&ws, pkt, pkt_len);
-	if (ret != 0) {
-		fprintf(stderr, "Test 2: parse failed (%d)\n", ret);
-		return 1;
-	}
-	if (ws.cert_auth_ok) {
-		fprintf(stderr,
-			"Test 2: cert_auth_ok should NOT be set when verify!=0\n");
-		return 1;
-	}
-	if (ws.cert_username[0] != '\0') {
-		fprintf(stderr, "Test 2: cert_username should be empty\n");
-		return 1;
-	}
-
-	/* ------------------------------------------------------------------ */
-	/* Test 3: PP2_CLIENT_CERT_SESS not set — no cert auth                 */
-	/* ------------------------------------------------------------------ */
-	memset(&ws, 0, sizeof(ws));
-	ws.conn_type = SOCK_TYPE_UNIX;
-
-	/* only PP2_CLIENT_SSL, no PP2_CLIENT_CERT_SESS */
-	pkt_len = build_v2_packet(pkt, sizeof(pkt), 0x01, 0, "testuser");
-	ret = run_parse(&ws, pkt, pkt_len);
-	if (ret != 0) {
-		fprintf(stderr, "Test 3: parse failed (%d)\n", ret);
-		return 1;
-	}
-	if (ws.cert_auth_ok) {
-		fprintf(stderr,
-			"Test 3: cert_auth_ok should NOT be set without CERT_SESS\n");
-		return 1;
-	}
-
-	/* ------------------------------------------------------------------ */
-	/* Test 4: valid cert but no CN sub-TLV — cert_auth_ok set, name empty */
-	/* ------------------------------------------------------------------ */
-	memset(&ws, 0, sizeof(ws));
-	ws.conn_type = SOCK_TYPE_UNIX;
-
-	pkt_len = build_v2_packet(pkt, sizeof(pkt), 0x05, 0, NULL /* no CN */);
-	ret = run_parse(&ws, pkt, pkt_len);
-	if (ret != 0) {
-		fprintf(stderr, "Test 4: parse failed (%d)\n", ret);
-		return 1;
-	}
-	if (!ws.cert_auth_ok) {
-		fprintf(stderr, "Test 4: cert_auth_ok not set\n");
-		return 1;
-	}
-	if (ws.cert_username[0] != '\0') {
-		fprintf(stderr,
-			"Test 4: cert_username should be empty when no CN sub-TLV\n");
-		return 1;
-	}
-
-	/* ------------------------------------------------------------------ */
-	/* Test 5: no SSL TLV at all — conn_type TCP, TLVs not parsed          */
-	/* ------------------------------------------------------------------ */
-	memset(&ws, 0, sizeof(ws));
-	ws.conn_type = SOCK_TYPE_TCP; /* TLV parsing skipped */
-
-	pkt_len = build_v2_packet(pkt, sizeof(pkt), 0x05, 0, "testuser");
-	ret = run_parse(&ws, pkt, pkt_len);
-	if (ret != 0) {
-		fprintf(stderr, "Test 5: parse failed (%d)\n", ret);
-		return 1;
-	}
-	if (ws.cert_auth_ok) {
-		fprintf(stderr,
-			"Test 5: cert_auth_ok should NOT be set for TCP conn\n");
-		return 1;
-	}
-
-	/* ------------------------------------------------------------------ */
-	/* Test 6: IPv6 proxy protocol v2 — both remote and local addr correct  */
+	/* IPv6 proxy protocol v2 — both remote and local addr correct         */
 	/*                                                                       */
 	/* Reproducer for the bug where sa->sin6_family was assigned before sa  */
 	/* was redirected to &ws->our_addr, leaving our_addr.sin6_family == 0. */
@@ -344,17 +139,17 @@ int main(void)
 					       &dst6, 443);
 		ret = run_parse(&ws, pkt, pkt_len);
 		if (ret != 0) {
-			fprintf(stderr, "Test 6: parse failed (%d)\n", ret);
+			fprintf(stderr, "parse failed (%d)\n", ret);
 			return 1;
 		}
 
 		if (ws.remote_addr_len != sizeof(struct sockaddr_in6)) {
-			fprintf(stderr, "Test 6: remote_addr_len wrong (%u)\n",
+			fprintf(stderr, "remote_addr_len wrong (%u)\n",
 				ws.remote_addr_len);
 			return 1;
 		}
 		if (ws.our_addr_len != sizeof(struct sockaddr_in6)) {
-			fprintf(stderr, "Test 6: our_addr_len wrong (%u)\n",
+			fprintf(stderr, "our_addr_len wrong (%u)\n",
 				ws.our_addr_len);
 			return 1;
 		}
@@ -363,8 +158,7 @@ int main(void)
 		loc6 = (void *)&ws.our_addr;
 
 		if (rem6->sin6_family != AF_INET6) {
-			fprintf(stderr,
-				"Test 6: remote sin6_family wrong: %d\n",
+			fprintf(stderr, "remote sin6_family wrong: %d\n",
 				rem6->sin6_family);
 			return 1;
 		}
@@ -372,26 +166,26 @@ int main(void)
 		 * remote_addr a second time instead of to our_addr. */
 		if (loc6->sin6_family != AF_INET6) {
 			fprintf(stderr,
-				"Test 6: local sin6_family wrong: %d (expected %d)\n",
+				"local sin6_family wrong: %d (expected %d)\n",
 				loc6->sin6_family, AF_INET6);
 			return 1;
 		}
 
 		if (memcmp(&rem6->sin6_addr, &src6, 16) != 0) {
-			fprintf(stderr, "Test 6: remote address mismatch\n");
+			fprintf(stderr, "remote address mismatch\n");
 			return 1;
 		}
 		if (memcmp(&loc6->sin6_addr, &dst6, 16) != 0) {
-			fprintf(stderr, "Test 6: local address mismatch\n");
+			fprintf(stderr, "local address mismatch\n");
 			return 1;
 		}
 		if (ntohs(rem6->sin6_port) != 1234) {
-			fprintf(stderr, "Test 6: remote port wrong: %u\n",
+			fprintf(stderr, "remote port wrong: %u\n",
 				ntohs(rem6->sin6_port));
 			return 1;
 		}
 		if (ntohs(loc6->sin6_port) != 443) {
-			fprintf(stderr, "Test 6: local port wrong: %u\n",
+			fprintf(stderr, "local port wrong: %u\n",
 				ntohs(loc6->sin6_port));
 			return 1;
 		}

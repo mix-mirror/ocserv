@@ -498,13 +498,8 @@ static void header_value_check(struct worker_st *ws, struct http_req_st *req)
 		if (req->selected_ciphersuite) /* if set via HEADER_DTLS12_CIPHERSUITE */
 			break;
 
-		if (ws->session != NULL) {
-			want_mac = gnutls_mac_get(ws->session);
-			want_cipher = gnutls_cipher_get(ws->session);
-		} else {
-			want_mac = -1;
-			want_cipher = -1;
-		}
+		want_mac = gnutls_mac_get(ws->session);
+		want_cipher = gnutls_cipher_get(ws->session);
 
 		while ((token = strtok(str, ":")) != NULL) {
 			for (i = 0; i < ARRAY_SIZE(ciphersuites); i++) {
@@ -574,13 +569,8 @@ ciphersuite_finish:
 		saved_ciphersuite = req->selected_ciphersuite;
 		req->selected_ciphersuite = NULL;
 
-		if (ws->session != NULL) {
-			want_mac = gnutls_mac_get(ws->session);
-			want_cipher = gnutls_cipher_get(ws->session);
-		} else {
-			want_mac = -1;
-			want_cipher = -1;
-		}
+		want_mac = gnutls_mac_get(ws->session);
+		want_cipher = gnutls_cipher_get(ws->session);
 
 		while ((token = strtok(str, ":")) != NULL) {
 			for (i = 0; i < ARRAY_SIZE(ciphersuites12); i++) {

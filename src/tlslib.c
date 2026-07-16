@@ -46,7 +46,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netinet/tcp.h>
 #include <ctype.h>
 #include "log.h"
 
@@ -56,43 +55,12 @@ static void tls_reload_ocsp(main_server_st *s, struct vhost_cfg_st *vhost);
 
 void cstp_cork(worker_st *ws)
 {
-	if (ws->session) {
-		gnutls_record_cork(ws->session);
-	} else {
-		int state = 1, ret = 0;
-#if defined(__linux__)
-		ret = setsockopt(ws->conn_fd, IPPROTO_TCP, TCP_CORK, &state,
-				 sizeof(state));
-#elif defined(TCP_NOPUSH)
-		ret = setsockopt(ws->conn_fd, IPPROTO_TCP, TCP_NOPUSH, &state,
-				 sizeof(state));
-#endif
-		if (ret == -1) {
-			oclog(ws, LOG_ERR,
-			      "setsockopt(IPPROTO_TCP(TCP_CORK) failed");
-		}
-	}
+	gnutls_record_cork(ws->session);
 }
 
 int cstp_uncork(worker_st *ws)
 {
-	if (ws->session) {
-		return gnutls_record_uncork(ws->session, GNUTLS_RECORD_WAIT);
-	} else {
-		int state = 0, ret = 0;
-#if defined(__linux__)
-		ret = setsockopt(ws->conn_fd, IPPROTO_TCP, TCP_CORK, &state,
-				 sizeof(state));
-#elif defined(TCP_NOPUSH)
-		ret = setsockopt(ws->conn_fd, IPPROTO_TCP, TCP_NOPUSH, &state,
-				 sizeof(state));
-#endif
-		if (ret == -1) {
-			oclog(ws, LOG_ERR,
-			      "setsockopt(IPPROTO_TCP(TCP_UNCORK) failed");
-		}
-		return 0;
-	}
+	return gnutls_record_uncork(ws->session, GNUTLS_RECORD_WAIT);
 }
 
 ssize_t cstp_send(worker_st *ws, const void *data, size_t data_size)
@@ -101,27 +69,22 @@ ssize_t cstp_send(worker_st *ws, const void *data, size_t data_size)
 	int left = data_size;
 	const uint8_t *p = data;
 
-	if (ws->session != NULL) {
-		while (left > 0) {
-			ret = gnutls_record_send(ws->session, p, left);
-			if (ret < 0) {
-				struct pollfd pfd = { ws->conn_fd, POLLOUT, 0 };
-				if (ret != GNUTLS_E_AGAIN &&
-				    ret != GNUTLS_E_INTERRUPTED)
-					return ret;
-				/* wait for writability; peer gone if timeout */
-				if (poll(&pfd, 1,
-					 DEFAULT_SOCKET_TIMEOUT * 1000) <= 0)
-					return GNUTLS_E_PUSH_ERROR;
-			} else if (ret > 0) {
-				left -= ret;
-				p += ret;
-			}
+	while (left > 0) {
+		ret = gnutls_record_send(ws->session, p, left);
+		if (ret < 0) {
+			struct pollfd pfd = { ws->conn_fd, POLLOUT, 0 };
+			if (ret != GNUTLS_E_AGAIN &&
+			    ret != GNUTLS_E_INTERRUPTED)
+				return ret;
+			/* wait for writability; peer gone if timeout */
+			if (poll(&pfd, 1, DEFAULT_SOCKET_TIMEOUT * 1000) <= 0)
+				return GNUTLS_E_PUSH_ERROR;
+		} else if (ret > 0) {
+			left -= ret;
+			p += ret;
 		}
-		return data_size;
-	} else {
-		return force_write(ws->conn_fd, data, data_size);
 	}
+	return data_size;
 }
 
 ssize_t cstp_send_file(worker_st *ws, const char *file)
@@ -155,90 +118,15 @@ ssize_t cstp_send_file(worker_st *ws, const char *file)
 	return total;
 }
 
-static ssize_t recv_remaining(int fd, uint8_t *p, ssize_t left)
-{
-	int counter = 100; /* allow 10 seconds for a full packet */
-	ssize_t total = 0;
-	ssize_t ret;
-
-	while (left > 0) {
-		ret = recv(fd, p, left, 0);
-		if (ret == -1 && counter > 0 &&
-		    (errno == EINTR || errno == EAGAIN)) {
-			counter--;
-			ms_sleep(100);
-			continue;
-		}
-		if (ret == 0)
-			return GNUTLS_E_PREMATURE_TERMINATION;
-		if (ret < 0)
-			return ret;
-
-		left -= ret;
-		p += ret;
-		total += ret;
-	}
-
-	return total;
-}
-
-/* Receives CSTP packet, after the channel is established.
- * It makes sure that CSTP packet boundaries are respected in
- * case we do not read over TLS - e.g., when TLS is done by
- * a proxy. */
-static ssize_t _cstp_recv_packet(worker_st *ws, void *data, size_t data_size)
-{
-	ssize_t ret;
-
-	/* socket is in non-blocking mode already */
-
-	if (ws->session != NULL) {
-		return gnutls_record_recv(ws->session, data, data_size);
-	} else {
-		/* It can happen in UNIX sockets case that we receive an
-		 * incomplete CSTP packet. In that case we attempt to read
-		 * a full CSTP packet.
-		 */
-		unsigned int pktlen;
-		uint8_t *p = data;
-
-		/* read the header */
-		ret = recv_remaining(ws->conn_fd, p, 8);
-		if (ret <= 0)
-			return ret;
-
-		/* get the actual length from headers */
-		pktlen = (p[4] << 8) + p[5];
-		if (pktlen + 8 > data_size) {
-			oclog(ws, LOG_ERR, "error in CSTP packet length");
-			return GNUTLS_E_UNEXPECTED_PACKET_LENGTH;
-		}
-
-		if (pktlen > 0) {
-			ret = recv_remaining(ws->conn_fd, p + 8, pktlen);
-			if (ret <= 0)
-				return ret;
-		}
-
-		return 8 + pktlen;
-	}
-}
-
 ssize_t cstp_recv_packet(worker_st *ws, gnutls_datum_t *data, void **p)
 {
 	ssize_t ret;
 	gnutls_packet_t packet = NULL;
 
-	if (ws->session != NULL) {
-		ret = gnutls_record_recv_packet(ws->session, &packet);
-		if (ret > 0) {
-			*p = packet;
-			gnutls_packet_get(packet, data, NULL);
-		}
-	} else {
-		ret = _cstp_recv_packet(ws, ws->buffer, ws->buffer_size);
-		data->data = ws->buffer;
-		data->size = ret;
+	ret = gnutls_record_recv_packet(ws->session, &packet);
+	if (ret > 0) {
+		*p = packet;
+		gnutls_packet_get(packet, data, NULL);
 	}
 
 	return ret;
@@ -250,54 +138,16 @@ ssize_t cstp_recv(worker_st *ws, void *data, size_t data_size)
 	ssize_t ret;
 	int counter = 5;
 
-	if (ws->session != NULL) {
-		do {
-			ret = gnutls_record_recv(ws->session, data, data_size);
-			if (ret == GNUTLS_E_AGAIN ||
-			    ret == GNUTLS_E_INTERRUPTED) {
-				counter--;
-				ms_sleep(20);
-			}
-		} while ((ret == GNUTLS_E_AGAIN ||
-			  ret == GNUTLS_E_INTERRUPTED) &&
-			 counter > 0);
-	} else {
-		do {
-			ret = recv(ws->conn_fd, data, data_size, 0);
-			if (ret == -1 && (errno == EAGAIN || errno == EINTR)) {
-				counter--;
-				ms_sleep(20);
-			}
-		} while (ret == -1 && (errno == EINTR || errno == EAGAIN) &&
-			 counter > 0);
-	}
+	do {
+		ret = gnutls_record_recv(ws->session, data, data_size);
+		if (ret == GNUTLS_E_AGAIN || ret == GNUTLS_E_INTERRUPTED) {
+			counter--;
+			ms_sleep(20);
+		}
+	} while ((ret == GNUTLS_E_AGAIN || ret == GNUTLS_E_INTERRUPTED) &&
+		 counter > 0);
 
 	return ret;
-}
-
-/* Typically used in a resumed session. It will return
- * true if a certificate has been used.
- */
-unsigned int tls_has_session_cert(struct worker_st *ws)
-{
-	unsigned int list_size = 0;
-	const gnutls_datum_t *certs;
-
-	if (ws->session == NULL)
-		return 0;
-
-	if (ws->cert_auth_ok)
-		return 1;
-
-	if (WSRCONFIG(ws)->cisco_client_compat == 0) {
-		return 0;
-	}
-
-	certs = gnutls_certificate_get_peers(ws->session, &list_size);
-	if (certs != NULL)
-		return 1;
-
-	return 0;
 }
 
 int __attribute__((format(printf, 2, 3))) cstp_printf(worker_st *ws,
@@ -321,22 +171,14 @@ int __attribute__((format(printf, 2, 3))) cstp_printf(worker_st *ws,
 
 void cstp_close(worker_st *ws)
 {
-	if (ws->session) {
-		gnutls_bye(ws->session, GNUTLS_SHUT_WR);
-		gnutls_deinit(ws->session);
-	} else {
-		close(ws->conn_fd);
-	}
+	gnutls_bye(ws->session, GNUTLS_SHUT_WR);
+	gnutls_deinit(ws->session);
 }
 
 void cstp_fatal_close(worker_st *ws, gnutls_alert_description_t a)
 {
-	if (ws->session) {
-		gnutls_alert_send(ws->session, GNUTLS_AL_FATAL, a);
-		gnutls_deinit(ws->session);
-	} else {
-		close(ws->conn_fd);
-	}
+	gnutls_alert_send(ws->session, GNUTLS_AL_FATAL, a);
+	gnutls_deinit(ws->session);
 }
 
 ssize_t dtls_recv_packet(struct dtls_st *dtls, gnutls_datum_t *data, void **p)

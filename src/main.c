@@ -384,7 +384,7 @@ static int listen_ports(void *pool, struct static_cfg_st *sconfig,
 	}
 
 	if (list->total == 0) {
-		fprintf(stderr, "Could not listen to any TCP or UNIX ports\n");
+		fprintf(stderr, "Could not listen to any TCP ports\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -1171,8 +1171,7 @@ static void listen_watcher_cb(EV_P_ ev_io *w, int revents)
 			return;
 		}
 
-		if (ws->conn_type != SOCK_TYPE_UNIX &&
-		    !GETRCONFIG(s)->listen_proxy_proto) {
+		if (!GETRCONFIG(s)->listen_proxy_proto) {
 			memset(&ws->our_addr, 0, sizeof(ws->our_addr));
 			ws->our_addr_len = sizeof(ws->our_addr);
 			if (getsockname(fd, (struct sockaddr *)&ws->our_addr,

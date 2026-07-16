@@ -113,8 +113,11 @@ proxy-protocol connections happens later once the real client address is
 known from the PROXY protocol header.
 **Strength:** MUST NOT
 **Status:** DERIVED
-**Source:** src/main.c:1173-1186 (`if (ws->conn_type != SOCK_TYPE_UNIX &&
-!GETRCONFIG(s)->listen_proxy_proto)`)
+**Source:** src/main.c:1174-1186 (`if (!GETRCONFIG(s)->listen_proxy_proto)`).
+Previously guarded by `ws->conn_type != SOCK_TYPE_UNIX && ...` too; that
+clause was always true (`SOCK_TYPE_UNIX` has been unreachable since
+`listen-clear-file`'s removal, commit `5cf457b4`) and was dropped as dead
+code — this requirement's substance is unaffected.
 **Acceptance:** [SEC] Confirmed — the post-PROXY-header ban check exists at
 src/main-worker-cmd.c:387-405, in the `CMD_SESSION_INFO` handler. Sequencing:
 the worker calls `parse_proxy_proto_header()` (src/worker-vpn.c:895) to

@@ -60,13 +60,6 @@ foreach name, cfg : unit_tests
   test(name, exe, env: test_env, workdir: test_workdir, timeout: cfg['timeout'])
 endforeach
 
-# cstp-recv needs gnutls
-cstp_recv_exe = executable('cstp-recv', 'cstp-recv.c',
-  dependencies: test_base_deps + [gnutls_dep],
-  include_directories: test_inc,
-)
-test('cstp-recv', cstp_recv_exe, env: test_env, workdir: test_workdir)
-
 # config-inherit: exercises vhost config inheritance (#705).
 # Textually includes config.c and its dependencies so that the static
 # parse_cfg_file() is accessible from the test.  Requires gnutls (for
