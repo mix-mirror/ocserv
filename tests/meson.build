@@ -298,6 +298,7 @@ if get_option('root-tests')
     'test-occtl', 'test-occtl-commands', 'no-ipv6-ocv3',
     'test-config-per-group', 'test-config-per-group-url-pass',
     'test-config-per-group-url-cert', 'test-multiple-client-ip',
+    'test-rekey-tls13', 'test-rekey-tls12',
   ]
 
   foreach s : root_scripts

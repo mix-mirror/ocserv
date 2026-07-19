@@ -613,6 +613,43 @@ response advertises `X-CSTP-Rekey-Method: ssl` and
 `X-CSTP-Rekey-Time: <N-derived value>`; a rekey is triggered at approximately
 `rekey_time` (with jitter — `FUZZ(WSRCONFIG(ws)->rekey_time, 30, rnd)` at
 `src/worker-vpn.c:2111`).
+
+*TLS ≤ 1.2*: rekey is an in-place rehandshake, gated on RFC 5746 safe
+renegotiation (`gnutls_safe_renegotiation_status()`,
+`src/worker-vpn.c:2415-2419`), falling back to `new-tunnel` only for peers
+that lack it.
+
+*TLS 1.3+*: TLS 1.3 has no renegotiation, so the server performs the whole
+rekey itself, with no client involvement: it advertises
+`X-CSTP-Rekey-Method: none` (not `ssl`) and, from `periodic_check()` at
+approximately `rekey_time`, unilaterally issues a TLS 1.3 `KeyUpdate`
+(`gnutls_session_key_update(session, GNUTLS_KU_PEER)`, GnuTLS ≥ 3.6.3, in
+`cstp_transparent_rekey_update()`, gated by
+`cstp_transparent_rekey_capable()`). There is no tunnel/TUN-device rebuild
+and no client-visible interruption — any TLS 1.3 peer accepts an
+unsolicited KeyUpdate transparently at the record layer (RFC 8446 §4.6.3),
+regardless of the CSTP header value.
+
+`none` is required rather than `ssl` on TLS 1.3 because both of
+OpenConnect's TLS backends mishandle a client-driven rehandshake on an
+already-established TLS 1.3 session (GnuTLS backend: session torn down with
+an "illegal parameter" alert; OpenSSL backend: forced `new-tunnel`
+reconnect) — the exact disruption this requirement exists to avoid. Full
+analysis in the comment above `cstp_transparent_rekey_capable()` in
+`src/worker-vpn.c`.
+
+The rekey is atomic: `gnutls_session_key_update()` is retried on
+`GNUTLS_E_AGAIN`/`GNUTLS_E_INTERRUPTED` for up to 30 seconds; if it has not
+succeeded by then, or fails for any other reason, the worker ends the
+session (`exit_worker_reason(ws, REASON_ERROR)`) rather than leave a rekey
+partially pending.
+
+Tested by `tests/test-rekey-tls13` (TLS 1.3: one tun-device assignment for
+the session, i.e. no rebuild; `TLS 1.3 session keys refreshed` logged;
+tunnel pings succeed before and after the rekey window) and
+`tests/test-rekey-tls12` (TLS 1.2 negative case: legacy rehandshake
+completes, no TLS 1.3 KeyUpdate logged). Both connect with `--no-dtls` so
+the assertions exercise CSTP/TLS, not DTLS.
 **Divergence**: both `ssl` and `new-tunnel` are implemented (not just
 advertised), so this is MAJORITY rather than EXTENSION; classified MAJORITY
 (not UNIVERSAL) only because the *value* `rekey-time` and the *jitter* (`FUZZ`,

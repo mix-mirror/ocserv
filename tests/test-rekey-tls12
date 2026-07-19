@@ -1,0 +1,103 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with GnuTLS; if not, write to the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+#
+# Companion negative case for test-rekey-tls13: with rekey-method = ssl
+# and a CSTP session negotiated at TLS 1.2, the transparent TLS 1.3
+# KeyUpdate path introduced for REQ-PROTO-CTRL-001 must not engage --
+# the legacy client-driven in-place rehandshake keeps working unchanged,
+# and no TLS 1.3 key update is ever logged.
+
+OCCTL="${OCCTL:-../src/occtl/occtl}"
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+OCCTL_SOCKET=./occtl-rekey-tls12-$$.socket
+PIDFILE=ocserv-pid.$$.tmp
+CPIDFILE=openpid.$$.tmp
+OUTFILE=rekey-tls12.$$.tmp
+
+function finish {
+  echo " * Cleaning up..."
+  CLIPID=${CPIDFILE} cleanup_client_server
+  test -n "${OUTFILE}" && rm -f ${OUTFILE} >/dev/null 2>&1
+}
+trap finish EXIT
+
+. `dirname $0`/random-net.sh
+. `dirname $0`/common.sh
+. `dirname $0`/ns.sh
+
+eval "${GETPORT}"
+
+update_config rekey-tls12.config
+${CMDNS2} ${SERV} -p ${PIDFILE} -f -c ${CONFIG} -d 3 >${OUTFILE} 2>&1 & PID=$!
+
+sleep 5
+
+echo "Testing TLS 1.2 rekey is unaffected (rekey-method = ssl, TLS 1.2 forced)... "
+echo "Connecting to obtain cookie... "
+eval `echo "test" | ${CMDNS1} ${OPENCONNECT} --passwd-on-stdin -q ${ADDRESS}:${PORT} -u test --authenticate --servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8=`
+
+if [ -z "$COOKIE" ]; then
+	cat ${OUTFILE}
+	fail $PID "Could not obtain cookie"
+fi
+
+sleep 1
+echo "Connecting with cookie... "
+${CMDNS1} ${OPENCONNECT} ${ADDRESS}:${PORT} -u test -C "$COOKIE" --servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8= --no-dtls --background --pid-file "${CPIDFILE}"
+
+sleep 4
+
+if [ ! -f "${CPIDFILE}" ]; then
+	cat ${OUTFILE}
+	fail $PID "It was not possible to establish session!"
+fi
+
+set -e
+${CMDNS1} ping -c 3 ${VPNADDR}
+set +e
+
+echo "Waiting across two rekey-time (20s) intervals... "
+sleep 50
+
+echo "Confirming the tunnel is still usable after the rekey window... "
+set -e
+${CMDNS1} ping -c 3 ${VPNADDR}
+set +e
+
+tun_count=$(grep -c "assigning tun device" ${OUTFILE})
+if [ "${tun_count}" != "1" ]; then
+	cat ${OUTFILE}
+	fail $PID "FAIL: expected exactly 1 tun device assignment (no tunnel rebuild), got ${tun_count}"
+fi
+
+if grep -q "TLS 1.3 session keys refreshed" ${OUTFILE}; then
+	cat ${OUTFILE}
+	fail $PID "FAIL: did not expect a TLS 1.3 key update on a TLS 1.2 session"
+fi
+
+if ! grep -q "TLS rehandshake completed" ${OUTFILE}; then
+	cat ${OUTFILE}
+	fail $PID "FAIL: expected the legacy TLS rehandshake to complete, found none"
+fi
+
+echo "ok"
+
+exit 0

@@ -9,6 +9,9 @@
   if the certificate provides a single group (#692)
 - Simplified RADIUS Acct-Session-Time calculation to fix inflated time reporting
   for sessions that reconnected with the same cookie.
+- On TLS 1.3 CSTP sessions, rekey-method = ssl now performs a transparent
+  TLS 1.3 KeyUpdate server-side instead of silently falling back to a full
+  tunnel rebuild on every rekey (#745)
 
 
 * Version 1.5.0 (released 2026-06-07)
