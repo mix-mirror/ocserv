@@ -221,7 +221,7 @@ musl/Alpine:
   stage: testing
   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$ALPINE_BUILD
   script:
-  - meson setup build -Dwith-werror=true
+  - meson setup build -Dwith-werror=true -Dassume-glibc=false
   - ninja -C build -j$JOBS
   tags:
   - saas-linux-small-amd64
@@ -348,6 +348,32 @@ seccomp/Fedora:
     when: on_failure
     exclude:
       - "**/*.tmp"
+
+# Tests seccomp filters under musl/Alpine to catch allocator/syscall gaps
+seccomp/Alpine:
+  stage: testing
+  image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$ALPINE_BUILD
+  script:
+  - apk add --no-cache bash
+  - chmod -R o-w tests/data/raddb
+  - git submodule update --init
+  - meson setup build -Dseccomp-trap=true -Dassume-glibc=false
+  - ninja -C build -j$JOBS
+  - >-
+    meson test -C build --no-rebuild --num-processes 1 --print-errorlogs
+    session-timeout traffic bandwidth
+    oc-aes256-gcm-cipher oc-aes128-gcm-cipher
+    ac-aes128-gcm-cipher ac-aes256-gcm-cipher
+    no-dtls-cipher
+  tags:
+  - saas-linux-medium-amd64
+  except:
+  - tags
+  - schedules
+  artifacts:
+    expire_in: 1 week
+    untracked: true
+    when: on_failure
 
 # Tests per-worker RLIMIT_DATA by making setrlimit failures fatal
 worker-memory-limit/Fedora:
