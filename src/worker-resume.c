@@ -54,7 +54,8 @@ static int recv_resume_fetch_reply(worker_st *ws, int sd, gnutls_datum_t *sdata)
 		return ret;
 	}
 
-	if (resp->reply != SESSION_RESUME_REPLY_MSG__RESUME__REP__OK) {
+	if (resp->reply != SESSION_RESUME_REPLY_MSG__RESUME__REP__OK ||
+	    resp->session_data.len == 0) {
 		ret = -1;
 		goto cleanup;
 	}

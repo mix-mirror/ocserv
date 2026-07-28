@@ -126,7 +126,8 @@ int handle_resume_store_req(sec_mod_st *sec,
 
 	if (req->session_id.len > GNUTLS_MAX_SESSION_ID)
 		return -1;
-	if (req->session_data.len > MAX_SESSION_DATA_SIZE)
+	if (req->session_data.len == 0 ||
+	    req->session_data.len > MAX_SESSION_DATA_SIZE)
 		return -1;
 
 	max = MAX(2 * GETRCONFIG(sec)->max_clients,
