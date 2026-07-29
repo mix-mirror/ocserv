@@ -1,7 +1,7 @@
 # ocserv(8) -- OpenConnect VPN server
 
 ## SYNOPSIS
-**ocserv** \[ **-flag** \[<value>\] | **--option-name**\[\[=| \]<value>\] \]...
+**ocserv** [options] -c [config]
 
 OpenConnect VPN server (ocserv) is a VPN server compatible with the
 OpenConnect VPN client. It follows the AnyConnect VPN protocol which
