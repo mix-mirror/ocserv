@@ -24,7 +24,12 @@ For as more detailed explanation see the OpenID Connect protocol (<https://openi
 
 ## Supported clients
 
-Currently, only the Microsoft Intune VPN client supports OIDC.
+OIDC authentication in ocserv is an extension used exclusively by the Microsoft
+Intune VPN client. It is not part of the OpenConnect protocol, is not documented
+by the OpenConnect project, and is not supported by the open source `openconnect`
+client. The protocol and its implementation are defined and maintained by
+Microsoft; ocserv's OIDC support currently exists solely to interoperate with Intune
+VPN clients.
 
 ## Deploying OIDC authentication
 
