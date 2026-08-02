@@ -175,6 +175,34 @@ client_entry_st *find_client_entry(sec_mod_st *sec, uint8_t sid[SID_SIZE])
 	return htable_get(db, rehash(&t, NULL), client_entry_cmp, &t);
 }
 
+/* Finds a client_entry_st whose acct_info.id (pid correlator) matches
+ * this pid, if any. acct_info.id is 0 unless a worker has stamped it
+ * (at creation, or on a later CMD_SEC_CLI_STATS - see
+ * handle_sec_auth_stats_cmd()) and is cleared by expire_client_entry()
+ * once no worker is attached, so a match here rules out a stale/reused
+ * pid, but does not guarantee the match is the entry's originally
+ * authenticating worker: any worker later presenting the entry's SID
+ * over CMD_SEC_CLI_STATS re-stamps this id to its own pid.
+ */
+client_entry_st *find_client_entry_by_pid(sec_mod_st *sec, unsigned int pid)
+{
+	struct htable *db = sec->client_db;
+	client_entry_st *t;
+	struct htable_iter iter;
+
+	if (pid == 0)
+		return NULL;
+
+	t = htable_first(db, &iter);
+	while (t != NULL) {
+		if (t->acct_info.id == pid)
+			return t;
+		t = htable_next(db, &iter);
+	}
+
+	return NULL;
+}
+
 static void clean_entry(sec_mod_st *sec, client_entry_st *e)
 {
 	sec_auth_user_deinit(sec, e);
@@ -242,6 +270,11 @@ void expire_client_entry(sec_mod_st *sec, client_entry_st *e)
 			seclog(sec, LOG_INFO,
 			       "temporarily closing session for %s " SESSION_STR,
 			       e->acct_info.username, e->acct_info.safe_id);
+
+			/* No worker is attached to this entry anymore; invalidate
+			 * the pid so a later, unrelated worker that inherits the
+			 * same OS pid never matches this lingering entry. */
+			e->acct_info.id = 0;
 		}
 	}
 }

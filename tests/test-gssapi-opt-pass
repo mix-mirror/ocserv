@@ -22,6 +22,30 @@ srcdir=${srcdir:-.}
 builddir=${builddir:-.}
 NO_NEED_ROOT=1
 OUTFILE=test-gssapi-opt-pass.$$.tmp
+SERVER_LOG=ocserv-gssapi-opt-pass.$$.log
+
+# Regression test for https://gitlab.com/openconnect/ocserv/-/work_items/249:
+# a worker (pid) that falls back from a failed GSSAPI attempt to a
+# successful password attempt on the same connection must leave sec-mod
+# with exactly one client_entry_st for that attempt, not two (one orphaned
+# PS_AUTH_FAILED entry plus one PS_AUTH_COMPLETED entry).
+#
+# occtl's control socket would be the natural way to check this, but it
+# authorizes the peer via SO_PEERCRED (check_upeer_id() in
+# src/common/system.c), which requires a real uid 0 - the uid_wrapper root
+# emulation this NO_NEED_ROOT test relies on for the server does not fake
+# that for occtl as a separate client process, and no other NO_NEED_ROOT
+# test in this suite uses occtl for that reason. Instead this checks
+# sec-mod's own debug log (already captured via VERBOSE=1) for
+# sec_auth_user_deinit()'s "permanently closing session" line, which fires
+# exactly once - mid-test, when the second (password) auth init replaces
+# the failed GSSAPI entry - if the fix is working. Without it, the failed
+# GSSAPI entry is only ever cleaned up together with everything else at
+# final server shutdown, never mid-test.
+mid_test_session_closes()
+{
+	grep -c "permanently closing session" ${SERVER_LOG}
+}
 
 connect()
 {
@@ -74,7 +98,13 @@ echo "Testing local backend with gssapi and password fallback... "
 VERBOSE=1
 
 update_config test-gssapi-opt-pass.config
-launch_sr_server -d 1 -f -c ${CONFIG} & PID=$!
+# Not using launch_sr_server() here (it discards output unless VERBOSE is
+# read by *it* before backgrounding) so the server's debug log can be
+# captured to a file this script can grep mid-test - see
+# mid_test_session_closes() above.
+LD_PRELOAD=libsocket_wrapper.so:libuid_wrapper.so UID_WRAPPER=1 UID_WRAPPER_ROOT=1 \
+	$SERV -d 1 -f -c ${CONFIG} -d 3 >${SERVER_LOG} 2>&1 &
+PID=$!
 wait_server $PID
 
 echo -n "Connecting to obtain cookie (user with non-gssapi password)... "
@@ -103,8 +133,115 @@ echo "Connecting with curl/negotiate... "
 LD_PRELOAD=libsocket_wrapper.so curl https://testinvalid:testpass@$ADDRESS:$PORT ${CURLOPTS} --negotiate -f -v ||
 	fail $PID "Could not connect to server"
 
+echo -n "Checking that a failed GSSAPI attempt followed by a successful "
+echo "password fallback on the same connection leaves a single sec-mod entry... "
+
+BEFORE_CLOSES=$(mid_test_session_closes)
+
+if ! command -v python3 >/dev/null 2>&1;then
+	echo "python3 not found"
+	exit 77
+fi
+
+# curl's --next does reliably reuse a connection for a follow-up request
+# *within* one 401-triggered auth retry (that's how the "curl/negotiate"
+# check above and the GSSAPI leg below work at all), but reusing that same
+# connection for a *separate* subsequent leg is a much newer, inconsistently
+# supported curl optimization - it silently opens a fresh connection (and
+# thus a fresh worker pid) on older curl (e.g. curl 7.61 on CentOS 8),
+# which defeats the entire point of this test (same pid) without any
+# visible error. http.client.HTTPSConnection keeps one connection under
+# our own control across multiple requests, deterministically, regardless
+# of curl version.
+#
+# Three requests over one connection (hence one worker pid):
+#  1. GET / with a GSSAPI/NTLM Type1 (negotiate-init) token and
+#     X-Support-HTTP-Auth set (so the server doesn't immediately give up
+#     on GSSAPI the way the plain "curl/negotiate" check above does - see
+#     http_header_complete_cb()). This drives a real CMD_SEC_AUTH_INIT for
+#     GSSAPI; a Type1 token alone is never sufficient to complete NTLM, so
+#     the module replies ERR_AUTH_CONTINUE (401 + WWW-Authenticate:
+#     Negotiate <challenge>).
+#  2. GET / again, replaying the same Type1 blob as the "continuation" -
+#     gss_accept_sec_context() rejects it (it's not a valid response to
+#     its own challenge), which is a real, guaranteed authentication
+#     failure without needing genuine NTLM credential material. This
+#     drives CMD_SEC_AUTH_CONT, which fails and falls back to the next
+#     configured method (plain), leaving a PS_AUTH_FAILED entry for this
+#     pid.
+#  3. POST /auth with a valid username/password -> a second
+#     CMD_SEC_AUTH_INIT for the same pid, which must replace the
+#     PS_AUTH_FAILED entry rather than add a second one.
+LD_PRELOAD=libsocket_wrapper.so python3 - "$ADDRESS" "$PORT" >${OUTFILE} <<'PYEOF'
+import http.client
+import ssl
+import sys
+
+address, port = sys.argv[1], int(sys.argv[2])
+
+# A captured, generic GSSAPI/SPNEGO NTLMSSP Type1 (negotiate) token. Type1
+# carries only capability flags, no credentials, so it is not tied to any
+# particular username/password and is safe to reuse as a static fixture.
+TYPE1 = (
+	"YEgGBisGAQUFAqA+MDygDjAMBgorBgEEAYI3AgIKoioEKE5UTE1TU1AAAQAAABeCCOIA"
+	"AAAAAAAAAAAAAAAAAAAABgIAAAAAAA8="
+)
+
+ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+
+conn = http.client.HTTPSConnection(address, port, context=ctx, timeout=15)
+
+conn.request("GET", "/", headers={
+	"Authorization": "Negotiate " + TYPE1,
+	"X-Support-HTTP-Auth": "1",
+})
+conn.getresponse().read()
+
+conn.request("GET", "/", headers={
+	"Authorization": "Negotiate " + TYPE1,
+	"X-Support-HTTP-Auth": "1",
+})
+conn.getresponse().read()
+
+conn.request("POST", "/auth", body="username=test&password=test", headers={
+	"Content-Type": "application/x-www-form-urlencoded",
+})
+sys.stdout.buffer.write(conn.getresponse().read())
+PYEOF
+if test $? != 0;then
+	cat ${OUTFILE}
+	cat ${SERVER_LOG}
+	fail $PID "Could not complete GSSAPI-then-password fallback on one connection"
+fi
+
+# give sec-mod's debug log time to flush the "permanently closing session"
+# line before we grep for it.
+sleep 1
+
+grep '<auth id="success">' ${OUTFILE} >/dev/null
+if test $? != 0;then
+	cat ${OUTFILE}
+	cat ${SERVER_LOG}
+	fail $PID "GSSAPI-then-password fallback on one connection did not obtain a cookie"
+fi
+
+AFTER_CLOSES=$(mid_test_session_closes)
+DELTA=$((AFTER_CLOSES - BEFORE_CLOSES))
+
+cat ${SERVER_LOG}
+
+if test "${DELTA}" != 1;then
+	echo "FAIL: expected exactly one mid-test session close (replacing the failed GSSAPI attempt), got ${DELTA} (before: ${BEFORE_CLOSES}, after: ${AFTER_CLOSES})"
+	fail $PID "GSSAPI-fail-then-password-fallback leaked a client_entry_st (work_item #249)"
+fi
+echo ok
+
 kill $PID
 wait
+
+rm -f ${SERVER_LOG}
 
 rm -f ${builddir}/ntlm.$$.pass.tmp
 

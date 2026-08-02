@@ -241,6 +241,65 @@ with no LeakSanitizer/ASAN report against `recv_cookie_auth_reply` or
 `ws->user_config` is sufficient acceptance; no new test required.
 **Links:** —
 
+### REQ-WORKER-AUTH-007 — `ws_switch_auth_to_next()` gates every worker-initiated reset to `S_AUTH_INACTIVE`; each fallback strictly advances or fails closed
+
+**Requirement:** `post_auth_handler()` MUST NOT reset `ws->auth_state` to
+`S_AUTH_INACTIVE` (and thereby re-send `CMD_SEC_AUTH_INIT` on the current
+connection) except immediately after a successful call to
+`ws_switch_auth_to_next(ws)` (return value non-zero). There are exactly two
+such call sites, and no other code path may perform this reset:
+  - **Missing certificate** (`src/worker-auth.c:1744-1755`): while still in
+    the `ws->auth_state == S_AUTH_INACTIVE` branch, if `AUTH_TYPE_CERTIFICATE`
+    is selected and `ws->cert_auth_ok == 0`, the fallback fires *before* this
+    attempt's `CMD_SEC_AUTH_INIT` is ever built or sent
+    (`send_msg_to_secmod(..., CMD_SEC_AUTH_INIT, ...)` is at
+    `src/worker-auth.c:1823-1834`, after this check) — sec-mod has no
+    `client_entry_st` for this attempt at all.
+  - **GSSAPI ticket verification failure** (`src/worker-auth.c:1932-1941`):
+    after a `CMD_SEC_AUTH_INIT`/`CMD_SEC_AUTH_CONT` round-trip to sec-mod for
+    `AUTH_TYPE_GSSAPI` returns `ret < 0`, the fallback fires *after* sec-mod
+    has already created a `client_entry_st` for this pid and set its status
+    to `PS_AUTH_FAILED` (`handle_sec_auth_res()`,
+    `src/sec-mod-auth.c:435-441`). The immediately following
+    `CMD_SEC_AUTH_INIT` for the next method is therefore a second
+    `SEC_AUTH_INIT` on the same worker pid, which is the specific case
+    REQ-SECMOD-SESSION-007 requires sec-mod to special-case (replace the
+    `PS_AUTH_FAILED` entry rather than reject the request).
+
+  `ws_switch_auth_to_next()` (`src/worker-auth.c:140-158`) sets
+  `ws->selected_auth->enabled = 0` on the failed method before searching for
+  the next enabled one — `ws->selected_auth` points into
+  `WSSCONFIG(ws)` (`&ws->vhost->static_config`), the worker's own
+  process-private copy of the vhost's auth-method list (received at worker
+  startup; not shared with other workers or with main/sec-mod), so a method
+  once disabled by a fallback is never reselected for the remainder of this
+  connection, and disabling it has no effect on any other client's
+  connection. If no other enabled method remains, `ws_switch_auth_to_next()`
+  returns 0 and both call sites `goto auth_fail` instead of resetting to
+  `S_AUTH_INACTIVE` — a connection can therefore never loop indefinitely
+  through fallbacks, and (as a consequence relevant to
+  REQ-SECMOD-SESSION-007) a single worker pid can cause sec-mod to replace a
+  `PS_AUTH_FAILED` entry at most once per distinct GSSAPI-then-something-else
+  fallback on that connection, not repeatedly.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/worker-auth.c:140-158 (`ws_switch_auth_to_next`);
+src/worker-auth.c:1744-1755, 1932-1941 (the two call sites);
+src/sec-mod-auth.c:435-441 (`handle_sec_auth_res`, `PS_AUTH_FAILED`
+transition); src/worker.h:223-224 (`WSRCONFIG`/`WSSCONFIG`)
+**Acceptance:** positive, `tests/test-cert-opt-pass` — connecting without a
+client certificate to a vhost configured with `auth = "certificate"` falling
+back to a password method completes authentication via the pre-secmod
+fallback branch. positive, `tests/test-gssapi-opt-pass` — a failed GSSAPI
+attempt followed by a password fallback on the same connection completes
+authentication via the post-secmod fallback branch (this is also
+REQ-SECMOD-SESSION-007's acceptance test, from the sec-mod side of the same
+exchange). [SEC] negative — configure a vhost with only `auth = "gssapi"`
+(no fallback method enabled); confirm a failed GSSAPI attempt reaches
+`auth_fail` (connection terminated) rather than resetting to
+`S_AUTH_INACTIVE` and re-prompting.
+**Links:** REQ-SECMOD-SESSION-007, REQ-AUTH-AUTH-031, REQ-AUTH-AUTH-032
+
 ---
 
 ## SEC

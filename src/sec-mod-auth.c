@@ -876,6 +876,7 @@ int handle_sec_auth_init(int cfd, sec_mod_st *sec, const SecAuthInitMsg *req,
 {
 	int ret = -1;
 	client_entry_st *e;
+	client_entry_st *old;
 	unsigned int i;
 	unsigned int need_continue = 0;
 	vhost_cfg_st *vhost;
@@ -920,6 +921,37 @@ int handle_sec_auth_init(int cfd, sec_mod_st *sec, const SecAuthInitMsg *req,
 		seclog(sec, LOG_NOTICE,
 		       "hmac presented by client expired - possible replay");
 		return -1;
+	}
+
+	/* A conforming worker only re-sends SEC_AUTH_INIT on the same pid
+	 * after a terminal failure of a previous attempt (PS_AUTH_FAILED,
+	 * e.g. GSSAPI/certificate falling back to the next auth method). Any
+	 * other match means a client_entry_st is already attached to this
+	 * pid and mid-flight or already authenticated - not something a
+	 * conforming worker does, so treat it as a protocol violation rather
+	 * than silently allowing a second entry to accumulate.
+	 *
+	 * in_use == 0 is required in addition to PS_AUTH_FAILED because
+	 * status alone does not imply no session is open:
+	 * handle_sec_auth_ban_ip_reply() can set PS_AUTH_FAILED on an entry
+	 * with an open session (in_use > 0) on a non-OK ban reply, and
+	 * deleting that entry would desync it from the session main still
+	 * holds.
+	 */
+	old = find_client_entry_by_pid(sec, pid);
+	if (old != NULL) {
+		if (old->status == PS_AUTH_FAILED && old->in_use == 0) {
+			del_client_entry(sec, old);
+		} else {
+			seclog(sec, LOG_NOTICE,
+			       "worker pid %u sent a new auth init while a previous one (status %s) is still attached to it - dropping connection",
+			       (unsigned int)pid,
+			       ps_status_to_str(old->status, 0));
+			sec_mod_add_score_to_ip(
+				sec, old, old->acct_info.remote_ip,
+				old->vhost->config->ban_points_wrong_password);
+			return -1;
+		}
 	}
 
 	e = new_client_entry(sec, vhost, req->remote_ip, pid);

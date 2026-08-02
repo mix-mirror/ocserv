@@ -147,6 +147,7 @@ unsigned int sec_mod_client_db_elems(sec_mod_st *sec);
 client_entry_st *new_client_entry(sec_mod_st *sec, struct vhost_cfg_st *,
 				  const char *ip, unsigned int pid);
 client_entry_st *find_client_entry(sec_mod_st *sec, uint8_t sid[SID_SIZE]);
+client_entry_st *find_client_entry_by_pid(sec_mod_st *sec, unsigned int pid);
 void del_client_entry(sec_mod_st *sec, client_entry_st *e);
 void expire_client_entry(sec_mod_st *sec, client_entry_st *e);
 void cleanup_client_entries(sec_mod_st *sec);

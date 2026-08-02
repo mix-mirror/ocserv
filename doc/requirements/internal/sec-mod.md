@@ -186,8 +186,12 @@ the human-facing `occtl terminate` command only).
 **Acceptance:** negative, local — send `SEC_AUTH_CONT` with a `sid` that is
 a correct prefix of a valid SID but padded/truncated to `SID_SIZE`;
 confirm `find_client_entry` returns NULL (no match) — i.e., this is a
-full-value comparison, covered structurally by REQ-IPC-015.
-**Links:** REQ-IPC-015, REQ-SECMOD-SESSION-005
+full-value comparison, covered structurally by REQ-IPC-015. This requirement
+governs `find_client_entry()` specifically; it does not preclude the
+pid-scoped pre-creation lookup (`find_client_entry_by_pid()`) added by
+REQ-SECMOD-SESSION-007, which is a distinct, additional lookup used only to
+decide whether `handle_sec_auth_init` may create a new entry.
+**Links:** REQ-IPC-015, REQ-SECMOD-SESSION-005, REQ-SECMOD-SESSION-007
 
 ### REQ-SECMOD-SESSION-002 — Expiry requires in_use == 0
 
@@ -280,6 +284,137 @@ unexpired+in_use=0, unexpired+in_use>0}; request `SECM_LIST_COOKIES`;
 confirm the expired entry is absent, and the `in_use>0` entry has
 `expires=0` in the reply (`occtl show sessions valid` reflects this).
 **Links:** REQ-SECMOD-SESSION-002, REQ-IPC-070
+
+### REQ-SECMOD-SESSION-007 — At most one pid-stamped client_entry_st per worker pid; only a prior PS_AUTH_FAILED, unattached entry may be replaced, anything else is scored and rejected
+
+**Requirement:** `handle_sec_auth_init()` MUST look up an existing
+`client_entry_st` for the requesting worker's `pid` (`find_client_entry_by_pid()`)
+before calling `new_client_entry()`, and MUST NOT allow more than one
+`client_entry_st` to exist for the same pid at a time. This invariant covers
+only entries currently carrying a non-zero `acct_info.id` (see the third
+bullet below for when that is and is not the case):
+  - If the existing entry's `status == PS_AUTH_FAILED` AND `in_use == 0`,
+    sec-mod MUST delete it (`del_client_entry`) before creating the new one.
+    `in_use == 0` MUST be checked because `PS_AUTH_FAILED` alone does not
+    imply no session is open: `handle_sec_auth_ban_ip_reply()` sets
+    `status = PS_AUTH_FAILED` on any SID-matched entry on a non-OK ban
+    reply (`sec-mod-auth.c:709-712`) without touching `in_use`, so an
+    open session (`in_use > 0`, reachable only via the replay described in
+    the second bullet, since a conforming worker never re-sends
+    `SEC_AUTH_INIT` once a session is open) could otherwise be deleted out
+    from under main, which still holds its SID and TUN/IP state — the next
+    `SECM_SESSION_CLOSE` for that SID would then hit the "non-existing SID"
+    path and lose the final accounting Stop. If `in_use > 0`, this case
+    MUST instead fall through to the reject-and-score handling below, the
+    same as any other status.
+
+    **This `PS_AUTH_FAILED` replace branch exists for exactly one reason:
+    GSSAPI ticket-verification failure falling back to the next configured
+    auth method.** `ws_switch_auth_to_next()` (`worker-auth.c:1930-1938`)
+    is the only place a worker legitimately resets `ws->auth_state =
+    S_AUTH_INACTIVE` — and therefore re-sends `SEC_AUTH_INIT` on the same
+    pid — *after* a real sec-mod round trip has already created an entry;
+    the worker-side contract for this reset (why it is bounded to these two
+    call sites and cannot loop) is REQ-WORKER-AUTH-007. It is reached only
+    when a GSSAPI attempt has
+    already gone through `handle_sec_auth_res()`'s failure path
+    (`sec-mod-auth.c:435-441`, setting `PS_AUTH_FAILED` without deleting the
+    entry) and the worker falls back to the next method. This is *not* an
+    illustrative example among several — no other configured auth type
+    (certificate, plain, RADIUS, PAM, OIDC) produces this pattern: a missing
+    client certificate is rejected before `SEC_AUTH_INIT` is ever sent
+    (`worker-auth.c:1741-1751`, pre-secmod), and a failed plain/RADIUS/PAM
+    password attempt terminates the connection outright
+    (`goto auth_fail`) rather than resetting to `S_AUTH_INACTIVE`. If the
+    GSSAPI fallback mechanism is ever removed or replaced with something
+    that does not need to resurrect a failed pid's entry, this branch (and
+    the `PS_AUTH_FAILED` special-casing throughout this requirement) has no
+    remaining justification and MUST be reconsidered for removal — at that
+    point every `SEC_AUTH_INIT` for a pid that already has an entry could
+    revert to the simpler always-reject-and-score rule below, and
+    `find_client_entry_by_pid()`'s only remaining caller would need
+    re-evaluating too.
+  - For any other status (`PS_AUTH_INIT`, `PS_AUTH_CONT`, `PS_AUTH_COMPLETED`),
+    or `PS_AUTH_FAILED` with `in_use > 0`, sec-mod MUST NOT create a new
+    entry, MUST NOT modify or delete the existing one, MUST NOT send any
+    reply, and MUST call `sec_mod_add_score_to_ip()` with
+    `score = ban_points_wrong_password` against the existing entry's
+    vhost/IP (same mechanism as REQ-SECMOD-SEC-003) — a conforming worker
+    never re-sends `SEC_AUTH_INIT` while a previous attempt on the same pid
+    is still mid-flight (`PS_AUTH_INIT`/`PS_AUTH_CONT`), already completed
+    (`PS_AUTH_COMPLETED`), or failed but still attached to an open session
+    (`PS_AUTH_FAILED` with `in_use > 0`), so this is treated as a protocol
+    violation (e.g. a compromised worker replaying `SEC_AUTH_INIT` with its
+    still-valid original HMAC/`session_start_time`) and scored like a
+    qualifying auth failure rather than silently retried for free.
+  - `acct_info.id` is the pid correlator `find_client_entry_by_pid()`
+    matches against. It is stamped in three places: `new_client_entry()` at
+    entry creation, `handle_sec_auth_stats_cmd()` on every `CMD_SEC_CLI_STATS`
+    from a worker presenting a valid SID (`sec-mod-auth.c:754`), and cleared
+    (`= 0`) by `expire_client_entry()` whenever an entry is kept (not
+    immediately deleted) after `e->in_use` reaches 0. A zero `acct_info.id`
+    therefore means "no worker has reported against this entry since it was
+    last detached" — it prevents a later, unrelated worker that inherits
+    the same OS pid from spuriously matching a lingering/disconnected
+    entry. It is NOT a guarantee that a non-zero-id match is the entry's
+    originally-authenticating worker: any worker later presenting that
+    entry's valid SID over `CMD_SEC_CLI_STATS` re-stamps the id to its own
+    pid. One consequence: a `client_entry_st` resumed via
+    `SECM_SESSION_OPEN` (persistent-cookie reconnect, a different pid) keeps
+    `acct_info.id == 0` — `handle_secm_session_open()` bumps `in_use` but
+    does not stamp the pid — until that worker's first `CMD_SEC_CLI_STATS`;
+    during that window `find_client_entry_by_pid()` does not see it, so the
+    new worker's pid is not yet protected by this requirement's one-entry
+    rule (bounded impact: at most one extra `client_entry_st` for that pid
+    until the first stats report).
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/sec-mod-auth.c:874-926 (`handle_sec_auth_init`);
+src/sec-mod-auth.c:366-451 (`handle_sec_auth_res`, `PS_AUTH_FAILED`
+transition); src/sec-mod-auth.c:694-713 (`handle_sec_auth_ban_ip_reply`,
+the other `PS_AUTH_FAILED` transition); src/sec-mod-auth.c:715-778
+(`handle_sec_auth_stats_cmd`, the `acct_info.id` re-stamp at line 754);
+src/sec-mod-db.c:178-247 (`find_client_entry_by_pid`, `expire_client_entry`)
+**Acceptance:** positive, `tests/test-gssapi-opt-pass` — a GSSAPI
+ticket-verification failure (an NTLMSSP Type1 token replayed as its own
+continuation, which `gss_accept_sec_context()` rejects) followed by a
+password fallback on the same worker connection (driven over one persistent
+`http.client.HTTPSConnection`, not curl - curl's connection reuse across
+separate request legs is not portable across the curl versions in this
+project's CI matrix) obtains a cookie
+(`<auth id="success">`), and sec-mod's debug log shows exactly one
+mid-test `sec_auth_user_deinit()` "permanently closing session" line (the
+`PS_AUTH_FAILED` entry being replaced) — not zero (which would mean the
+entry was never reclaimed until final shutdown, i.e. leaked). occtl's
+"Sec-mod client entries" counter would be the more direct way to assert
+this but requires a real uid 0 peer (`check_upeer_id()`), which the
+`NO_NEED_ROOT`/`uid_wrapper` emulation this test relies on for the server
+does not extend to occtl as a separate client process. Negative — (a) send a second
+`CMD_SEC_AUTH_INIT` for a pid whose existing entry is still `PS_AUTH_INIT`
+(don't complete the `SEC_AUTH_CONT` round); confirm no new entry is created,
+no reply is sent, and `CMD_SECM_BAN_IP` is sent with
+`score = ban_points_wrong_password`; confirm enough repeats
+(`max_ban_score / ban_points_wrong_password`) get the source IP refused on
+its next connection. (b) unit, local, `tests/sec-mod-db` — set `e->in_use = 1`
+on a kept (non-deleted, `discon_reason` unset) entry, call
+`expire_client_entry` (decrementing `in_use` to 0), confirm `acct_info.id
+== 0` afterward and that `find_client_entry_by_pid()` no longer matches it
+for that numeric pid. (c) unit, local, `tests/sec-mod-db` — populate a
+`client_entry_st` with `status = PS_AUTH_FAILED` and `in_use = 1`
+(simulating `handle_sec_auth_ban_ip_reply()` marking a live session
+`PS_AUTH_FAILED`); confirm `find_client_entry_by_pid()` still matches it —
+`find_client_entry_by_pid()` does not itself consult `status` or `in_use`,
+which is precisely why `handle_sec_auth_init()` (the only caller that acts
+on the match) MUST check `in_use == 0` itself rather than relying on the
+lookup to exclude attached sessions. `[GAP: the `in_use == 0` condition in
+handle_sec_auth_init() itself — i.e. that a PS_AUTH_FAILED entry with
+in_use > 0 is scored-and-rejected rather than deleted — has no dedicated
+test yet; exercising it requires either a full-stack CI test driving a
+real SECM_BAN_IP round-trip against an open session, or a unit test
+providing HMAC/vhost/auth-module fixtures for handle_sec_auth_init()
+directly, neither of which exists today.]`
+**Links:** REQ-SECMOD-SESSION-001, REQ-SECMOD-SESSION-002,
+REQ-SECMOD-SEC-003, REQ-WORKER-AUTH-007
 
 ## TEARDOWN
 
