@@ -365,7 +365,6 @@ struct proc_st *new_proc(main_server_st *s, pid_t pid, int cmd_fd,
 #define RPROC_QUIT (1 << 1)
 
 void remove_proc(main_server_st *s, struct proc_st *proc, unsigned int flags);
-void proc_to_zombie(main_server_st *s, struct proc_st *proc);
 
 inline static void disconnect_proc(main_server_st *s, proc_st *proc)
 {
