@@ -21,8 +21,15 @@
 # Verifies REQ-PROTO-CTRL-001: with rekey-method = ssl and a CSTP session
 # negotiated at TLS 1.3, the periodic rekey is performed transparently via
 # the standard TLS 1.3 KeyUpdate message (gnutls_session_key_update()),
-# without any tunnel/TUN-device rebuild. See test-rekey-tls12 for the
-# companion negative case (TLS 1.2, unaffected by this change). The two
+# without any tunnel/TUN-device rebuild. The CONNECT response still
+# advertises X-CSTP-Rekey-Method: ssl (per protocol), but with a
+# deliberately far-future X-CSTP-Rekey-Time (one year), decoupled from the
+# real internal rekey cadence, so a client acting on "ssl" itself never
+# gets the chance to within the session (some clients, e.g. Cisco Secure
+# Client 5.1.x, were separately found to disconnect on
+# X-CSTP-Rekey-Method: none, which this design avoids, #745). See
+# test-rekey-tls12 for the companion negative case (TLS 1.2, unaffected by
+# this change). The two
 # cases are kept in separate scripts, each with its own network namespace
 # and single connect/disconnect cycle, rather than two VPN sessions in one
 # script/namespace -- the latter was observed to occasionally leave the
@@ -37,11 +44,13 @@ OCCTL_SOCKET=./occtl-rekey-tls13-$$.socket
 PIDFILE=ocserv-pid.$$.tmp
 CPIDFILE=openpid.$$.tmp
 OUTFILE=rekey-tls13.$$.tmp
+CLIOUTFILE=rekey-tls13-client.$$.tmp
 
 function finish {
   echo " * Cleaning up..."
   CLIPID=${CPIDFILE} cleanup_client_server
   test -n "${OUTFILE}" && rm -f ${OUTFILE} >/dev/null 2>&1
+  test -n "${CLIOUTFILE}" && rm -f ${CLIOUTFILE} >/dev/null 2>&1
 }
 trap finish EXIT
 
@@ -67,7 +76,7 @@ fi
 
 sleep 1
 echo "Connecting with cookie... "
-${CMDNS1} ${OPENCONNECT} ${ADDRESS}:${PORT} -u test -C "$COOKIE" --servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8= --no-dtls --background --pid-file "${CPIDFILE}"
+${CMDNS1} ${OPENCONNECT} ${ADDRESS}:${PORT} -u test -C "$COOKIE" --servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8= --no-dtls -v --background --pid-file "${CPIDFILE}" >${CLIOUTFILE} 2>&1
 
 sleep 4
 
@@ -76,17 +85,23 @@ if [ ! -f "${CPIDFILE}" ]; then
 	fail $PID "It was not possible to establish session!"
 fi
 
-set -e
 ${CMDNS1} ping -c 3 ${VPNADDR}
-set +e
+if [ $? -ne 0 ]; then
+	cat ${OUTFILE}
+	cat ${CLIOUTFILE}
+	fail $PID "FAIL: initial ping over the established tunnel failed"
+fi
 
 echo "Waiting across two rekey-time (20s) intervals... "
 sleep 50
 
 echo "Confirming the tunnel is still usable after the rekey window... "
-set -e
 ${CMDNS1} ping -c 3 ${VPNADDR}
-set +e
+if [ $? -ne 0 ]; then
+	cat ${OUTFILE}
+	cat ${CLIOUTFILE}
+	fail $PID "FAIL: ping after the rekey window failed"
+fi
 
 tun_count=$(grep -c "assigning tun device" ${OUTFILE})
 if [ "${tun_count}" != "1" ]; then
@@ -97,6 +112,16 @@ fi
 if ! grep -q "TLS 1.3 session keys refreshed" ${OUTFILE}; then
 	cat ${OUTFILE}
 	fail $PID "FAIL: expected a transparent TLS 1.3 key update to be logged, found none"
+fi
+
+if ! grep -qi "X-CSTP-Rekey-Method: ssl" ${CLIOUTFILE}; then
+	cat ${CLIOUTFILE}
+	fail $PID "FAIL: expected X-CSTP-Rekey-Method: ssl in the CONNECT response, not found"
+fi
+
+if ! grep -qi "X-CSTP-Rekey-Time: 31536000" ${CLIOUTFILE}; then
+	cat ${CLIOUTFILE}
+	fail $PID "FAIL: expected the far-future X-CSTP-Rekey-Time (one year) in the CONNECT response, not found"
 fi
 
 echo "ok"

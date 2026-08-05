@@ -1352,36 +1352,18 @@ int get_pmtu_approx(worker_st *ws)
 #endif
 }
 
-/* TLS 1.3 has no renegotiation. A "ssl" rekey on such a CSTP session is
+/* TLS 1.3 has no renegotiation. The "ssl" rekey on such a CSTP session is
  * instead performed *only* by the server, unilaterally, via the standard
- * TLS 1.3 KeyUpdate message (gnutls_session_key_update(), triggered from
- * periodic_check() via cstp_transparent_rekey_update()) -- the client is
- * told "none" (see connect_handler()) so it never tries to act on its own
- * schedule. We cannot simply advertise "ssl" and let clients rekey
- * themselves, because we do not control client implementations and they
- * disagree on what a repeated rehandshake call means on an established
- * TLS 1.3 session:
- *  - OpenConnect's GnuTLS backend calls gnutls_handshake() again, which
- *    on the client side is documented to be equivalent to
- *    gnutls_session_key_update(session, GNUTLS_KU_PEER) -- i.e. a real,
- *    peer-requesting KeyUpdate. Having both ends independently send one
- *    around the same time was observed (in testing) to produce a GnuTLS
- *    "illegal parameter" alert and tear down the session.
- *  - OpenConnect's OpenSSL backend (openssl.c, still a supported
- *    "--with-openssl" build) has cstp_handshake() unconditionally return
- *    -EOPNOTSUPP; per cstp.c that failure makes the client immediately
- *    fall back to a full reconnect ("new-tunnel") on every rekey --
- *    exactly the disruption this whole feature exists to avoid. Trusting
- *    the client universally would silently keep that bug for any
- *    OpenSSL-backed client (which includes real-world AnyConnect-
- *    compatible builds).
- * Telling the client "none" stops either backend from acting on its own
- * for this session. Per RFC 8446 4.6.3 every TLS 1.3-conformant peer
- * MUST still transparently accept an unsolicited KeyUpdate at any time
- * at the record layer, regardless of what it was told at the CSTP layer,
- * so a server-only, unilateral KeyUpdate correctly rekeys the channel
- * for any client, independently of which TLS library or CSTP-level
- * rekey support it has. */
+ * TLS 1.3 KeyUpdate message (gnutls_session_key_update()). For backwards
+ * compatibility "X-CSTP-Rekey-Method: ssl" is still advertised with a time
+ * far in the future.
+ *
+ * The rekey time value is only indicative, not authoritative: as the server always
+ * rekeys transparently on (rekey_time), and client rekey is not necessary since
+ * the KeyUpdate on the client side lands regardless. We keep it far enough so that
+ * a compliant client never reaches that limit. We avoid too large values such as
+ * UINT_MAX to avoid integer overflows on the client side. */
+#define CSTP_TLS13_ADVERTISED_REKEY_TIME (60U * 60 * 24 * 365) /* 1 year */
 #if GNUTLS_VERSION_NUMBER >= 0x030603
 static bool cstp_transparent_rekey_capable(gnutls_session_t session)
 {
@@ -1503,8 +1485,10 @@ static int periodic_check(worker_st *ws, struct timespec *tnow,
 		send_stats_to_secmod(ws, now, 0);
 	}
 
-	/* the client was told "none" for this case (connect_handler()) and
-	 * never initiates its own rekey; only the server does, here. */
+	/* the client was advertised a far-future rekey time for this case
+	 * (connect_handler(), CSTP_TLS13_ADVERTISED_REKEY_TIME) and so is not
+	 * expected to initiate its own rekey within the session; only the
+	 * server does, here, on the real (short) cadence. */
 	if (cstp_transparent_rekey_due(ws, now))
 		cstp_transparent_rekey_update(ws, now);
 
@@ -2490,11 +2474,20 @@ static int connect_handler(worker_st *ws)
 
 	/* TLS 1.3 has no renegotiation; instead of falling back to
 	 * new-tunnel, the server performs the "ssl" rekey itself via a
-	 * transparent TLS 1.3 KeyUpdate (periodic_check()). */
+	 * transparent TLS 1.3 KeyUpdate (periodic_check()), with no client
+	 * involvement. The client is still advertised "ssl", per protocol,
+	 * but with a deliberately far-future X-CSTP-Rekey-Time so it never
+	 * attempts its own rehandshake within the session -- see the
+	 * comment above cstp_transparent_rekey_capable() for why. */
 	if (WSRCONFIG(ws)->rekey_time > 0 &&
 	    cstp_transparent_rekey_configured(ws)) {
-		ret = cstp_puts(ws, "X-CSTP-Rekey-Method: none\r\n");
+		ret = cstp_printf(ws, "X-CSTP-Rekey-Time: %u\r\n",
+				  CSTP_TLS13_ADVERTISED_REKEY_TIME);
 		SEND_ERR(ret);
+
+		ret = cstp_puts(ws, "X-CSTP-Rekey-Method: ssl\r\n");
+		SEND_ERR(ret);
+
 		ws->last_tls_rehandshake = now;
 	} else if (WSRCONFIG(ws)->rekey_time > 0) {
 		unsigned int method;

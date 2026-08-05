@@ -619,42 +619,64 @@ renegotiation (`gnutls_safe_renegotiation_status()`,
 `src/worker-vpn.c:2415-2419`), falling back to `new-tunnel` only for peers
 that lack it.
 
-*TLS 1.3+*: TLS 1.3 has no renegotiation, so the server performs the whole
-rekey itself, with no client involvement: it advertises
-`X-CSTP-Rekey-Method: none` (not `ssl`) and, from `periodic_check()` at
-approximately `rekey_time`, unilaterally issues a TLS 1.3 `KeyUpdate`
-(`gnutls_session_key_update(session, GNUTLS_KU_PEER)`, GnuTLS ≥ 3.6.3, in
-`cstp_transparent_rekey_update()`, gated by
-`cstp_transparent_rekey_capable()`). There is no tunnel/TUN-device rebuild
-and no client-visible interruption — any TLS 1.3 peer accepts an
-unsolicited KeyUpdate transparently at the record layer (RFC 8446 §4.6.3),
-regardless of the CSTP header value.
+*TLS 1.3+*: TLS 1.3 has no renegotiation, so with `rekey-method = ssl` the
+server performs the rekey itself, with no client involvement, via a TLS
+1.3 `KeyUpdate` (`gnutls_session_key_update(session, GNUTLS_KU_PEER)`,
+GnuTLS ≥ 3.6.3, in `cstp_transparent_rekey_update()`, gated by
+`cstp_transparent_rekey_capable()`, triggered from `periodic_check()` at
+the real `rekey_time`), retried on
+`GNUTLS_E_AGAIN`/`GNUTLS_E_INTERRUPTED` for up to 30s before the worker
+ends the session on failure (`exit_worker_reason(ws, REASON_ERROR)`) —
+atomic, no partially-pending rekey state. There is no tunnel/TUN-device
+rebuild and no client-visible interruption: every TLS 1.3 peer must
+transparently accept an unsolicited KeyUpdate at the record layer
+regardless of what it was told at the CSTP layer (RFC 8446 §4.6.3).
 
-`none` is required rather than `ssl` on TLS 1.3 because both of
-OpenConnect's TLS backends mishandle a client-driven rehandshake on an
-already-established TLS 1.3 session (GnuTLS backend: session torn down with
-an "illegal parameter" alert; OpenSSL backend: forced `new-tunnel`
-reconnect) — the exact disruption this requirement exists to avoid. Full
-analysis in the comment above `cstp_transparent_rekey_capable()` in
-`src/worker-vpn.c`.
-
-The rekey is atomic: `gnutls_session_key_update()` is retried on
-`GNUTLS_E_AGAIN`/`GNUTLS_E_INTERRUPTED` for up to 30 seconds; if it has not
-succeeded by then, or fails for any other reason, the worker ends the
-session (`exit_worker_reason(ws, REASON_ERROR)`) rather than leave a rekey
-partially pending.
+The CONNECT response still advertises `X-CSTP-Rekey-Method: ssl`, per the
+MUST above, but `X-CSTP-Rekey-Time` carries `CSTP_TLS13_ADVERTISED_REKEY_TIME`
+(one year, in seconds) rather than the real `rekey_time` — the value is
+purely indicative for client compatibility, not authoritative: the server
+always performs the actual rekey itself, transparently, on its own real
+cadence, so what a client does with the advertised time has no effect on
+when rekeys actually happen. It only needs to be far enough out that a
+client which does act on it never reaches that deadline within the
+session (one year is far beyond both the default `rekey-time`, 2 days,
+and any realistic session lifetime): known OpenConnect backends mishandle
+a client-driven rehandshake on an already-established TLS 1.3 session
+(GnuTLS backend: "illegal parameter" alert from a KeyUpdate race with the
+server's own; OpenSSL backend: `cstp_handshake()` unconditionally returns
+`-EOPNOTSUPP`, forcing a `new-tunnel` reconnect). An earlier version of
+this fix advertised `X-CSTP-Rekey-Method: none` instead; that also
+prevents client-side action but was found to make Cisco Secure Client
+5.1.x reject the CONNECT response outright ("invalid VPN connection
+parameters", CSTP BYE) — see comment above
+`cstp_transparent_rekey_capable()` in `src/worker-vpn.c` (#745).
+`UINT_MAX` was tried before one year and is unsafe: a client parsing it
+with a 32-bit `long`/`time_t` (e.g. `atol()` on an ILP32 build, as used by
+i386 OpenConnect builds) overflows when computing its own rekey deadline
+(`now + value`), wrapping to a time in the past. The client then believes
+a rekey is immediately due and floods the server with rehandshake
+attempts, which trips GnuTLS's own flood protection
+(`GNUTLS_E_TOO_MANY_HANDSHAKE_PACKETS`) and kills the session — observed
+in CI on the i386/Debian job (#745 follow-up).
 
 Tested by `tests/test-rekey-tls13` (TLS 1.3: one tun-device assignment for
 the session, i.e. no rebuild; `TLS 1.3 session keys refreshed` logged;
-tunnel pings succeed before and after the rekey window) and
-`tests/test-rekey-tls12` (TLS 1.2 negative case: legacy rehandshake
-completes, no TLS 1.3 KeyUpdate logged). Both connect with `--no-dtls` so
-the assertions exercise CSTP/TLS, not DTLS.
+`X-CSTP-Rekey-Method: ssl` and the far-future `X-CSTP-Rekey-Time` seen in
+the client's CONNECT response; tunnel pings succeed before and after the
+rekey window) and `tests/test-rekey-tls12` (TLS 1.2 negative case: legacy
+rehandshake completes, no TLS 1.3 KeyUpdate logged). Both connect with
+`--no-dtls` so the assertions exercise CSTP/TLS, not DTLS.
 **Divergence**: both `ssl` and `new-tunnel` are implemented (not just
-advertised), so this is MAJORITY rather than EXTENSION; classified MAJORITY
-(not UNIVERSAL) only because the *value* `rekey-time` and the *jitter* (`FUZZ`,
-±30s) are ocserv-specific parameters not specified by OC-PROTO at all —
-OC-PROTO defines the header mechanism, OCSERV defines the policy values.
+advertised), so this is MAJORITY rather than EXTENSION; classified
+MAJORITY (not UNIVERSAL) only because the *value* `rekey-time` and the
+*jitter* (`FUZZ`, ±30s) are ocserv-specific parameters not specified by
+OC-PROTO at all — OC-PROTO defines the header mechanism, OCSERV defines
+the policy values. The TLS 1.3 `X-CSTP-Rekey-Time` value is a further
+ocserv-specific policy choice of the same kind: OC-PROTO only says the
+header carries "the time in seconds after which a session should rekey"
+without mandating it match the implementation's actual internal
+cadence.
 `[REVIEW]`: confirm `rekey-method = none` (or unset) correctly advertises
 `X-CSTP-Rekey-Method: none` (value `0`) rather than omitting the header or
 defaulting to `ssl` — not verified in this pass.
