@@ -141,19 +141,33 @@ launch_simple_sr_pam_server() {
 	SOCKET_WRAPPER=1 launch_simple_pam_server $*
 }
 
+# If SYSLOG_SHIM_OUT is set (and SYSLOG_SHIM points at the built shim),
+# echoes ":${SYSLOG_SHIM}" so callers can append it to an LD_PRELOAD chain
+# and have syslog(3)/openlog(3) calls recorded to $SYSLOG_SHIM_OUT (see
+# tests/syslog-shim.c). Echoes nothing otherwise, so callers that don't use
+# it see no change in behavior.
+_syslog_shim_ld_preload() {
+	if test -n "${SYSLOG_SHIM_OUT}" && test -n "${SYSLOG_SHIM}";then
+		printf ':%s' "${SYSLOG_SHIM}"
+	fi
+}
+
 launch_simple_sr_server() {
+	preload="libsocket_wrapper.so:libuid_wrapper.so$(_syslog_shim_ld_preload)"
 	if test -n "${VERBOSE}" && test "${VERBOSE}" -ge 1;then
-		LD_PRELOAD=libsocket_wrapper.so:libuid_wrapper.so UID_WRAPPER=1 UID_WRAPPER_ROOT=1 $SERV $* -d 3 &
+		LD_PRELOAD=${preload} UID_WRAPPER=1 UID_WRAPPER_ROOT=1 $SERV $* -d 3 &
 	else
-		LD_PRELOAD=libsocket_wrapper.so:libuid_wrapper.so UID_WRAPPER=1 UID_WRAPPER_ROOT=1 $SERV $* >/dev/null 2>&1 &
+		LD_PRELOAD=${preload} UID_WRAPPER=1 UID_WRAPPER_ROOT=1 $SERV $* >/dev/null 2>&1 &
 	fi
 }
 
 launch_simple_server() {
+	preload="$(_syslog_shim_ld_preload)"
+	preload="${preload#:}"
 	if test -n "${VERBOSE}" && test "${VERBOSE}" -ge 1;then
-		$PRELOAD_CMD $SERV $* &
+		LD_PRELOAD=${preload} $PRELOAD_CMD $SERV $* &
 	else
-		$PRELOAD_CMD $SERV $* >/dev/null 2>&1 &
+		LD_PRELOAD=${preload} $PRELOAD_CMD $SERV $* >/dev/null 2>&1 &
 	fi
 }
 

@@ -300,6 +300,27 @@ exchange). [SEC] negative — configure a vhost with only `auth = "gssapi"`
 `S_AUTH_INACTIVE` and re-prompting.
 **Links:** REQ-SECMOD-SESSION-007, REQ-AUTH-AUTH-031, REQ-AUTH-AUTH-032
 
+### REQ-WORKER-AUTH-008 — A missing client certificate is logged at `LOG_ERR` only when certificate authentication was mandatory
+
+**Requirement:** `verify_certificate_cb()` MUST NOT log
+`GNUTLS_E_NO_CERTIFICATE_FOUND` at `LOG_ERR` when the certificate was merely
+optional for this vhost (`WSRCONFIG(ws)->cisco_client_compat != 0` or
+`WSRCONFIG(ws)->cert_req != GNUTLS_CERT_REQUIRE`, per REQ-AUTH-INIT-005) —
+log at `LOG_INFO` instead and return `0` so authentication falls back to the
+next method (REQ-WORKER-AUTH-007). `LOG_ERR` is reserved for
+`cert_req == GNUTLS_CERT_REQUIRE`, where the missing certificate is fatal.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/tlslib.c:292-385 (`verify_certificate_cb`)
+**Acceptance:** positive, `tests/test-cert-opt-pass` — connecting without a
+client certificate to a vhost with `auth = "plain[...]"`,
+`enable-auth = "certificate"` MUST NOT produce a `LOG_ERR` "no certificate
+was found" line, but MUST still produce one at `LOG_INFO`. No dedicated
+negative test: for `cert_req == GNUTLS_CERT_REQUIRE`, GnuTLS itself rejects
+the handshake before `verify_certificate_cb()` runs at all, so that branch
+isn't reachable via the standard connection path.
+**Links:** REQ-AUTH-INIT-005, REQ-WORKER-AUTH-007
+
 ---
 
 ## SEC

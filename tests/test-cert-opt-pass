@@ -21,8 +21,14 @@ SERV="${SERV:-../src/ocserv}"
 srcdir=${srcdir:-.}
 NO_NEED_ROOT=1
 OUTFILE=test-cert-opt-pass.$$.tmp
+SYSLOG_SHIM_OUT=test-cert-opt-pass-syslog.$$.tmp
 
 . `dirname $0`/common.sh
+
+if test -z "${SYSLOG_SHIM}" || ! test -f "${SYSLOG_SHIM}"; then
+	echo "SYSLOG_SHIM not set or not built; skipping"
+	exit 77
+fi
 
 eval "${GETPORT}"
 
@@ -51,7 +57,15 @@ return 0
 }
 
 update_config test-cert-opt-pass.config
-launch_simple_sr_server -d 1 -f -c ${CONFIG}
+# SYSLOG_SHIM_OUT is exported above so launch_simple_sr_server (common.sh)
+# preloads tests/syslog-shim.c, which records every syslog(3) call as
+# "MSG <priority> <message>" -- this is checked below instead of the
+# daemon's stdout/stderr, which is not a reliable capture point across
+# environments.
+# -d 2 (OCLOG_INFO) so the LOG_INFO fallback message checked below is not
+# itself filtered out before reaching syslog(3).
+export SYSLOG_SHIM_OUT
+launch_simple_sr_server -d 2 -f -c ${CONFIG}
 PID=$!
 wait_server $PID
 
@@ -66,6 +80,25 @@ echo -n "Connecting to obtain cookie (without certificate)... "
 connect "-u test" "test"
 if test $? != 0;then
 	fail $PID "Failed to connect with user without certificate!"
+fi
+echo ok
+
+# Regression test for https://gitlab.com/openconnect/ocserv/-/work_items/744:
+# a merely-optional client certificate (auth = certificate, enable-auth =
+# plain[...]) must not be logged as a LOG_ERR-level failure when the client
+# does not present one -- it is expected fallback behavior, not an error.
+# LOG_ERR is priority 3, LOG_INFO is priority 6 (see syslog(3)).
+echo -n "Checking that missing-but-optional certificate is not logged as an error... "
+if grep -q '^MSG 3 .*no certificate was found' "${SYSLOG_SHIM_OUT}";then
+	cat "${SYSLOG_SHIM_OUT}"
+	fail $PID "Missing optional certificate was logged as LOG_ERR!"
+fi
+echo ok
+
+echo -n "Checking that missing-but-optional certificate is still logged at LOG_INFO... "
+if ! grep -q '^MSG 6 .*no certificate was found (not required for this session)' "${SYSLOG_SHIM_OUT}";then
+	cat "${SYSLOG_SHIM_OUT}"
+	fail $PID "Missing optional certificate was not logged at all!"
 fi
 echo ok
 
@@ -84,5 +117,6 @@ fi
 echo ok
 
 cleanup
+rm -f "${SYSLOG_SHIM_OUT}"
 
 exit 0

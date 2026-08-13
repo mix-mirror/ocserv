@@ -341,7 +341,6 @@ static int verify_certificate_cb(gnutls_session_t session)
 	 */
 	ret = gnutls_certificate_verify_peers2(session, &status);
 	if (ret == GNUTLS_E_NO_CERTIFICATE_FOUND) {
-		oclog(ws, LOG_ERR, "no certificate was found");
 		goto no_cert;
 	}
 	if (ret < 0) {
@@ -375,8 +374,13 @@ static int verify_certificate_cb(gnutls_session_t session)
 	return 0;
 no_cert:
 	if (WSRCONFIG(ws)->cisco_client_compat != 0 ||
-	    WSRCONFIG(ws)->cert_req != GNUTLS_CERT_REQUIRE)
+	    WSRCONFIG(ws)->cert_req != GNUTLS_CERT_REQUIRE) {
+		oclog(ws, LOG_INFO,
+		      "no certificate was found (not required for this session)");
 		return 0;
+	}
+
+	oclog(ws, LOG_ERR, "no certificate was found");
 fail:
 	return GNUTLS_E_CERTIFICATE_ERROR;
 }
