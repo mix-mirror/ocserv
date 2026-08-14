@@ -62,7 +62,8 @@ echo "Testing PAM cleanup when client aborts during conversation (issue #657)...
 export TEST_PAMDIR=data/pam
 update_config test-pam-abort.config
 
-launch_sr_pam_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_sr_pam_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo ""

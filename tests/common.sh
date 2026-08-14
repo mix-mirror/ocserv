@@ -104,7 +104,7 @@ fail() {
    exit 1
 }
 
-launch_pam_server() {
+launch_simple_pam_server() {
 	test -z "${TEST_PAMDIR}" && exit 2
 	export PAM_WRAPPER_DEBUGLEVEL=3
 	export PAM_WRAPPER_SERVICE_DIR="${builddir}/pam.$$.tmp/"
@@ -133,20 +133,12 @@ launch_pam_server() {
 	else
 		LD_PRELOAD=libnss_wrapper.so:${SR}libpam_wrapper.so:libuid_wrapper.so PAM_WRAPPER=1 UID_WRAPPER=1 UID_WRAPPER_ROOT=1 $PRELOAD_CMD $SERV $* >/dev/null 2>&1 &
 	fi
-	LOCALPID="$!";
 	unset NSS_WRAPPER_PASSWD
 	unset NSS_WRAPPER_GROUP
-	trap "[ ! -z \"${LOCALPID}\" ] && kill ${LOCALPID};" 15
-	wait "${LOCALPID}"
-	LOCALRET="$?"
-	if [ "${LOCALRET}" != "0" ] && [ "${LOCALRET}" != "143" ] ; then
-		 # Houston, we'v got a problem...
-		 exit 1
-	fi
 }
 
-launch_sr_pam_server() {
-	SOCKET_WRAPPER=1 launch_pam_server $*
+launch_simple_sr_pam_server() {
+	SOCKET_WRAPPER=1 launch_simple_pam_server $*
 }
 
 launch_simple_sr_server() {
@@ -165,16 +157,8 @@ launch_simple_server() {
 	fi
 }
 
-launch_debug_server() {
-	valgrind --leak-check=full $SERV $* >out.txt 2>&1 &
-	LOCALPID="$!";
-	trap "[ ! -z \"${LOCALPID}\" ] && kill ${LOCALPID};" 15
-	wait "${LOCALPID}"
-	LOCALRET="$?"
-	if [ "${LOCALRET}" != "0" ] && [ "${LOCALRET}" != "143" ] ; then
-		 # Houston, we'v got a problem...
-		 exit 1
-	fi
+launch_simple_debug_server() {
+	PRELOAD_CMD="valgrind --leak-check=full" VERBOSE=1 launch_simple_server $*
 }
 
 wait_server() {

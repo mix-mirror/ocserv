@@ -124,7 +124,8 @@ update_config kerberos.config
 # Run ocserv
 PRELOAD_CMD=${CMDNS2}
 echo " * Starting ocserv..."
-launch_pam_server -d 3 -f -c ${CONFIG} & PID=$!
+launch_simple_pam_server -d 3 -f -c ${CONFIG}
+PID=$!
 PRELOAD_CMD=""
 
 sleep 5

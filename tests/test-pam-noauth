@@ -31,7 +31,8 @@ echo "Testing PAM acct backend with username-password... "
 export TEST_PAMDIR=data/pam-single
 
 update_config test-pam-noauth.config
-launch_sr_pam_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_sr_pam_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo "Connecting with correct password but no PAM user... "
