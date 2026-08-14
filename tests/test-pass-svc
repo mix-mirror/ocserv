@@ -33,7 +33,8 @@ echo "Testing local backend with username-password... "
 update_config test1.config
 echo "udp-port = 0" >>${CONFIG}
 echo "cisco-svc-client-compat = true" >>${CONFIG}
-launch_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG} & PID=$!
+launch_simple_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo "Connecting to obtain non-auth cookies... "

@@ -30,7 +30,8 @@ echo "Testing ocserv and user route application... "
 rm -f test-iroute.tmp
 
 update_config test-iroute.config
-launch_server -d 1 -f -c "${CONFIG}" & PID=$!
+launch_simple_server -d 1 -f -c "${CONFIG}"
+PID=$!
 wait_server $PID
 
 echo -n "Connecting to obtain cookie (with certificate)... "

@@ -44,7 +44,8 @@ trap finish EXIT
 echo "Testing banner printing... "
 
 update_config test1.config
-launch_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG} & PID=$!
+launch_simple_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 sleep 3

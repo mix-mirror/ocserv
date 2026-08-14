@@ -33,7 +33,8 @@ update_config test1.config
 
 sed -i 's/#rate-limit-ms = 100/rate-limit-ms = 100/g' ${CONFIG}
 
-launch_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG} & PID=$!
+launch_simple_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo "Connecting to obtain cookie... "

@@ -29,7 +29,8 @@ eval "${GETPORT}"
 echo "Testing local backend with encrypted PKCS #8 key file... "
 
 update_config test-enc-key.config
-launch_sr_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_sr_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo "Connecting to obtain cookie... "
@@ -44,7 +45,8 @@ sleep 2
 echo "Testing local backend with encrypted openssl key file... "
 
 update_config test-enc-key2.config
-launch_sr_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_sr_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo "Connecting to obtain cookie... "

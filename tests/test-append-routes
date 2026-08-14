@@ -36,7 +36,8 @@ rm -f ${TMPFILE1}
 update_config test-user-config.config
 echo "append-routes = true" >> ${CONFIG}
 
-launch_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo "Checking if routes are appended... "

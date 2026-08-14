@@ -44,7 +44,8 @@ function finish {
 trap finish EXIT
 
 update_config test-max-same-1.config
-launch_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo "Connecting to obtain cookie... "

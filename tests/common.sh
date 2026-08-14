@@ -5,8 +5,6 @@
 #
 # This file is part of ocserv.
 #
-# The launch_server() function was contributed by Cedric Arbogast.
-#
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 2 of the License, or
@@ -104,38 +102,6 @@ fail() {
    echo "Failure: $1" >&2
    kill $PID
    exit 1
-}
-
-launch_server() {
-	if test -n "${VERBOSE}" && test "${VERBOSE}" -ge 1;then
-	    $SERV $* -d 3 &
-	else
-	    $SERV $* >/dev/null 2>&1 &
-	fi
-	LOCALPID="$!";
-	trap "[ ! -z \"${LOCALPID}\" ] && kill ${LOCALPID};" 15
-	wait "${LOCALPID}"
-	LOCALRET="$?"
-	if [ "${LOCALRET}" != "0" ] && [ "${LOCALRET}" != "143" ] ; then
-		 # Houston, we'v got a problem...
-		 exit 1
-	fi
-}
-
-launch_sr_server() {
-	if test -n "${VERBOSE}" && test "${VERBOSE}" -ge 1;then
-		LD_PRELOAD=libsocket_wrapper.so:libuid_wrapper.so UID_WRAPPER=1 UID_WRAPPER_ROOT=1 $SERV $* -d 3 &
-	else
-		LD_PRELOAD=libsocket_wrapper.so:libuid_wrapper.so UID_WRAPPER=1 UID_WRAPPER_ROOT=1 $SERV $* >/dev/null 2>&1 &
-	fi
-	LOCALPID="$!";
-	trap "[ ! -z \"${LOCALPID}\" ] && kill ${LOCALPID};" 15
-	wait "${LOCALPID}"
-	LOCALRET="$?"
-	if [ "${LOCALRET}" != "0" ] && [ "${LOCALRET}" != "143" ] ; then
-		 # Houston, we'v got a problem...
-		 exit 1
-	fi
 }
 
 launch_pam_server() {

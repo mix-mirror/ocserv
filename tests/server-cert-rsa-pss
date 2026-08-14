@@ -29,7 +29,8 @@ eval "${GETPORT}"
 echo "Testing server cert with RSA-PSS... "
 
 update_config test-rsa-pss.config
-launch_sr_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_sr_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo "Connecting to obtain cookie... "

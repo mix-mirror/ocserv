@@ -30,7 +30,8 @@ eval "${GETPORT}"
 echo "Testing local backend with username-password and certificate... "
 
 update_config test-user-cert.config
-launch_sr_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_sr_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo -n "Connecting to obtain cookie (without certificate)... "

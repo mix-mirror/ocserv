@@ -48,7 +48,8 @@ OPENCONNECT="$OPENCONNECT --os=apple-ios"
 echo " * Testing connection with username-password... "
 
 update_config apple-ios.config
-launch_server -d 1 -f -c "${CONFIG}" & PID=$!
+launch_simple_server -d 1 -f -c "${CONFIG}"
+PID=$!
 wait_server $PID
 
 sleep 2

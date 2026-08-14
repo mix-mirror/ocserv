@@ -29,7 +29,8 @@ echo "Testing whether cookies will remain valid during the session time... "
 rm -f pid.$$
 
 update_config test-cookie-timeout-2.config
-launch_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo "Connecting to obtain cookie... "

@@ -55,7 +55,8 @@ echo "TESTINVALID:testinvalid:wrongpass" >$NTLM_USER_FILE.wrong
 VERBOSE=1
 
 update_config test-gssapi.config
-launch_sr_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_sr_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 #CURLOPTS="--cacert ${srcdir}/certs/ca.pem"
@@ -79,7 +80,8 @@ sleep 2
 
 # Test whether no-local-map is by default true
 update_config test-gssapi-local-map.config
-launch_sr_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_sr_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo "Connecting with curl... "

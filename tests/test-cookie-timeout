@@ -30,7 +30,8 @@ echo "Testing whether cookies will expire as expected... "
 PIDFILE="ct$$.pid.tmp"
 
 update_config test-cookie-timeout.config
-launch_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo "Connecting to obtain cookie... "

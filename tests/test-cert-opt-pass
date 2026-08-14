@@ -51,7 +51,8 @@ return 0
 }
 
 update_config test-cert-opt-pass.config
-launch_sr_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_sr_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo -n "Connecting to obtain cookie (user without certificate)... "

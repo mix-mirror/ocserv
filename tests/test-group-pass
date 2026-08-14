@@ -29,7 +29,8 @@ eval "${GETPORT}"
 echo "Testing local backend with username-group-password... "
 
 update_config test-group-pass.config
-launch_sr_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_sr_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo "Connecting to obtain cookie... "

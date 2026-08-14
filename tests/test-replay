@@ -57,7 +57,8 @@ trap finish EXIT
 $TCPDUMP -c 1 -n -i lo "udp and port $PORT" -w $TCPDUMP_FILE > tcpdump.log  2>&1 &
 
 update_config test-max-same-1.config
-launch_server -d 9999 -f -c ${CONFIG} & PID=$!
+launch_simple_server -d 9999 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo "Connecting to obtain cookie... "

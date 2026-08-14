@@ -56,7 +56,8 @@ return 0
 echo "Testing local backend with username-password and explicit IP addresses... "
 
 update_config test-explicit-ip.config
-launch_server -d 1 -f -c "${CONFIG}" & PID=$!
+launch_simple_server -d 1 -f -c "${CONFIG}"
+PID=$!
 wait_server $PID
 
 echo -n "Connecting with an illegal address assigned... "

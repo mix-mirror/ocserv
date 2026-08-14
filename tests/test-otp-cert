@@ -41,7 +41,8 @@ fi
 rm -f ${OTP_FILE}
 cp ${srcdir}/data/test-otp.oath ${OTP_FILE}
 update_config test-otp-cert.config
-launch_sr_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_sr_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo -n "Connecting to obtain cookie (without certificate)... "

@@ -31,7 +31,8 @@ echo "Testing whether cookies are being correctly invalidated... "
 rm -f "${PIDFILE1}" "${PIDFILE2}"
 
 update_config test-cookie-invalidation.config
-launch_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 echo "Connecting to obtain cookie... "

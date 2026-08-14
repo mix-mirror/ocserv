@@ -42,7 +42,8 @@ echo "Testing ocserv connection via haproxy... "
 
 
 update_config test-haproxy-auth.config
-launch_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG} & PID=$!
+launch_simple_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG}
+PID=$!
 wait_server ${PID}
 
 sed -e 's|@HAPORT@|'${HAPORT}'|g' -e 's|@PORT@|'${PORT}'|g' -e 's|@ADDRESS@|'${ADDRESS}'|g' ${srcdir}/data/haproxy-auth.cfg >${HACONFIG}

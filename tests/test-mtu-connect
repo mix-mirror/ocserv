@@ -65,7 +65,8 @@ PASSWORD="test"
 echo "Testing MTU negotiation and MIN_MTU enforcement..."
 
 update_config test1.config
-launch_server -d 1 -f -c "${CONFIG}" & PID=$!
+launch_simple_server -d 1 -f -c "${CONFIG}"
+PID=$!
 wait_server $PID
 
 # tls_send: send a raw request over TLS via gnutls-cli and capture the

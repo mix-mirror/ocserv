@@ -33,7 +33,8 @@ echo "Testing connection to the server with camouflage enabled"
 
 update_config test-camouflage-norealm.config
 
-launch_server -d 1 -f -c ${CONFIG} & PID=$!
+launch_simple_server -d 1 -f -c ${CONFIG}
+PID=$!
 wait_server ${PID}
 
 # Most of the logic is tested in 'test-camouflage' test,

@@ -31,7 +31,8 @@ eval "${GETPORT}"
 echo "Testing local backend with username-password and optional certificate... "
 
 update_config test-pass-opt-cert.config
-launch_sr_server -d 1 -f --pid-file ${PIDFILE} -c ${CONFIG} & PID=$!
+launch_simple_sr_server -d 1 -f --pid-file ${PIDFILE} -c ${CONFIG}
+PID=$!
 wait_server $PID
 
 connect()
