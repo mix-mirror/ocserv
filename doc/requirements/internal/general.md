@@ -257,6 +257,65 @@ REQ-GEN-TECH-004
 
 ---
 
+### REQ-GEN-TECH-006 — Modifying vendored code requires a runtime test or compile-time check that fails if the change is lost
+
+**Requirement:** Files under vendored subtrees (`src/ccan/`, `src/inih/`,
+`src/llhttp/`, `src/pcl/`, `src/protobuf/`, `src/gnulib/`) MUST track upstream
+verbatim except for a narrow, justified deviation — an unfixed upstream
+security issue, exposing an existing hardcoded value as an `#ifndef`-guarded
+override (as already done for `INI_MAX_LINE`), or a fix for an ocserv-specific
+build failure — and any such deviation MUST be guarded by either a dedicated
+runtime test in `tests/` (per REQ-GEN-TEST-001) that exercises the
+ocserv-specific behavior, or a compile-time check (a `#if`/`#error` or
+`_Static_assert` tying the deviation to the value it depends on, as MR !604
+does for `INI_MAX_SECTION` vs. `MAX_VHOST_NAME_LEN`) where the deviation is a
+numeric/structural invariant rather than a behavior, so that a future vendor
+sync which silently drops the deviation fails `ninja -C build` or `ninja -C
+build test` instead of going unnoticed; this is not hypothetical — a prior
+inih deviation (`e7233819`) was dropped by a vendor sync and had to be
+manually rediscovered and reapplied twice (`1a2100f9`, `28252bff`) for lack of
+either.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** AGENTS.md (External Libraries); REQ-GEN-TECH-003 (no hand-editing
+generated pb-c files); git history `e7233819`, `1a2100f9`, `28252bff`; MR !604
+(`INI_MAX_SECTION` compile-time guard)
+**Acceptance:** code-review — an MR modifying a vendored file without an
+accompanying `tests/meson.build`-registered runtime test or a compile-time
+guard is rejected. Regression — `ninja -C build` or `ninja -C build test`
+catches a vendor sync that drops the deviation.
+**Links:** REQ-GEN-TECH-003, REQ-GEN-TECH-005, REQ-GEN-TEST-001
+
+---
+
+### REQ-GEN-TECH-007 — Improvements to actively-maintained vendored code MUST be sent upstream first
+
+**Requirement:** When a change to a vendored subtree (`src/ccan/`, `src/inih/`,
+`src/llhttp/`, `src/pcl/`, `src/protobuf/`, `src/gnulib/`) is a general
+improvement rather than an ocserv-specific deviation covered by
+REQ-GEN-TECH-006 (e.g. a bug fix, portability fix, or enhancement that upstream
+would plausibly also want), the contributor MUST first propose the change to
+the upstream project and reference that submission (issue/PR/patch URL) in the
+ocserv MR description, before or alongside carrying the change locally. This
+does not apply to subtrees whose upstream is unmaintained or has no accepting
+channel — currently `src/pcl/` (PCL upstream does not use a collaboration platform).
+In that case the change MAY be applied directly in-tree.
+This requirement is about where the fix is authored, not whether
+it is guarded once merged: any resulting deviation still MUST satisfy
+REQ-GEN-TECH-006.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** MR !604 (review discussion — suggestion to send bundled library
+improvements upstream first)
+**Acceptance:** code-review — an MR modifying a vendored file, other than
+`src/pcl/`, with a change that is not an ocserv-specific deviation (per
+REQ-GEN-TECH-006) MUST cite an upstream issue/PR/patch link in the MR
+description, or explain why upstreaming does not apply; absence of either is
+grounds for blocking the MR.
+**Links:** REQ-GEN-TECH-005, REQ-GEN-TECH-006
+
+---
+
 ## STYLE — code style and structure rules
 
 ### REQ-GEN-STYLE-001 — Source files MUST conform to C99, Linux kernel style, and pass `clang-format`; header guards MUST use the canonical form
