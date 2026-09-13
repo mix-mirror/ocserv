@@ -117,6 +117,21 @@ foreach s : always_scripts
 endforeach
 
 # --------------------------------------------------------------------------
+# Doc build regression tests – only meaningful when ronn(-ng) generates the
+# manpage (see doc/meson.build)
+# --------------------------------------------------------------------------
+
+if ronn.found()
+  test('test-manpage-configfile', find_program('test-manpage-configfile'),
+    args:    [ocserv8_manpage.full_path()],
+    depends: [ocserv8_manpage],
+    env:     test_env,
+    timeout: 30,
+    workdir: test_workdir,
+  )
+endif
+
+# --------------------------------------------------------------------------
 # Shell script tests – require cwrap
 # --------------------------------------------------------------------------
 

@@ -1,0 +1,56 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with ocserv; if not, write to the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+# Regression test: doc/meson.build must embed doc/sample.config into the
+# generated ocserv.8 in place of the @CONFIGFILE@ placeholder (see
+# doc/gen-ocserv8-md.sh). This was silently lost once before, when the
+# autoconf->meson migration dropped the sed step that performed the
+# substitution, and ocserv.8 shipped with the literal "@CONFIGFILE@" string
+# instead of the actual sample configuration. This test only runs when ronn
+# (or ronn-ng) is available, since that is what meson uses to build the
+# manpage.
+
+MANPAGE="${1:-../doc/ocserv.8}"
+
+echo "Testing that ${MANPAGE} embeds sample.config instead of @CONFIGFILE@..."
+
+if ! test -f "${MANPAGE}"; then
+	echo "FAIL: generated manpage not found at ${MANPAGE}"
+	exit 1
+fi
+
+if grep -q '@CONFIGFILE@' "${MANPAGE}"; then
+	echo "FAIL: ${MANPAGE} still contains the literal @CONFIGFILE@ placeholder;" \
+	     "sample.config was not embedded"
+	exit 1
+fi
+
+# GROUPNAME only appears in sample.config's connect-script description, so
+# its presence confirms the substitution actually happened rather than the
+# placeholder line being silently dropped.
+if ! grep -q 'GROUPNAME' "${MANPAGE}"; then
+	echo "FAIL: ${MANPAGE} does not contain sample.config content (expected" \
+	     "to find GROUPNAME); the embedding step may have failed silently"
+	exit 1
+fi
+
+echo " * OK: ${MANPAGE} contains sample.config content and no @CONFIGFILE@ placeholder"
+
+exit 0
