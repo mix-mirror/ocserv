@@ -27,6 +27,7 @@ option('root-tests',        type: 'boolean',  value: true,      description: 'En
 option('serial-heavy-tests', type: 'boolean', value: false,     description: 'Run iperf3-heavy tests serially to avoid ASAN memory exhaustion under parallel load')
 option('tun-tests',         type: 'boolean',  value: true,      description: 'Enable tests requiring /dev/net/tun')
 option('kerberos-tests',    type: 'boolean',  value: false,     description: 'Enable tests requiring a Kerberos setup')
+option('tests',             type: 'boolean',  value: true,      description: 'Build the tests/ subdirectory (disable to skip building/compiling tests entirely)')
 option('with-werror',       type: 'boolean',  value: false,     description: 'Treat compiler warnings as errors')
 option('pager',             type: 'string',   value: 'less',    description: 'Default pager for occtl (empty string for none)')
 option('firewall-script',   type: 'combo',    choices: ['auto', 'nftables', 'iptables'], value: 'nftables', description: 'Firewall script backend (nftables by default; auto is an alias for nftables)')

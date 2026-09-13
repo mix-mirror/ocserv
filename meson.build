@@ -422,7 +422,9 @@ common_inc = include_directories('src/common')
 
 subdir('src')
 subdir('doc')
-subdir('tests')
+if get_option('tests')
+  subdir('tests')
+endif
 
 # --------------------------------------------------------------------------
 # Dist: pre-generate files that autotools used to ship via EXTRA_DIST

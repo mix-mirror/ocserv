@@ -139,6 +139,7 @@ meson test -C build test-pass
 | `-Dseccomp=disabled` | auto | seccomp worker isolation |
 | `-Dwith-werror=true` | false | Treat warnings as errors |
 | `-Db_coverage=true` | false | Enable gcov coverage |
+| `-Dtests=false` | true | Skip building the `tests/` subdirectory entirely (useful for cross-builds/packaging where tests are never run) |
 
 ```bash
 # Minimal build for fast iteration
