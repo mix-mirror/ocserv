@@ -607,6 +607,7 @@ int handle_secm_session_open_cmd(sec_mod_st *sec, int fd,
 		seclog(sec, LOG_ERR, "error in sending session reply");
 		return ERR_BAD_COMMAND; /* we desync */
 	}
+	e->discon_reason = 0;
 	talloc_free(lpool);
 
 	seclog(sec, LOG_INFO, "%sinitiating session for user '%s' " SESSION_STR,
@@ -1052,7 +1053,8 @@ cleanup:
 	return handle_sec_auth_res(cfd, sec, e, ret);
 }
 
-void sec_auth_user_deinit(sec_mod_st *sec, client_entry_st *e)
+void sec_auth_user_deinit(sec_mod_st *sec, client_entry_st *e,
+			  bool server_shutdown)
 {
 	vhost_cfg_st *vhost;
 
@@ -1066,7 +1068,7 @@ void sec_auth_user_deinit(sec_mod_st *sec, client_entry_st *e)
 	    e->session_is_open != 0) {
 		vhost->static_config.acct.amod->close_session(
 			e->vhost_acct_ctx, e->auth_type, &e->acct_info,
-			&e->saved_stats, e->discon_reason);
+			&e->saved_stats, e->discon_reason, server_shutdown);
 	}
 
 	if (e->auth_ctx != NULL) {

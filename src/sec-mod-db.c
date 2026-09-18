@@ -76,7 +76,16 @@ void sec_mod_client_db_deinit(sec_mod_st *sec)
 
 	t = htable_first(db, &iter);
 	while (t != NULL) {
-		sec_auth_user_deinit(sec, t);
+		/* Prepare final accounting totals without extending the uptime
+		 * snapshot of a retained session with no attached worker. */
+		if (t->session_is_open != 0) {
+			if (t->in_use != 0)
+				t->acct_info.uptime = time(NULL) - t->created;
+			t->saved_stats.bytes_in += t->stats.bytes_in;
+			t->saved_stats.bytes_out += t->stats.bytes_out;
+			memset(&t->stats, 0, sizeof(t->stats));
+		}
+		sec_auth_user_deinit(sec, t, true);
 		t = htable_next(db, &iter);
 	}
 
@@ -205,7 +214,7 @@ client_entry_st *find_client_entry_by_pid(sec_mod_st *sec, unsigned int pid)
 
 static void clean_entry(sec_mod_st *sec, client_entry_st *e)
 {
-	sec_auth_user_deinit(sec, e);
+	sec_auth_user_deinit(sec, e, false);
 	talloc_free(e->msg_str);
 	talloc_free(e);
 }

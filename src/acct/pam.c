@@ -84,7 +84,8 @@ fail1:
 
 static void pam_acct_close_session(void *vctx, unsigned int auth_method,
 				   const struct common_acct_info_st *ai,
-				   stats_st *stats, unsigned int status)
+				   stats_st *stats, unsigned int status,
+				   bool server_shutdown)
 {
 }
 
