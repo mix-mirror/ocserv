@@ -394,30 +394,6 @@ illustrate compliant optional-feature structure.
 
 ---
 
-### REQ-GEN-STYLE-003 — All structs MUST use `_st`/`_t`; `_ctx` is tolerated only in pre-existing names; `_ctx_st` MUST NOT be used
-
-**Requirement:** Every struct tag MUST be named `<name>_st`, and its
-typedef (if any) `<name>_t`, applied mechanically regardless of what the
-struct represents. `_ctx`-suffixed type names in existing code are
-tolerated as legacy and need not be renamed on sight, but `_ctx_st` (and
-`_ctx_t`) MUST NOT appear anywhere, new or existing — such names MUST be
-renamed to the `_st`/`_t` form. This requirement does not apply to
-vendored subtrees (`src/ccan/`, `src/inih/`, `src/llhttp/`, `src/pcl/`,
-`src/protobuf/`, `src/gnulib/`) or generated `*.pb-c.*` files, whose
-naming follows their respective upstreams.
-**Strength:** MUST / MUST NOT
-**Status:** REVIEW — records the convention proposed in MR !579's
-discussion; not yet fully applied across the codebase.
-**Source:** MR !579 (struct naming consistency discussion).
-**Acceptance:** code-review — an MR MUST NOT introduce a `_ctx_st`/`_ctx_t`
-name, and any newly introduced struct MUST follow `<name>_st`/`<name>_t`.
-Candidate automated check: `grep -rnE '_ctx_st\b|_ctx_t\b' src/*.c src/*.h`,
-excluding the vendored subtrees and generated files listed above, MUST
-return no matches.
-**Links:** REQ-GEN-STYLE-001
-
----
-
 ## TEST — test quality requirements
 
 ### REQ-GEN-TEST-001 — Every feature or fix MUST have both a positive and a negative test; tests MUST be self-diagnosing and registered in `tests/meson.build`
