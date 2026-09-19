@@ -12,6 +12,8 @@
 - On TLS 1.3 CSTP sessions, rekey-method = ssl now performs a transparent
   TLS 1.3 KeyUpdate server-side instead of silently falling back to a full
   tunnel rebuild on every rekey (#745)
+- sec-mod now sends a best-effort RADIUS Accounting-Stop for every open
+  session when shutting down (#643)
 
 
 * Version 1.5.0 (released 2026-06-07)
