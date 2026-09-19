@@ -65,6 +65,14 @@ Note that the accounting session is reported as terminated as soon as
 possible when the user disconnects explicitly. When the disconnection
 is due to timeout or other network reasons, the users have their connection
 remain valid until the `cookie-timeout` value expires.
+When sec-mod terminates, shutdown never waits for individual RADIUS responses.
+With radcli, it sends a best-effort Accounting Stop for every open session to
+the first configured RADIUS server only.
+An existing terminate cause for the current connection is preserved; a
+successful reconnect clears the cause from the previous connection. Sessions
+without a current cause use `Lost-Service` for server shutdown.
+Legacy freeradius-client has no non-blocking send primitive, so that build skips
+the Stop request during shutdown rather than delaying server termination.
 
 The `Acct-Session-Time` reported is the wall-clock lifetime of the logical
 session: the time from the initial authentication to the last activity of
@@ -74,7 +82,9 @@ an idle gap between such reconnections is included in `Acct-Session-Time`.
 The value is bounded by `session-timeout` (the session is torn down once it
 is reached), and any idle gap that can be folded in is bounded by
 `cookie-timeout`, after which a fresh authentication starts a new accounting
-session.
+session. If a disconnected session remains retained until server shutdown, its
+final Stop keeps the duration captured at disconnect and does not include the
+subsequent cookie-retention interval.
 
 
 Dictionary

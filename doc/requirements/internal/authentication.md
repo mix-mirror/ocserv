@@ -1242,8 +1242,9 @@ periodically based on `ws->user_config->interim_update_secs`
 (`src/worker-vpn.c:1402-1403`), which defaults to the vhost's
 `stats-report-time` (`src/main-sec-mod-cmd.c:373-376`) unless a RADIUS
 `Acct-Interim-Interval` was received during authentication AND
-`groupconfig=true` is set (REQ-AUTH-AUTH-026(g)). `radius_acct_funcs.close_session` MUST send a
-`PW_STATUS_STOP` Accounting-Request on `CMD_SECM_SESSION_CLOSE`, with
+`groupconfig=true` is set (REQ-AUTH-AUTH-026(g)).
+`radius_acct_funcs.close_session` MUST send a `PW_STATUS_STOP`
+Accounting-Request on `CMD_SECM_SESSION_CLOSE`, with
 `Acct-Terminate-Cause` set from `e->discon_reason`:
 `REASON_USER_DISCONNECT`→`User-Request`,
 `REASON_SERVER_DISCONNECT`→`Admin-Reset`,
@@ -1253,11 +1254,11 @@ periodically based on `ws->user_config->interim_update_secs`
 other/unset reason→`Lost-Service`.
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/acct/radius.c:215-312 (`radius_acct_open_session`,
-`radius_acct_session_stats`, `radius_acct_close_session`);
+**Source:** src/acct/radius.c:178-375 (`radius_acct_session_stats`,
+`radius_acct_open_session`, `radius_acct_close_session`);
 src/sec-mod-auth.c:545-559 (`session_is_open` gating of `open_session`),
-715-777 (`handle_sec_auth_stats_cmd` → `session_stats`), 1020-1040
-(`close_session` on `CMD_SECM_SESSION_CLOSE`)
+716-778 (`handle_sec_auth_stats_cmd` → `session_stats`), 1056-1072
+(`close_session` invocation)
 **Acceptance:** positive, local — connect a client, confirm Start
 Accounting-Request; reconnect/roam without a full re-auth and confirm Start is
 NOT re-sent (`session_is_open` already `1`); wait past `stats-report-time` and
@@ -1268,7 +1269,8 @@ abruptly (no `CMD_SECM_SESSION_CLOSE` from a clean disconnect path); confirm
 behavior matches `proc->invalidated`/`server_disconnected` handling in
 `session_close()` (src/main-sec-mod-cmd.c:738-781) — i.e. a Stop is still sent
 by main's session-close path, not silently dropped.
-**Links:** REQ-AUTH-ACCT-002, REQ-AUTH-AUTH-026
+**Links:** REQ-AUTH-ACCT-002, REQ-AUTH-ACCT-008, REQ-AUTH-ACCT-009,
+REQ-AUTH-AUTH-026
 
 ### REQ-AUTH-ACCT-004 — `NAS-Port` is intentionally never sent in RADIUS auth or accounting requests
 
@@ -1303,8 +1305,10 @@ included in `Acct-Session-Time`. sec-mod MUST compute this value directly as
 `now - e->created`, live for each Interim-Update
 (`handle_sec_auth_stats_cmd`) and snapshotted at disconnect for the Stop
 (`handle_secm_session_close_cmd`) so that a session with no worker currently
-attached does not keep accruing time while it lingers within
-`cookie-timeout`. In particular sec-mod MUST NOT derive this value by
+attached does not keep accruing time while it lingers within `cookie-timeout`.
+Shutdown MUST preserve that snapshot for a retained entry whose `in_use` count
+is zero, and MUST recompute `now - e->created` only for an entry with a worker
+still attached. In particular sec-mod MUST NOT derive this value by
 summing per-segment uptimes reported by the worker or main (each such report
 is itself already cumulative since `e->created`, since `session_start_time`
 is not reset across reconnects — summing them inflates the reported value
@@ -1316,9 +1320,10 @@ session that runs its full term reports `Acct-Session-Time` ≈
 authentication, starting a new accounting session with a new SID.
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/sec-mod-auth.c:656-660 (Stop snapshot), 771-772 (Interim-Update
-live value); doc/README-radius.md (definition); doc/sample.config (note next
-to `stats-report-time`)
+**Source:** src/sec-mod-auth.c:657-661 (Stop snapshot), 772-773 (Interim-Update
+live value); src/sec-mod-db.c:79-87 (shutdown snapshot handling);
+doc/README-radius.md (definition); doc/sample.config (note next to
+`stats-report-time`)
 **Acceptance:** positive, local (`tests/radius-reconnect-acct`) — drive three
 cookie-resumed segments (simulating reconnects via SIGKILL between segments,
 as `tests/test-cookie-timeout` does) with idle gaps in between, then a clean
@@ -1327,8 +1332,62 @@ actual elapsed wall-clock time from first connect to final disconnect, not
 the sum of the individual segments' cumulative uptimes (this is also the
 regression test for the summation bug this requirement documents the fix
 for). Negative — the same test's tolerance window excludes the pre-fix
-summed value for a 3-segment timeline.
+summed value for a 3-segment timeline. With persistent cookies enabled,
+disconnect a session and retain it until server shutdown; confirm its final
+Stop reports the disconnect-time snapshot rather than including the idle
+retention interval.
 **Links:** REQ-AUTH-ACCT-002, REQ-AUTH-ACCT-003, REQ-IPC-032
+
+### REQ-AUTH-ACCT-008 — A successful session re-open resets the previous connection segment's terminate cause
+
+**Requirement:** After successfully sending `CMD_SECM_SESSION_REPLY` for a
+cookie-resumed logical VPN session, sec-mod MUST clear the terminate cause
+recorded for the previous connection segment. A subsequent nonzero cause
+reported by the current worker MUST be preserved. When sec-mod shuts down
+before the current worker reports a cause, it MUST leave the cause unset;
+RADIUS accounting MUST map that existing fallback case to `Lost-Service`
+instead of synthesizing a distinct internal shutdown reason.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/sec-mod-auth.c:603-621 (`handle_secm_session_open_cmd`),
+716-778 (`handle_sec_auth_stats_cmd`); src/sec-mod-db.c:71-90
+(`sec_mod_client_db_deinit`); src/acct/radius.c:339-352
+(`Acct-Terminate-Cause` mapping)
+**Acceptance:** positive, local (`tests/radius`, root/full stack) — disconnect a
+client normally, re-open the same logical VPN session with its cookie, prevent
+the current worker from reporting shutdown first, and terminate ocserv;
+confirm the final Stop reports `Acct-Terminate-Cause=Lost-Service`, not the
+previous segment's `User-Request`. Allow the current worker to report
+`REASON_SERVER_DISCONNECT` first and confirm the Stop preserves
+`Acct-Terminate-Cause=Admin-Reset`.
+**Links:** REQ-AUTH-ACCT-003, REQ-AUTH-ACCT-007, REQ-AUTH-ACCT-009,
+REQ-IPC-032
+
+### REQ-AUTH-ACCT-009 — sec-mod shutdown sends one non-blocking RADIUS Stop per open session to the first configured server
+
+**Requirement:** When sec-mod terminates, it MUST close every open accounting
+session through the shutdown-specific path. With radcli, each close MUST issue
+exactly one `PW_STATUS_STOP` Accounting-Request to the first configured server
+(`authserver` for TLS/DTLS transports, otherwise `acctserver`) with zero timeout
+and zero retries; it MUST NOT call the response-waiting `rc_aaa()` path or send
+the same Stop to later configured servers. With legacy freeradius-client,
+which has no non-blocking send primitive, shutdown MUST skip the Stop request
+and proceed directly to cleanup rather than wait for a response.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/sec-mod-db.c:71-90 (`sec_mod_client_db_deinit`);
+src/sec-mod-auth.c:1056-1072 (`sec_auth_user_deinit`);
+src/acct/radius.c:264-375 (`radius_acct_send_shutdown`,
+`radius_acct_close_session`)
+**Acceptance:** positive, local (`tests/radius`, root/full stack) — configure
+two accounting-server entries that reach the same local RADIUS receiver,
+retain one disconnected session, leave another active, and terminate ocserv;
+confirm the receiver observes exactly one new Stop for each logical session
+and ocserv exits without waiting for an Accounting-Response. Negative, CI —
+repeat with legacy freeradius-client and an unavailable RADIUS server; confirm
+shutdown does not wait for `radius_timeout` or execute retry processing.
+**Links:** REQ-AUTH-ACCT-002, REQ-AUTH-ACCT-003, REQ-AUTH-ACCT-007,
+REQ-AUTH-ACCT-008
 
 ## ACCT — PAM accounting (`acct = pam`)
 

@@ -30,6 +30,9 @@ IP=$(command -v ip)
 OUTFILE=traffic.$$.tmp
 RADIUSLOG=radius.$$.log
 RADIUSD=$(command -v radiusd)
+RADIUSCLIENT_CONFIG=""
+WORKER_PID=""
+WORKER_RESUME_PID=""
 
 if test -z "${RADIUSD}";then
 	RADIUSD=$(command -v freeradius)
@@ -58,9 +61,12 @@ echo "Testing ocserv with radius (basic)... "
 
 function finish {
   echo " * Cleaning up..."
+  test -n "${WORKER_PID}" && kill -CONT ${WORKER_PID} >/dev/null 2>&1
+  test -n "${WORKER_RESUME_PID}" && wait ${WORKER_RESUME_PID} >/dev/null 2>&1
   cleanup_client_server
   test -n "${RADIUSPID}" && kill ${RADIUSPID} >/dev/null 2>&1
   rm -f ${OUTFILE} 2>&1
+  test -n "${RADIUSCLIENT_CONFIG}" && rm -f "${RADIUSCLIENT_CONFIG}"
   test -f "${RADIUSLOG}" && cat "${RADIUSLOG}"
   rm -f "${RADIUSLOG}"
 }
@@ -79,6 +85,17 @@ ${CMDNS2} ${RADIUSD} -d ${RADDB_DIR}/ -s -xx -l ${RADIUSLOG} &
 RADIUSPID=$!
 
 update_config radius.config
+# Point both configured entries at the same receiver so a shutdown broadcast
+# is observable as duplicate Stops (REQ-AUTH-ACCT-009).
+RADIUSCLIENT_CONFIG="${RADIUSCLIENT_DIR}/radiusclient-shutdown.$$.conf"
+sed 's/^acctserver[[:space:]].*/acctserver localhost,localhost/' \
+	"${RADIUSCLIENT_DIR}/radiusclient.conf" >"${RADIUSCLIENT_CONFIG}"
+sed "s|${RADIUSCLIENT_DIR}/radiusclient.conf|${RADIUSCLIENT_CONFIG}|" \
+	"${CONFIG}" >"${CONFIG}.radius"
+mv "${CONFIG}.radius" "${CONFIG}"
+# Retain the normally disconnected test-arb session until server shutdown so
+# its existing User-Request cause must not be overwritten by Lost-Service.
+echo "persistent-cookies = true" >> ${CONFIG}
 if test "$VERBOSE" = 1;then
 DEBUG="-d 3"
 fi
@@ -104,8 +121,10 @@ if test $? = 0;then
 fi
 
 echo " * Getting cookie from ${ADDRESS}:${PORT}..."
-( echo "test" | ${CMDNS1} ${OPENCONNECT} ${ADDRESS}:${PORT} -u ${USERNAME} --servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8= --cookieonly )
-if test $? != 0;then
+eval `echo "test" | ${CMDNS1} ${OPENCONNECT} --passwd-on-stdin -q \
+	${ADDRESS}:${PORT} -u ${USERNAME} --authenticate \
+	--servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8=`
+if test -z "${COOKIE}";then
 	echo "Could not get cookie from server"
 	exit 1
 fi
@@ -135,14 +154,31 @@ fi
 
 kill $(cat ${CLIPID})
 rm -f ${CLIPID}
+TEST_ARB_DISCONNECTED_AT=$(date +%s)
 
 sleep 3
 
-echo " * Connecting to ${ADDRESS}:${PORT}..."
+echo " * Connecting first segment to ${ADDRESS}:${PORT}..."
 USERNAME=test
-( echo "${USERNAME}" | ${CMDNS1} ${OPENCONNECT} ${ADDRESS}:${PORT} -u ${USERNAME} --servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8= -s ${srcdir}/scripts/vpnc-script --pid-file=${CLIPID} --passwd-on-stdin -b )
+${CMDNS1} ${OPENCONNECT} ${ADDRESS}:${PORT} -u ${USERNAME} -C "${COOKIE}" \
+	--servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8= \
+	-s ${srcdir}/scripts/vpnc-script --pid-file=${CLIPID} -b
 if test $? != 0;then
 	echo "Could not connect to server"
+	exit 1
+fi
+
+sleep 3
+kill $(cat ${CLIPID})
+rm -f ${CLIPID}
+sleep 3
+
+echo " * Reconnecting the same session to ${ADDRESS}:${PORT}..."
+${CMDNS1} ${OPENCONNECT} ${ADDRESS}:${PORT} -u ${USERNAME} -C "${COOKIE}" \
+	--servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8= \
+	-s ${srcdir}/scripts/vpnc-script --pid-file=${CLIPID} -b
+if test $? != 0;then
+	echo "Could not reconnect to server"
 	exit 1
 fi
 
@@ -192,10 +228,6 @@ fi
 echo "Waiting for accounting report"
 sleep 35
 
-test -n "${CLIPID}" && kill $(cat ${CLIPID}) >/dev/null 2>&1
-test -n "${CLIPID}" && rm -f ${CLIPID}
-CLIPID=""
-
 OCTETS=$(cat ${RADIUSLOG}|grep Acct-Input-Octets|tail -1|sed 's/Acct-Input-Octets = //g')
 if test -z "$OCTETS" || test "$OCTETS" = 0;then
 	cat ${RADIUSLOG}
@@ -238,4 +270,157 @@ if test "${FOUND}" != "yes";then
 fi
 echo "Acct-Session-Id ${ACCT_SID} present in both Access-Request and Accounting-Request"
 
+count_accounting_stops()
+{
+	awk -v user="$1" -v cause="$2" '
+		/Received .*Request/ {
+			if (in_request && stop && matched_user && matched_cause)
+				count++
+			in_request=($0 ~ /Received Accounting-Request/)
+			stop=matched_user=matched_cause=0
+			next
+		}
+		in_request && /Acct-Status-Type = Stop/ { stop=1 }
+		in_request && index($0, "User-Name = \"" user "\"") {
+			matched_user=1
+		}
+		in_request && index($0, "Acct-Terminate-Cause = " cause) {
+			matched_cause=1
+		}
+		END {
+			if (in_request && stop && matched_user && matched_cause)
+				count++
+			print count + 0
+		}' "${RADIUSLOG}"
+}
+
+accounting_stop_session_time()
+{
+	awk -v user="$1" -v cause="$2" '
+		/Received .*Request/ {
+			if (in_request && stop && matched_user && matched_cause &&
+			    session_time != "")
+				value=session_time
+			in_request=($0 ~ /Received Accounting-Request/)
+			stop=matched_user=matched_cause=0
+			session_time=""
+			next
+		}
+		in_request && /Acct-Status-Type = Stop/ { stop=1 }
+		in_request && index($0, "User-Name = \"" user "\"") {
+			matched_user=1
+		}
+		in_request && index($0, "Acct-Terminate-Cause = " cause) {
+			matched_cause=1
+		}
+		in_request && /Acct-Session-Time = / {
+			session_time=$0
+			sub(/.*Acct-Session-Time = /, "", session_time)
+		}
+		END {
+			if (in_request && stop && matched_user && matched_cause &&
+			    session_time != "")
+				value=session_time
+			print value
+		}' "${RADIUSLOG}"
+}
+
+USER_REQUEST_COUNT=$(count_accounting_stops test-arb User-Request)
+LOST_SERVICE_COUNT=$(count_accounting_stops test Lost-Service)
+ADMIN_RESET_COUNT=$(count_accounting_stops test Admin-Reset)
+TEST_USER_REQUEST_COUNT=$(count_accounting_stops test User-Request)
+NOW=$(date +%s)
+TEST_ARB_IDLE_SECS=$((NOW - TEST_ARB_DISCONNECTED_AT))
+
+# Prevent the active worker from reporting its shutdown first. This forces
+# sec-mod to use the cause stored when the session was re-opened and catches a
+# stale User-Request left by the previous connection segment.
+WORKER_PID=$(${OCCTL} -s ${OCCTL_SOCKET} show users |
+	awk '$2 == "test" { print $1; exit }')
+if test -z "${WORKER_PID}";then
+	echo "FAIL: could not determine active worker PID"
+	exit 1
+fi
+kill -STOP ${WORKER_PID}
+(sleep 2; kill -CONT ${WORKER_PID} >/dev/null 2>&1) &
+WORKER_RESUME_PID=$!
+
+echo " * Stopping ocserv with an active RADIUS accounting session..."
+kill -15 $(cat "${PIDFILE}")
+wait ${PID}
+PID=""
+wait ${WORKER_RESUME_PID}
+WORKER_RESUME_PID=""
+WORKER_PID=""
+
+elapsed=0
+while test "${elapsed}" -lt 10; do
+	NEW_USER_REQUEST_COUNT=$(count_accounting_stops test-arb User-Request)
+	NEW_LOST_SERVICE_COUNT=$(count_accounting_stops test Lost-Service)
+	NEW_ADMIN_RESET_COUNT=$(count_accounting_stops test Admin-Reset)
+	NEW_TEST_USER_REQUEST_COUNT=$(count_accounting_stops test User-Request)
+	if test "${NEW_USER_REQUEST_COUNT}" -gt "${USER_REQUEST_COUNT}" &&
+		(test "${NEW_LOST_SERVICE_COUNT}" -gt "${LOST_SERVICE_COUNT}" ||
+		 test "${NEW_ADMIN_RESET_COUNT}" -gt "${ADMIN_RESET_COUNT}");then
+		break
+	fi
+	sleep 1
+	elapsed=$((elapsed + 1))
+done
+
+if test "${elapsed}" -ge 10;then
+	cat "${RADIUSLOG}"
+	echo "FAIL: shutdown accounting did not preserve User-Request and" \
+		"close the active session"
+	exit 1
+fi
+
+# Let the RADIUS server drain every datagram queued by the shutdown sender.
+sleep 1
+NEW_USER_REQUEST_COUNT=$(count_accounting_stops test-arb User-Request)
+NEW_LOST_SERVICE_COUNT=$(count_accounting_stops test Lost-Service)
+NEW_ADMIN_RESET_COUNT=$(count_accounting_stops test Admin-Reset)
+NEW_TEST_USER_REQUEST_COUNT=$(count_accounting_stops test User-Request)
+
+if test "${NEW_TEST_USER_REQUEST_COUNT}" -gt "${TEST_USER_REQUEST_COUNT}";then
+	cat "${RADIUSLOG}"
+	echo "FAIL: the reconnected active session retained its previous" \
+		"User-Request cause"
+	exit 1
+fi
+
+USER_REQUEST_DELTA=$((NEW_USER_REQUEST_COUNT - USER_REQUEST_COUNT))
+ACTIVE_STOP_DELTA=$((NEW_LOST_SERVICE_COUNT - LOST_SERVICE_COUNT +
+	NEW_ADMIN_RESET_COUNT - ADMIN_RESET_COUNT))
+if test "${USER_REQUEST_DELTA}" -ne 1;then
+	cat "${RADIUSLOG}"
+	echo "FAIL: shutdown sent the retained session Stop" \
+		"${USER_REQUEST_DELTA} times; expected only the first RADIUS server"
+	exit 1
+fi
+
+if test "${ACTIVE_STOP_DELTA}" -ne 1;then
+	cat "${RADIUSLOG}"
+	echo "FAIL: shutdown sent the active session Stop" \
+		"${ACTIVE_STOP_DELTA} times; expected only the first RADIUS server"
+	exit 1
+fi
+
+TEST_ARB_SESSION_TIME=$(accounting_stop_session_time test-arb User-Request)
+if test -z "${TEST_ARB_SESSION_TIME}";then
+	cat "${RADIUSLOG}"
+	echo "FAIL: retained session Stop did not include Acct-Session-Time"
+	exit 1
+fi
+
+if test "${TEST_ARB_SESSION_TIME}" -ge "${TEST_ARB_IDLE_SECS}";then
+	cat "${RADIUSLOG}"
+	echo "FAIL: retained session Acct-Session-Time" \
+		"${TEST_ARB_SESSION_TIME}s includes its ${TEST_ARB_IDLE_SECS}s" \
+		"idle retention interval"
+	exit 1
+fi
+
+echo "Retained session time ${TEST_ARB_SESSION_TIME}s excludes its" \
+	"${TEST_ARB_IDLE_SECS}s idle retention interval"
 exit 0

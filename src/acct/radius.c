@@ -261,10 +261,68 @@ cleanup:
 	return ret;
 }
 
+#ifndef LEGACY_RADIUS
+static void radius_acct_send_shutdown(rc_handle *rh, VALUE_PAIR *send)
+{
+	SERVER *servers;
+	SEND_DATA data;
+	rc_socket_type socket_type = rc_get_socket_type(rh);
+	rc_type type;
+	uint32_t delay = 0;
+	int result = OK_RC;
+	int ret;
+
+	if (socket_type == RC_SOCKET_TLS || socket_type == RC_SOCKET_DTLS) {
+		servers = rc_conf_srv(rh, "authserver");
+		type = AUTH;
+	} else {
+		servers = rc_conf_srv(rh, "acctserver");
+		type = ACCT;
+	}
+
+	if (servers == NULL || servers->max == 0) {
+		result = ERROR_RC;
+		goto done;
+	}
+
+	if (rc_avpair_add(rh, &send, PW_ACCT_DELAY_TIME, &delay, -1, 0) ==
+	    NULL) {
+		result = ERROR_RC;
+		goto done;
+	}
+
+	memset(&data, 0, sizeof(data));
+	data.send_pairs = send;
+	rc_buildreq(rh, &data, PW_ACCOUNTING_REQUEST, servers->name[0],
+		    servers->port[0], servers->secret[0], 0, 0);
+
+	ret = rc_send_server(rh, &data, NULL, type);
+	if (data.receive_pairs != NULL)
+		rc_avpair_free(data.receive_pairs);
+
+	/* A zero timeout reports TIMEOUT_RC after the packet is sent. */
+	if (ret != OK_RC && ret != TIMEOUT_RC)
+		result = ret;
+
+done:
+	if (result != OK_RC)
+		oc_syslog(LOG_INFO,
+			  "radius-auth: shutdown accounting stop failed: %d",
+			  result);
+}
+#else
+static void radius_acct_send_shutdown(rc_handle *rh, VALUE_PAIR *send)
+{
+	(void)rh;
+	(void)send;
+}
+#endif /* LEGACY_RADIUS */
+
 static void radius_acct_close_session(void *_vctx, unsigned int auth_method,
 				      const common_acct_info_st *ai,
 				      stats_st *stats,
-				      unsigned int discon_reason)
+				      unsigned int discon_reason,
+				      bool server_shutdown)
 {
 	int ret;
 	uint32_t status_type;
@@ -296,6 +354,11 @@ static void radius_acct_close_session(void *_vctx, unsigned int auth_method,
 
 	append_acct_standard(vctx, vctx->rh, ai, &send);
 	append_stats(vctx->rh, &send, stats, ai->uptime);
+
+	if (server_shutdown) {
+		radius_acct_send_shutdown(vctx->rh, send);
+		goto cleanup;
+	}
 
 	ret = rc_aaa(vctx->rh, 0, send, &recvd, NULL, 0, PW_ACCOUNTING_REQUEST);
 	if (recvd != NULL)
