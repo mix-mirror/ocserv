@@ -7,7 +7,6 @@ categories:
   SEC: security and privilege invariants
   TECH: canonical technology stack constraints
   STYLE: code style and structure rules enforced by CI or review
-  TEST: test quality requirements
   COMPAT: platform portability policy
 sources:
   - AGENTS.md
@@ -28,6 +27,9 @@ Process-specific behavioral requirements belong in their own documents
 (`internal/config.md`, `internal/authentication.md`, etc.), even when they
 carry security implications. A requirement belongs here only when it applies
 regardless of which subsystem is being changed.
+
+Test-authorship requirements (what makes a test acceptable, independent of
+which subsystem it covers) are in `internal/testing.md`, not here.
 
 The `AGENTS.md` "Canonical Technology Choices" table cites these IDs as its
 authoritative source; the table in that file is a quick-reference summary only.
@@ -391,45 +393,6 @@ modified function for `#ifdef` depth and length violations and for missing
 `#endif` annotations. The `src/auth/pam.c` / `src/auth/gssapi.c` files
 illustrate compliant optional-feature structure.
 **Links:** REQ-GEN-STYLE-001
-
----
-
-## TEST — test quality requirements
-
-### REQ-GEN-TEST-001 — Every feature or fix MUST have both a positive and a negative test; tests MUST be self-diagnosing and registered in `tests/meson.build`
-
-**Requirement:** No feature addition or bug fix is complete without tests.
-The following apply to all tests in `tests/`:
-
-  (a) **Coverage**: every new feature or changed behavior MUST have at least
-      one positive test (the correct behavior is exercised and confirmed) and
-      at least one negative test (invalid input or error conditions are
-      correctly rejected). For `SEC`, `AUTH`, and `IPC` changes, the negative
-      test is the more important of the two and MUST be written first.
-  (b) **Bug-fix test order**: for a bug fix, the reproducing test MUST be
-      written and confirmed to fail against the unmodified code before the fix
-      is applied. A test written after the fix cannot demonstrate it is
-      meaningful.
-  (c) **Self-diagnosing output**: a test failure MUST be explainable from the
-      test's own output without local reproduction. Shell tests MUST print what
-      they were testing and why it failed (e.g.
-      `echo "FAIL: expected exit 0, got $ret"`). C unit tests MUST print the
-      failing condition and relevant values before returning non-zero. Tests
-      that exit non-zero with no diagnostic output MUST NOT be accepted.
-  (d) **Registration**: every new test MUST be registered in
-      `tests/meson.build`. An unregistered test is not run by CI and provides
-      no coverage guarantee.
-**Strength:** MUST / MUST NOT
-**Status:** DERIVED
-**Source:** AGENTS.md (Testing New Functionality); `tests/meson.build`;
-`tests/common.sh`
-**Acceptance:** code-review — confirm for every MR that: (1) `tests/meson.build`
-contains an entry for each new test file; (2) at least one test is a negative
-case; (3) running the negative test against the pre-fix code produces a
-non-zero exit and a human-readable failure message. CI runs all registered
-tests on every MR; a passing CI run with no newly registered test for a
-behavior change is itself a review finding.
-**Links:** REQ-GEN-SEC-001, REQ-GEN-SEC-002
 
 ---
 

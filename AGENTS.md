@@ -354,7 +354,8 @@ In brief:
 
 ### Testing New Functionality
 
-See **REQ-GEN-TEST-001** for the normative rule. In brief:
+See **REQ-GEN-TEST-001** and **REQ-GEN-TEST-002** (`doc/requirements/internal/testing.md`)
+for the normative rules. In brief:
 
 - Write a **positive test** and a **negative test** for every feature or fix.
 - For security-relevant code (auth, cookies, IPC validation) write the negative test first.
@@ -362,6 +363,11 @@ See **REQ-GEN-TEST-001** for the normative rule. In brief:
 - Tests must be **self-diagnosing** — failure explainable from output alone; shell tests
   print `"FAIL: expected X, got Y"`; C unit tests print the failing condition and values.
 - Register all new tests in `tests/meson.build`.
+- A unit test that reaches past a module's header (private structs, static
+  functions) MUST depend only on symbols the module exposes for that purpose —
+  never on a duplicated, guessed, or hand-imitated copy of its internals. If a
+  refactor that preserves the module's documented behavior would break the
+  test, the test is coupled to the wrong thing.
 
 ### Adding Configuration Options
 

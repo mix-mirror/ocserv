@@ -309,6 +309,10 @@ Use this when preparing or reviewing a patch:
 - [ ] Test registered in `tests/meson.build`
 - [ ] Local test output checked for `OK` vs `SKIP`; skipped tests (require root) noted
 - [ ] Root-requiring tests deferred to CI; pipeline monitored after push
+- [ ] Any unit test reaching past a module's header (private struct/enum/static
+  function) depends only on symbols promoted for that purpose, not on a
+  duplicated or hand-imitated copy of internal state — REQ-GEN-TEST-002
+  (`doc/requirements/internal/testing.md`)
 
 **Commits:**
 - [ ] Every commit has `Signed-off-by: Name <email>`
