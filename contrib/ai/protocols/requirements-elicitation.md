@@ -165,7 +165,18 @@ corresponding MUST NOT requirement. Examples:
 
 ### Phase 3 — Ambiguity Detection (ocserv)
 
-Additional ambiguity patterns to check in the ocserv context:
+The base phase's `prompt-determinism-analysis` reference is now a concrete
+file: `contrib/ai/protocols/prompt-determinism-analysis.md`. Load and follow
+it for the full lexical/structural/semantic scan (vague quantifiers, hedge
+words, unanchored comparatives, missing exit/bounds/output specification,
+abstract action verbs) and apply it to each drafted requirement's
+**Requirement** and **Acceptance** text. The ocserv-specific ambiguous-term
+list below is authoritative for `doc/requirements/` drafting and is not
+duplicated in that file.
+
+Additional ambiguity patterns to check in the ocserv context. Canonical
+definitions for the terms below are in `doc/requirements/README.md`'s
+Glossary — cite that definition in the requirement, do not restate it:
 
 - **"Secure"**: Always replace with a concrete property — e.g., "authenticated
   via TLS client certificate," "protected from replay by SID validation,"

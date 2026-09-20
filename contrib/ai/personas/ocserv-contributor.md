@@ -20,7 +20,7 @@ say so and point to where to verify. Do not guess and present guesses as facts.
 
 ---
 
-## Step 0: Architecture Orientation (Required Before Writing Any Code)
+## Step 1: Architecture Orientation (Required Before Writing Any Code)
 
 Before touching a single file, identify which process your change lives in.
 
@@ -40,6 +40,37 @@ Is it about the TLS session or packet forwarding? → worker.
 For process communication diagrams and the full IPC protocol, read `doc/design.md`.
 This is required reading for any change that touches IPC, session state, or the
 authentication flow.
+
+---
+
+## Step 2: Requirements First (Required Before Writing Code)
+
+`doc/requirements/` is the normative description of what ocserv must do.
+Before writing any code, find the requirement your change falls under:
+
+1. Search `doc/requirements/` for the `REQ-*` / `AC-*` entries covering the
+   behavior you're about to add or fix — use `doc/requirements/README.md`'s
+   document map to find the right file by process/subsystem.
+2. If you are changing behavior an existing requirement describes, update
+   that requirement **first**, before touching implementation code, matching
+   the existing document's ID prefix, category tags, and per-requirement
+   format.
+3. If no requirement covers the new behavior, add one in the appropriate
+   document before writing the implementation.
+4. For a bug fix: if the bug violates an existing requirement, cite its ID
+   in your commit/MR. If it reveals a gap, add or extend a requirement
+   describing the *correct* behavior before fixing the code.
+
+Before opening your MR, self-check the patch against this: load and follow
+`contrib/ai/protocols/code-compliance-audit.md`, treating your own diff as
+the code under audit against `doc/requirements/`. The ocserv-specific
+extensions in that file (document map, ID scheme, the update-before-code
+ordering check, and the `specification-drift` taxonomy in
+`contrib/ai/taxonomies/specification-drift.md`) tell you exactly what to
+check. Any finding classified **D8** (unimplemented requirement) or **D10**
+(constraint violation in code) means the patch is not ready to submit —
+resolve it, by fixing the code or updating the requirement, whichever is
+actually wrong, before opening the MR.
 
 ---
 
@@ -156,30 +187,35 @@ If your change touches a subsystem with dedicated documentation, read it first:
 
 ### Submitting a Feature
 
-1. **Open an issue first.** Describe the motivation, the proposed design, and which
+1. **Requirements first** — see Step 2 above. Find or add the covering
+   `REQ-*` entry before writing any code.
+2. **Open an issue first.** Describe the motivation, the proposed design, and which
    process it lives in. Wait for maintainer feedback before writing code. Features
    without prior design discussion are often asked to redesign after implementation.
-2. Implement in the correct process (see Step 0).
-3. Add configuration if needed: global options go in `src/config.c`; per-module
+3. Implement in the correct process (see Step 1).
+4. Add configuration if needed: global options go in `src/config.c`; per-module
    options go in a struct in `src/common-config.h` and a parser in `src/subconfig.c`.
-4. Write tests (see checklist below).
-5. Update relevant documentation (`doc/sample.config`, man pages if applicable).
+5. Write tests (see checklist below).
+6. Update relevant documentation (`doc/sample.config`, man pages if applicable).
 
 ### Submitting a Bug Fix
 
-1. **Characterize the symptom precisely** before touching any code:
+1. **Requirements first** — see Step 2 above. If the bug is a requirement
+   violation, cite the `REQ-*` ID; if it reveals a gap, extend or add the
+   requirement before fixing the code.
+2. **Characterize the symptom precisely** before touching any code:
    - Which process emitted the error (main / sec-mod / worker)?
    - Is it deterministic or intermittent?
    - What changed recently that might have introduced it?
-2. **Generate at least 3 hypotheses** for the root cause before investigating any of them.
+3. **Generate at least 3 hypotheses** for the root cause before investigating any of them.
    Include one non-obvious hypothesis (timing, config interaction, allocator mismatch).
-3. **Distinguish root from proximate cause.**
+4. **Distinguish root from proximate cause.**
    Proximate: "null pointer dereference at line X." Root: "the function that
    initializes the pointer silently fails when Y, leaving the caller with an
    uninitialized value." Fix the root cause — if you fix only the proximate cause,
    the root cause will produce a different failure later.
-4. Write a test that reproduces the bug (it must fail before your fix).
-5. Apply the fix. Confirm the test passes and no other tests regress.
+5. Write a test that reproduces the bug (it must fail before your fix).
+6. Apply the fix. Confirm the test passes and no other tests regress.
 
 ### Writing a Test
 
@@ -254,6 +290,12 @@ The canonical checklist is in `CONTRIBUTING.md` → *Before opening a merge requ
 The following expands it with agent-specific verification steps.
 
 **Agent-runnable — you must verify these:**
+- [ ] Relevant `REQ-*`/`AC-*` entry found or added in `doc/requirements/`
+  *before* the code change (Step 2)
+- [ ] If an existing requirement's described behavior changed: the requirement
+  was updated first, not left contradicting the code
+- [ ] Self-audit run per Step 2 (`contrib/ai/protocols/code-compliance-audit.md`);
+  no open D8/D10 findings against `doc/requirements/`
 - [ ] Every changed line is independently justifiable — no drive-by refactoring
 - [ ] Original types preserved; no unrelated reformatting
 - [ ] `clang-format --dry-run -Werror` passes on every modified file under `src/` and `tests/`

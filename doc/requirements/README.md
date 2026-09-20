@@ -140,3 +140,60 @@ sources:
   incidental** — they are `SEC` requirements, always essential.
 - **IPC acceptance criteria must cite protobuf field names** from
   `src/ipc.proto` / `src/ctl.proto`, not vague descriptions.
+- **Normative language uses RFC 2119 keywords only** — MUST, MUST NOT,
+  SHALL, SHALL NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, RECOMMENDED,
+  OPTIONAL. Informal equivalents ("needs to," "has to," "can," "will")
+  MUST NOT be used to express a normative obligation in requirement prose.
+
+## Glossary
+
+Canonical definitions for terms that are ambiguous across ocserv's own
+documentation and code. A requirement MUST NOT redefine a term listed here;
+if a requirement needs a meaning not covered below, add it here first, then
+cite it. New entries are added the first time a term is flagged during the
+Ambiguity Detection phase of `requirements-elicitation.md` or by
+`contrib/ai/protocols/prompt-determinism-analysis.md`.
+
+| Term | Definition |
+|------|------------|
+| session | Disambiguate per use: a **TLS/DTLS session** (GnuTLS session object, resumable via session tickets); a **VPN session** (the authenticated user's SID and lease, spanning reconnects/roaming); or a **PAM session** (`pam_open_session`/`pam_close_session`). A requirement using "session" unqualified MUST specify which. |
+| connection | One TCP/UDP socket-level attachment to a single worker process, bounded by that socket's lifetime. Distinct from a **session** (above): a VPN session can span multiple connections via cookie resumption (`doc/design.md`, "IPC Communication for SID assignment": "client/worker may disconnect and reconnect, using SID cookie to resume the authenticated session"). |
+| secure | Not a standalone property. Always state the concrete guarantee meant: encrypted transport, authenticated peer, integrity-protected, or a specific cipher/version floor (e.g. "TLS 1.2 or later"). |
+| reload | A `SIGHUP`-triggered live config reload (main/sec-mod only, requires procfs — REQ-GEN-COMPAT-001), distinct from a full process restart. Check `doc/sample.config`'s `[reload]`/`[not-reloadable]` annotation for the specific option before using this term. |
+| worker / client | "Worker" is always the ocserv worker process; "client" is always the remote OpenConnect/AnyConnect endpoint. Never use one to mean the other, even informally — they sit on opposite sides of the privilege/trust boundary. |
+| security module (sec-mod) | The `sec-mod` process. `doc/design.md` uses "security module" and "sec-mod" interchangeably for the same root process that holds private keys, PAM/RADIUS state, and session/SID state (`src/sec-mod*.c`). Not an external HSM or a generic security concept. |
+| cookie | The SID-bound authentication ticket issued by sec-mod on successful auth, forwarded via `AUTH_COOKIE_REQ`/`AUTH_COOKIE_REP`, valid for `cookie-timeout`, and used to resume a session across reconnects. `doc/design.md` also calls this a "ticket." Not a generic HTTP `Set-Cookie` value, even though it travels over HTTPS. |
+| SID vs. safe_id | The **SID** is the internal session identifier assigned by sec-mod on `SEC_AUTH_INIT` and used directly in IPC (`src/ipc.proto`, `src/ctl.proto`) and as cookie material; treat it as sensitive. **safe_id** is `base64(SHA1(SID))` (`calc_safe_id()`, `src/common/common.c`), a one-way, non-reversible derivation used wherever a session must be referenced externally without exposing the SID: `occtl` session listing/termination, logs, and RADIUS accounting (`PW_ACCT_SESSION_ID`, `src/acct/radius.c`). A requirement or acceptance criterion MUST say which one it means — they are not interchangeable, and safe_id cannot be reversed to recover the SID. |
+| accounting | Post-authentication usage/session data reporting (RADIUS accounting, `src/acct/`) forwarded by sec-mod. Distinct from PAM **account management** (`pam_acct_mgmt`), which is an authorization check performed during login, not usage reporting — `doc/design.md`'s "Gatekeeper for accounting information keeping and reporting" refers to the former. |
+
+## Dependencies
+
+External/optional build dependencies that make some requirements
+conditionally inapplicable. Format:
+
+```markdown
+### DEP-<NNN>
+**Dependency:** <build option / library>
+**Required by:** <REQ-ID(s) or document>
+**Impact if unavailable:** <what becomes inapplicable or degraded>
+```
+
+### DEP-001
+**Dependency:** seccomp (`-Dseccomp`, auto-detected)
+**Required by:** REQ-GEN-SEC-002(d)
+**Impact if unavailable:** the worker runs without syscall confinement;
+the privilege-boundary requirement's process-separation intent still
+holds, but this specific enforcement mechanism is absent and MUST be
+called out in deployment documentation as reduced defense-in-depth.
+
+### DEP-002
+**Dependency:** PAM (`-Dpam`, auto-detected)
+**Required by:** PAM-backed entries in `internal/authentication.md`
+**Impact if unavailable:** those entries are not applicable to the build;
+authentication falls back to other configured modules (plain, RADIUS,
+GSSAPI, OIDC).
+
+### DEP-003
+**Dependency:** RADIUS (`-Dradius`, auto-detected)
+**Required by:** RADIUS-backed entries in `internal/authentication.md`
+**Impact if unavailable:** those entries are not applicable to the build.

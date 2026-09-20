@@ -45,48 +45,37 @@ do not continue grading the remaining sections as if the patch were approvable.
 
 ## Protocol: Requirements Compliance
 
-Run this as step 1 of **Protocol: Contribution Review**. This is the single most
-important check in the review: a patch that is well-designed but contradicts or
-ignores `doc/requirements/` is not acceptable, regardless of code quality.
+Run this as step 1 of **Protocol: Contribution Review**, before Design Review.
+This is the single most important check in the review: a patch that is
+well-designed but contradicts or ignores `doc/requirements/` is not acceptable,
+regardless of code quality.
 
-For every file, function, or config option touched by the patch:
+Load and follow `contrib/ai/protocols/code-compliance-audit.md` for the full
+audit protocol (specification inventory, forward/backward traceability,
+constraint verification, and classification against the `specification-drift`
+taxonomy in `contrib/ai/taxonomies/specification-drift.md`). The ocserv-specific
+extensions — the `doc/requirements/` document map and ID scheme, the
+update-before-code ordering check from AGENTS.md's Requirements-First Workflow,
+CFG/SEC/AUTH/IPC-specific traceability evidence, and the mapping from D8–D10
+findings to the verdicts below — are in the extension section of that file (and
+of the taxonomy file).
 
-1. Search `doc/requirements/` for `REQ-*` / `AC-*` / `OC-*` entries that cite it
-   (grep for the file/function/option name, and check the document map in
-   `doc/requirements/README.md` for the right file by process/subsystem).
-2. Record one of:
-   - **compliant** — an existing requirement covers this behavior and the patch
-     matches it.
-   - **updated** — the patch changes behavior an existing requirement describes;
-     confirm the requirement was updated *first*, in the same or a preceding
-     commit, following the protocol in `contrib/ai/protocols/` that generated
-     that document. If the requirement was not updated, this is a **BLOCK**.
-   - **new requirement added** — the patch introduces behavior with no prior
-     requirement; confirm a new `REQ-*` entry was added in the appropriate
-     document, with the correct ID prefix, category tags, and per-requirement
-     format. If none was added, this is a **BLOCK**.
-   - **gap** — behavior is touched but no requirement covers it and none was
-     added. This is a **BLOCK**, not a note.
-   - **contradicts REQ-X** — the patch's behavior conflicts with an existing
-     requirement that the patch did not update. This is a **BLOCK** unless the
-     requirement itself is independently wrong, in which case say so explicitly
-     and require it be fixed in its own dedicated MR (per AGENTS.md), not
-     silently bundled here.
-3. Separately, check for collateral damage: search `doc/requirements/` for any
-   `REQ-*`/`AC-*` entries citing the touched files/functions that the patch does
-   *not* intend to change, and confirm each still holds. Flag any that no longer
-   hold as **REVIEW** (requirement vs. code now disagree) — never approve a patch
-   that leaves a `DERIVED` requirement contradicting the code.
-4. Confirm `doc/ocserv.8.md` / `doc/sample.config` agree with the requirement and
-   the code where applicable (config options, documented behavior).
+Any finding classified D8 (unimplemented requirement) or D10 (constraint
+violation in code) is a **BLOCK**: do not approve the patch. A High-severity D9
+finding (undocumented behavior in a SEC/AUTH/IPC area) is also a **BLOCK**;
+other D9 findings are a **REVIEW** item to raise with the maintainer, not an
+automatic rejection.
 
-Verdict per touched surface: *compliant* | *updated* | *new requirement added* |
-*gap — BLOCK* | *contradicts REQ-X — BLOCK* | *REVIEW (pre-existing requirement
-now inconsistent, not caused by this patch)*.
+Separately, check for collateral damage per the audit protocol's backward
+traceability phase: search `doc/requirements/` for `REQ-*`/`AC-*` entries
+citing files/functions the patch touches but does not intend to change, and
+confirm each still holds. An unrelated requirement now contradicted by the
+patch is also a **BLOCK** (classify D10) even if the patch's own intended
+behavior is fully compliant — never approve a patch that leaves a requirement
+contradicting the code.
 
-Any `BLOCK` verdict means: do not approve the patch. State which requirement is
-missing, outdated, or contradicted, and what update (to the requirement, or to
-the patch) would resolve it.
+State the verdict per touched requirement, citing the finding's drift label
+and `REQ-*`/`AC-*`/`OC-*` ID. Do not approve a patch with an open BLOCK.
 
 ---
 
