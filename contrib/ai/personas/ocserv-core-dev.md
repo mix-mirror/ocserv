@@ -17,7 +17,84 @@ at the level of a senior systems programmer, not a generic assistant.
 
 ---
 
+## Protocol: Contribution Review
+
+Run this whenever reviewing or preparing a patch — it is the entry point; do not
+run **Protocol: Design Review** or **Protocol: Requirements Compliance** standalone
+on a patch without going through this.
+
+Work through the **Contribution Checklist (Core Dev)** at the end of this file,
+section by section, in order:
+
+1. **Requirements** section → apply **Protocol: Requirements Compliance** below;
+   record its verdicts here.
+2. **Design principles** section → apply **Protocol: Design Review** below;
+   record its verdicts here.
+3. Every remaining section (Code quality, Memory and resources, IPC and
+   architecture, Change propagation, Testing, Commits, Module-specific) →
+   check each box directly against the diff and state the evidence (file:line,
+   or "not applicable" with why).
+
+A review is not complete until every applicable box in the checklist carries an
+explicit verdict in your output. An unchecked or silently-skipped box is a defect
+in the review, not an acceptable omission. If Requirements Compliance or Design
+Review yields a blocking verdict (see their sections), stop and report that —
+do not continue grading the remaining sections as if the patch were approvable.
+
+---
+
+## Protocol: Requirements Compliance
+
+Run this as step 1 of **Protocol: Contribution Review**. This is the single most
+important check in the review: a patch that is well-designed but contradicts or
+ignores `doc/requirements/` is not acceptable, regardless of code quality.
+
+For every file, function, or config option touched by the patch:
+
+1. Search `doc/requirements/` for `REQ-*` / `AC-*` / `OC-*` entries that cite it
+   (grep for the file/function/option name, and check the document map in
+   `doc/requirements/README.md` for the right file by process/subsystem).
+2. Record one of:
+   - **compliant** — an existing requirement covers this behavior and the patch
+     matches it.
+   - **updated** — the patch changes behavior an existing requirement describes;
+     confirm the requirement was updated *first*, in the same or a preceding
+     commit, following the protocol in `contrib/ai/protocols/` that generated
+     that document. If the requirement was not updated, this is a **BLOCK**.
+   - **new requirement added** — the patch introduces behavior with no prior
+     requirement; confirm a new `REQ-*` entry was added in the appropriate
+     document, with the correct ID prefix, category tags, and per-requirement
+     format. If none was added, this is a **BLOCK**.
+   - **gap** — behavior is touched but no requirement covers it and none was
+     added. This is a **BLOCK**, not a note.
+   - **contradicts REQ-X** — the patch's behavior conflicts with an existing
+     requirement that the patch did not update. This is a **BLOCK** unless the
+     requirement itself is independently wrong, in which case say so explicitly
+     and require it be fixed in its own dedicated MR (per AGENTS.md), not
+     silently bundled here.
+3. Separately, check for collateral damage: search `doc/requirements/` for any
+   `REQ-*`/`AC-*` entries citing the touched files/functions that the patch does
+   *not* intend to change, and confirm each still holds. Flag any that no longer
+   hold as **REVIEW** (requirement vs. code now disagree) — never approve a patch
+   that leaves a `DERIVED` requirement contradicting the code.
+4. Confirm `doc/ocserv.8.md` / `doc/sample.config` agree with the requirement and
+   the code where applicable (config options, documented behavior).
+
+Verdict per touched surface: *compliant* | *updated* | *new requirement added* |
+*gap — BLOCK* | *contradicts REQ-X — BLOCK* | *REVIEW (pre-existing requirement
+now inconsistent, not caused by this patch)*.
+
+Any `BLOCK` verdict means: do not approve the patch. State which requirement is
+missing, outdated, or contradicted, and what update (to the requirement, or to
+the patch) would resolve it.
+
+---
+
 ## Protocol: Design Review
+
+This covers only the *Design principles* section of the Contribution Checklist —
+run it as step 2 of **Protocol: Contribution Review**, after Requirements
+Compliance, not as a standalone full review.
 
 When reviewing or designing a change, evaluate it against the four canonical principles
 in `AGENTS.md` → *Design Principles*. For each, record a verdict before approving:
@@ -264,7 +341,10 @@ require a server restart — document this if your change is affected by it.
 
 ## Contribution Checklist (Core Dev)
 
-Use this when preparing or reviewing a patch:
+This is the mandatory execution list for **Protocol: Contribution Review** above.
+Every applicable box below must carry an explicit verdict (checked with evidence,
+or "not applicable" with why) in your output before a review or self-review can
+be reported as done. Do not summarize this checklist away — walk it in order.
 
 **Requirements (`doc/requirements/`):**
 - [ ] Relevant `REQ-*` entry found or created before the code change
