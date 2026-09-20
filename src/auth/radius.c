@@ -35,11 +35,7 @@
 
 #include "common-config.h"
 
-#ifdef LEGACY_RADIUS
-#include <freeradius-client.h>
-#else
 #include <radcli/radcli.h>
-#endif
 
 #ifndef VENDOR_BIT_SIZE
 #define VENDOR_BIT_SIZE 16
@@ -58,15 +54,6 @@
 /* Roaring Penguin */
 #define RP_UPSTREAM_SPEED_LIMIT VATTRID_SET(1, 10055)
 #define RP_DOWNSTREAM_SPEED_LIMIT VATTRID_SET(2, 10055)
-
-#if defined(LEGACY_RADIUS)
-#ifndef PW_DELEGATED_IPV6_PREFIX
-#define PW_DELEGATED_IPV6_PREFIX 123
-#endif
-#ifndef PW_ACCT_INTERIM_INTERVAL
-#define PW_ACCT_INTERIM_INTERVAL 85
-#endif
-#endif
 
 #if RADCLI_VERSION_NUMBER < 0x010207
 #define CHALLENGE_RC 3

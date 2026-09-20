@@ -2,9 +2,7 @@ Using Radius with ocserv
 ========================
 
 For radius support the [radcli library](http://radcli.github.io/radcli/)
-is required. The minimum requirement is version 1.2.0. Alternatively
-the freeradius-client library can be used (1.1.7 is the minimum
-requirement), but not all radius features may be available.
+is required. The minimum requirement is version 1.2.0.
 
 radcli uses a configuration file to setup the
 server configuration. That is typically found at:
@@ -71,8 +69,6 @@ the first configured RADIUS server only.
 An existing terminate cause for the current connection is preserved; a
 successful reconnect clears the cause from the previous connection. Sessions
 without a current cause use `Lost-Service` for server shutdown.
-Legacy freeradius-client has no non-blocking send primitive, so that build skips
-the Stop request during shutdown rather than delaying server termination.
 
 The `Acct-Session-Time` reported is the wall-clock lifetime of the logical
 session: the time from the initial authentication to the last activity of

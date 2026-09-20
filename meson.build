@@ -110,21 +110,10 @@ if not opt_pam.disabled()
     required: opt_pam)
 endif
 
-# RADIUS: try radcli first, then freeradius-client
+# RADIUS: radcli
 radcli_dep = dependency('', required: false)
-legacy_radius = false
 if not opt_radius.disabled()
-  radcli_dep = dependency('radcli', version: '>= 1.2.5', required: false)
-  if not radcli_dep.found()
-    radcli_dep = cc.find_library('freeradius-client',
-      has_headers: ['freeradius-client.h'], required: false)
-    if radcli_dep.found()
-      legacy_radius = true
-    endif
-  endif
-  if not radcli_dep.found() and opt_radius.enabled()
-    error('RADIUS support requested but neither radcli nor freeradius-client was found')
-  endif
+  radcli_dep = dependency('radcli', version: '>= 1.2.5', required: opt_radius)
 endif
 
 # Detect freeradius module directory (for test radiusd.conf generation)
@@ -355,7 +344,6 @@ cdata.set('HAVE_MAXMIND',                     maxmind_dep.found())
 cdata.set('HAVE_ORIG_READLINE',               have_orig_readline)
 cdata.set('HAVE_PAM',                         pam_dep.found())
 cdata.set('HAVE_RADIUS',                      radcli_dep.found())
-cdata.set('LEGACY_RADIUS',                    legacy_radius)
 cdata.set('LINUX_NAMESPACES',                 get_option('namespaces').enabled())
 cdata.set('NETTLE_OLD_BASE64_API',            old_base64)
 cdata.set('PROC_FS_SUPPORTED',                proc_fs)

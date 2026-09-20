@@ -26,11 +26,7 @@
 
 #ifdef HAVE_RADIUS
 
-#ifdef LEGACY_RADIUS
-#include <freeradius-client.h>
-#else
 #include <radcli/radcli.h>
-#endif
 
 struct radius_vhost_ctx {
 	rc_handle *rh;

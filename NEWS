@@ -14,6 +14,8 @@
   tunnel rebuild on every rekey (#745)
 - sec-mod now sends a best-effort RADIUS Accounting-Stop for every open
   session when shutting down (#643)
+- Simplified the radius backend by standardizing in radcli and removing
+  compatibility with legacy radius libraries.
 
 
 * Version 1.5.0 (released 2026-06-07)

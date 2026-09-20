@@ -33,11 +33,7 @@
 
 #ifdef HAVE_RADIUS
 
-#ifdef LEGACY_RADIUS
-#include <freeradius-client.h>
-#else
 #include <radcli/radcli.h>
-#endif
 
 #include "sec-mod-acct.h"
 #include "auth/radius.h"
@@ -156,7 +152,6 @@ static void append_acct_standard(struct radius_vhost_ctx *vctx, rc_handle *rh,
 		}
 	}
 
-#ifndef LEGACY_RADIUS /* bug in freeradius-client */
 	if (ai->ipv6[0] != 0) {
 		struct in6_addr in;
 
@@ -167,7 +162,6 @@ static void append_acct_standard(struct radius_vhost_ctx *vctx, rc_handle *rh,
 			}
 		}
 	}
-#endif
 
 	rc_avpair_add(rh, send, PW_CALLING_STATION_ID, ai->remote_ip, -1, 0);
 	rc_avpair_add(rh, send, PW_ACCT_SESSION_ID, ai->safe_id, -1, 0);
@@ -261,7 +255,6 @@ cleanup:
 	return ret;
 }
 
-#ifndef LEGACY_RADIUS
 static void radius_acct_send_shutdown(rc_handle *rh, VALUE_PAIR *send)
 {
 	SERVER *servers;
@@ -310,13 +303,6 @@ done:
 			  "radius-auth: shutdown accounting stop failed: %d",
 			  result);
 }
-#else
-static void radius_acct_send_shutdown(rc_handle *rh, VALUE_PAIR *send)
-{
-	(void)rh;
-	(void)send;
-}
-#endif /* LEGACY_RADIUS */
 
 static void radius_acct_close_session(void *_vctx, unsigned int auth_method,
 				      const common_acct_info_st *ai,

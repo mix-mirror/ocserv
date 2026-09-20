@@ -677,7 +677,7 @@ form `radius[/path/to/radiusclient.conf]` (optionally followed by
 `,groupconfig`), or the new form with named suboptions `config=`,
 `nas-identifier=`, `group-separator=` (only `semicolon`→`;` or `comma`→`,`,
 else `exit(EXIT_FAILURE)`), `groupconfig=` (boolean). `config=` (the
-freeradius-client/radcli config file path) MUST be set — its absence is
+radcli config file path) MUST be set — its absence is
 `exit(EXIT_FAILURE)` with "No radius configuration specified". `groupconfig`
 (legacy or new) sets `config->sup_config_type = SUP_CONFIG_RADIUS`
 (per-group/per-user supplemental config sourced from RADIUS attributes rather
@@ -1351,7 +1351,7 @@ instead of synthesizing a distinct internal shutdown reason.
 **Status:** DERIVED
 **Source:** src/sec-mod-auth.c:603-621 (`handle_secm_session_open_cmd`),
 716-778 (`handle_sec_auth_stats_cmd`); src/sec-mod-db.c:71-90
-(`sec_mod_client_db_deinit`); src/acct/radius.c:339-352
+(`sec_mod_client_db_deinit`); src/acct/radius.c:324-337
 (`Acct-Terminate-Cause` mapping)
 **Acceptance:** positive, local (`tests/radius`, root/full stack) — disconnect a
 client normally, re-open the same logical VPN session with its cookie, prevent
@@ -1366,26 +1366,24 @@ REQ-IPC-032
 ### REQ-AUTH-ACCT-009 — sec-mod shutdown sends one non-blocking RADIUS Stop per open session to the first configured server
 
 **Requirement:** When sec-mod terminates, it MUST close every open accounting
-session through the shutdown-specific path. With radcli, each close MUST issue
-exactly one `PW_STATUS_STOP` Accounting-Request to the first configured server
+session through the shutdown-specific path. Each close MUST issue exactly one
+`PW_STATUS_STOP` Accounting-Request to the first configured server
 (`authserver` for TLS/DTLS transports, otherwise `acctserver`) with zero timeout
 and zero retries; it MUST NOT call the response-waiting `rc_aaa()` path or send
-the same Stop to later configured servers. With legacy freeradius-client,
-which has no non-blocking send primitive, shutdown MUST skip the Stop request
-and proceed directly to cleanup rather than wait for a response.
+the same Stop to later configured servers.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/sec-mod-db.c:71-90 (`sec_mod_client_db_deinit`);
 src/sec-mod-auth.c:1056-1072 (`sec_auth_user_deinit`);
-src/acct/radius.c:264-375 (`radius_acct_send_shutdown`,
+src/acct/radius.c:258-361 (`radius_acct_send_shutdown`,
 `radius_acct_close_session`)
 **Acceptance:** positive, local (`tests/radius`, root/full stack) — configure
 two accounting-server entries that reach the same local RADIUS receiver,
 retain one disconnected session, leave another active, and terminate ocserv;
 confirm the receiver observes exactly one new Stop for each logical session
 and ocserv exits without waiting for an Accounting-Response. Negative, CI —
-repeat with legacy freeradius-client and an unavailable RADIUS server; confirm
-shutdown does not wait for `radius_timeout` or execute retry processing.
+repeat with an unavailable RADIUS server; confirm shutdown does not wait for
+`radius_timeout` or execute retry processing.
 **Links:** REQ-AUTH-ACCT-002, REQ-AUTH-ACCT-003, REQ-AUTH-ACCT-007,
 REQ-AUTH-ACCT-008
 
