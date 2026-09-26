@@ -152,19 +152,26 @@ resource-amplification difference, not a bypass. Not flagged as
 **Requirement:** `get_ipv4_lease()` MUST reject a candidate address if (a)
 an identical `/32` lease already exists (`ip_lease_exists`), (b) the
 candidate equals the network address, or (c) the candidate equals the
-computed broadcast address (`network | ~mask`). `get_ipv6_lease()` MUST
-additionally reject a candidate `/prefix` subnet if it equals the TUN
-device's own subnet (`ip_cmp(subnet, tun) == 0`) or if that subnet is
-already leased.
+computed broadcast address (`network | ~mask`). Exception: when the
+netmask is `/31` (`255.255.255.254`), (b) and (c) MUST NOT be applied,
+since a `/31` point-to-point network has no reserved network or broadcast
+address (RFC 3021); only (a) and the TUN-address check of REQ-MAIN-NET-004
+apply. `get_ipv6_lease()` MUST additionally reject a candidate `/prefix`
+subnet if it equals the TUN device's own subnet (`ip_cmp(subnet, tun) == 0`)
+or if that subnet is already leased.
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/ip-lease.c:150-184 (`is_ipv6_ok`, `is_ipv4_ok`)
+**Source:** src/ip-lease.c:150-191 (`is_ipv6_ok`, `is_ipv4_ok`)
 **Acceptance:** unit, local — exhaust the configured IPv4 pool to 2 free
 addresses: the network and broadcast addresses of the subnet; confirm
 `get_ipv4_lease` does not return either and instead fails with no lease
-available after `MAX_IP_TRIES`. For IPv6, configure a lease subnet equal to
-the TUN device's subnet and confirm `get_ipv6_lease` rejects it.
-**Links:** —
+available after `MAX_IP_TRIES`. With `ipv4-network = N/31`, confirm a
+client is leased `N+1` (the address that equals the computed broadcast
+address) rather than failing with no lease available. With `/30` or wider,
+confirm the network/broadcast rejection still applies. For IPv6, configure
+a lease subnet equal to the TUN device's subnet and confirm
+`get_ipv6_lease` rejects it.
+**Links:** REQ-MAIN-NET-004
 
 ### REQ-MAIN-NET-002 — IP lease allocation gives up after MAX_IP_TRIES random attempts
 
@@ -221,6 +228,27 @@ device is reset, and disconnect accounting for the *old* session still
 reports the correct (copied) IP — i.e., freeing `thief->ipv4` does not
 corrupt `proc->ipv4`.
 **Links:** —
+
+### REQ-MAIN-NET-004 — Server-side IPv4 TUN address is the first host address of the network
+
+**Requirement:** `get_ipv4_lease()` MUST set the server-side (local) TUN
+address `lip` to the network address + 1 and MUST NOT lease that address to
+the client (`rip`). When the netmask is `/31` (RFC 3021), `lip` MUST
+instead be the network address itself, leaving `network + 1` as the only
+address that can be leased to the client. An explicit per-user IPv4
+address (`explicit-ipv4`) equal to `lip` MUST be rejected with
+`ERR_NO_IP`.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/ip-lease.c:271-282 (explicit IP), src/ip-lease.c:356-366
+(pool allocation)
+**Acceptance:** local — with `ipv4-network = 192.168.1.0/24`, confirm the
+server TUN address is `192.168.1.1` and the client's address differs from
+it. With `ipv4-network = 192.168.1.0/31`, confirm the server TUN address is
+`192.168.1.0` and the client receives `192.168.1.1`; with the same `/31`
+and `explicit-ipv4 = 192.168.1.0`, confirm the session is rejected (no IP).
+**Links:** REQ-MAIN-NET-001, OC-PROTO-CONN-007 (server address first in the
+network, SHOULD)
 
 ---
 
