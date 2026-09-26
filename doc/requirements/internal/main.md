@@ -161,7 +161,7 @@ subnet if it equals the TUN device's own subnet (`ip_cmp(subnet, tun) == 0`)
 or if that subnet is already leased.
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/ip-lease.c:150-191 (`is_ipv6_ok`, `is_ipv4_ok`)
+**Source:** src/ip-lease.c:150-196 (`is_ipv6_ok`, `is_ipv4_p2p_mask`, `is_ipv4_ok`)
 **Acceptance:** unit, local — exhaust the configured IPv4 pool to 2 free
 addresses: the network and broadcast addresses of the subnet; confirm
 `get_ipv4_lease` does not return either and instead fails with no lease
@@ -181,7 +181,7 @@ allocation failure; it MUST NOT loop indefinitely searching for a free
 address in an exhausted pool.
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/ip-lease.c:186-193 (`#define MAX_IP_TRIES 16`,
+**Source:** src/ip-lease.c:198-205 (`#define MAX_IP_TRIES 16`,
 `max_loops = MAX_IP_TRIES`)
 **Acceptance:** unit, local — configure an address pool with 0 free
 addresses; confirm `get_ipv4_lease` returns an error within `MAX_IP_TRIES`
@@ -189,13 +189,13 @@ iterations (bounded time), not a hang. With `predictable-ips` enabled,
 `proc->ipv4_seed` is set once at session creation to
 `hash_any(username, ...)` (src/sec-mod-auth.c:571-573) and consumed only on
 the *first* loop iteration (`max_loops == MAX_IP_TRIES`,
-src/ip-lease.c:300-301). If that single deterministic candidate is rejected
+src/ip-lease.c:313-314). If that single deterministic candidate is rejected
 by `is_ipv4_ok()` (already leased, or equal to the network/broadcast
 address), the function does **not** retry other deterministic addresses
 derived from the seed — it falls through to the same candidates used in the
 non-predictable case: up to 5 further attempts via `gnutls_rnd()`
-(src/ip-lease.c:303-313, true random) followed by up to 10 attempts via
-`ip_from_seed()` chained off the last random value (src/ip-lease.c:314-319),
+(src/ip-lease.c:316-326, true random) followed by up to 10 attempts via
+`ip_from_seed()` chained off the last random value (src/ip-lease.c:327-332),
 all under the same `max_loops`/`MAX_IP_TRIES` counter. Fallback behavior: a
 colliding predictable seed silently degrades to random IP assignment for
 that session, matching the "IP stays the same for the same user when
@@ -240,7 +240,7 @@ address (`explicit-ipv4`) equal to `lip` MUST be rejected with
 `ERR_NO_IP`.
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/ip-lease.c:271-282 (explicit IP), src/ip-lease.c:356-366
+**Source:** src/ip-lease.c:275-286 (explicit IP), src/ip-lease.c:360-370
 (pool allocation)
 **Acceptance:** local — with `ipv4-network = 192.168.1.0/24`, confirm the
 server TUN address is `192.168.1.1` and the client's address differs from
