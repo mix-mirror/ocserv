@@ -1,0 +1,137 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+# Tests that the server side of the IPv6 tunnel takes the network address:
+# on a /127 point-to-point network (RFC 6164) the client is leased the
+# other address, and an explicit IP equal to the network address is
+# rejected while network + 1 is usable. See REQ-MAIN-NET-006.
+#
+# The server runs in its own network namespace (ns.sh) because the host
+# namespace of CI containers may have IPv6 disabled, which makes setting
+# the tun device's IPv6 address fail and the session fall back to IPv4.
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+TMPFILE=outfile.$$
+OCCTL_SOCKET=./occtl-ipv6-p2p-$$.socket
+SERVERCERT=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8=
+
+. `dirname $0`/common.sh
+. `dirname $0`/random-net.sh
+
+# a second, wider network for the explicit network + 1 case
+alloc_vpnnet6 VPNNET6B
+
+eval "${GETPORT}"
+
+function finish {
+	set +e
+	test -n "${CPID}" && kill ${CPID} >/dev/null 2>&1
+	test -n "${PID}" && kill ${PID} >/dev/null 2>&1
+	rm -f ${TMPFILE} ${CONFIG}
+	rm -rf ${CONFIG_PER_USER_DIR}
+}
+
+. `dirname $0`/ns.sh
+
+# connect <user>: on success leaves the client running as $CPID with its
+# verbose output in $TMPFILE
+connect()
+{
+user=$1
+COOKIE=''
+eval `echo "$user" | ${CMDNS1} $OPENCONNECT -q $ADDRESS:$PORT -u $user --servercert=$SERVERCERT --authenticate`
+if [ -z "$COOKIE" ];then
+	return 1
+fi
+
+rm -f $TMPFILE
+echo "$user" | ${CMDNS1} $OPENCONNECT -v $ADDRESS:$PORT -u $user -C "$COOKIE" --servercert=$SERVERCERT --script=/bin/true >$TMPFILE 2>&1 &
+CPID=$!
+
+sleep 3
+if ! grep "Established DTLS" $TMPFILE >/dev/null 2>&1;then
+	kill $CPID 2>/dev/null
+	return 1
+fi
+
+return 0
+}
+
+# check_header <header> <expected value>
+check_header()
+{
+got=`grep "$1:" $TMPFILE | head -1 | sed 's/.*'"$1"': *//' | tr -d '\r'`
+if test "$got" != "$2";then
+	kill $CPID
+	fail $PID "FAIL: expected $1: $2, got '$got'"
+fi
+}
+
+# check_server_ip <user> <expected server address>
+check_server_ip()
+{
+got=`${OCCTL} -s ${OCCTL_SOCKET} show user $1 2>&1 | grep "P-t-P IPv6:" | head -1 | sed 's/.*P-t-P IPv6: *//' | awk '{print $1}'`
+if test "$got" != "$2";then
+	kill $CPID
+	fail $PID "FAIL: expected P-t-P IPv6: $2, got '$got'"
+fi
+}
+
+echo "Testing the server side IPv6 address and /127 point-to-point networks... "
+
+update_config_dir user-config-ipv6-p2p
+update_config test-ipv6-p2p.config
+${CMDNS2} ${SERV} -d 1 -f -c "${CONFIG}" & PID=$!
+wait_server $PID
+
+echo -n "Connecting with a /127 network... "
+connect test
+if test $? != 0;then
+	cat $TMPFILE
+	fail $PID "FAIL: expected a lease from ${VPNNET6_BASE}0/127, got no connection"
+fi
+check_header X-CSTP-Address-IP6 ${VPNNET6_BASE}1/128
+check_server_ip test ${VPNNET6_ADDR}
+kill $CPID
+echo ok
+
+echo -n "Connecting with the server address of a /127 as explicit IP... "
+connect test2
+if test $? = 0;then
+	kill $CPID
+	fail $PID "FAIL: expected rejection of ${VPNNET6_BASE}2 (server address), got a connection"
+fi
+echo ok
+
+echo -n "Connecting with network + 1 of a /112 as explicit IP... "
+connect test3
+if test $? != 0;then
+	cat $TMPFILE
+	fail $PID "FAIL: expected a connection with ${VPNNET6B_BASE}1, got none"
+fi
+check_header X-CSTP-Address-IP6 ${VPNNET6B_BASE}1/128
+check_server_ip test3 ${VPNNET6B_ADDR}
+kill $CPID
+echo ok
+
+kill $PID
+wait
+
+exit 0
