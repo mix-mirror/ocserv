@@ -59,10 +59,11 @@ if [ ! -f test-iroute.tmp ];then
 	fail $PID "Temporary file cannot be found"
 fi
 
+# route-add-cmd records "%R %{RI} %D" for the iroute of user test;
+# see REQ-MAIN-NET-005
 CONTENTS=`cat test-iroute.tmp`
-if [[ "$CONTENTS" =~ "203.0.113.0/255.255.255.0 203.0.113.0/24 [vpns|tun]$" ]];then
-	cat test-iroute.tmp
-	fail $PID "Temporary file contents are not correct"
+if ! echo "$CONTENTS" | grep -Eqx '203\.0\.113\.0/255\.255\.255\.0 203\.0\.113\.0/24 (vpns|tun)[0-9]+';then
+	fail $PID "FAIL: expected '203.0.113.0/255.255.255.0 203.0.113.0/24 vpns<N>', got '$CONTENTS'"
 fi
 
 echo ok

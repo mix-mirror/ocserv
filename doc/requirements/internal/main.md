@@ -252,6 +252,34 @@ network, SHOULD)
 
 ---
 
+### REQ-MAIN-NET-005 — A user's iroutes are applied with `route-add-cmd` when the user connects, with `%{R}`, `%{RI}` and `%{D}` substituted
+
+**Requirement:** When a user whose configuration carries `iroute` entries
+completes authentication (`handle_script_exit()` with a zero exit code),
+`apply_iroutes()` MUST run `route-add-cmd` once per iroute, via
+`/bin/sh -c`, after substituting `%{R}`/`%R` with the route in
+address/netmask form (as normalized by `ip_route_sanity_check()`, e.g.
+`192.168.2.0/255.255.255.0`), `%{RI}` with the same route in CIDR form
+(`ipv4_route_to_cidr()`, e.g. `192.168.2.0/24`), and `%{D}`/`%D` with the
+name of the user's TUN device. If any command fails, the iroutes already
+added MUST be removed with `route-del-cmd` and the user MUST be denied
+access.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/route-add.c:83-114 (`replace_cmd`), src/route-add.c:163-185
+(`apply_iroutes`); src/main-worker-cmd.c:108 (call site);
+src/ip-util.c (`ip_route_sanity_check`, `ipv4_route_to_cidr`);
+doc/sample.config (`route-add-cmd`)
+**Acceptance:** local (root) — `tests/test-iroute`: with
+`route-add-cmd = "echo %R %{RI} %D > ./test-iroute.tmp"` and a user whose
+config has `iroute = 203.0.113.0/24`, connecting as that user MUST produce
+exactly the line `203.0.113.0/255.255.255.0 203.0.113.0/24 <device>`,
+where `<device>` is a `vpns<N>` (Linux) or `tun<N>` (BSD) device;
+negative — any other content fails the test.
+**Links:** REQ-MAIN-SEC-008
+
+---
+
 ## SEC — ban list
 
 ### REQ-MAIN-SEC-001 — hmac_key is generated once at startup, never traverses worker IPC, and is zeroed in worker children
