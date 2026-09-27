@@ -208,7 +208,8 @@ DISABLE_ASAN_BROKEN_TESTS=1  # Skip ldpreload-based tests (incompatible with ASA
   more (`@NAME@`, `@NAME_BASE@`, `@NAME_ADDR@`). Tests using `ns.sh` source `random-net.sh`
   (and `random-net2.sh`) instead. Addresses configured on an interface MUST come from
   these; routes, DNS and other data-only addresses MUST use documentation ranges
-  (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24, 2001:db8::/32) (**REQ-GEN-TEST-010**)
+  (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24, 2001:db8::/32). Enforced by
+  `tests/check-test-addresses.py` (**REQ-GEN-TEST-010**)
 - `tests/certs/` — Test certificates and keys
 - `tests/common.sh` — Shared utilities (requires the `openconnect` client)
 - `tests/*.c` — Unit tests for specific components

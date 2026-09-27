@@ -129,7 +129,7 @@ ca-cert = ${srcdir}/certs/ca.pem
 server-cert = ${srcdir}/certs/server-cert-secp521r1.pem
 server-key = ${srcdir}/certs/server-key-secp521r1.pem
 
-ipv4-network = 192.168.67.0
+ipv4-network = 198.18.67.0
 ipv4-netmask = 255.255.255.0
 _EOF
 

@@ -60,6 +60,7 @@ fi
 echo "Testing ocserv with radius (basic)... "
 
 function finish {
+  rm -rf "raddb.$$.tmp"
   echo " * Cleaning up..."
   test -n "${WORKER_PID}" && kill -CONT ${WORKER_PID} >/dev/null 2>&1
   test -n "${WORKER_RESUME_PID}" && wait ${WORKER_RESUME_PID} >/dev/null 2>&1
@@ -81,6 +82,7 @@ USERNAME=test
 ${CMDNS2} ${IP} link set dev lo up
 
 # Run servers
+update_raddb
 ${CMDNS2} ${RADIUSD} -d ${RADDB_DIR}/ -s -xx -l ${RADIUSLOG} &
 RADIUSPID=$!
 

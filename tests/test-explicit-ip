@@ -23,6 +23,7 @@ srcdir=${srcdir:-.}
 TMPFILE=outfile.$$
 
 . `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
 
 eval "${GETPORT}"
 
@@ -55,6 +56,7 @@ return 0
 
 echo "Testing local backend with username-password and explicit IP addresses... "
 
+update_config_dir user-config-explicit
 update_config test-explicit-ip.config
 launch_simple_server -d 1 -f -c "${CONFIG}"
 PID=$!
@@ -90,5 +92,7 @@ echo ok
 
 kill $PID
 wait
+
+rm -rf ${CONFIG_PER_USER_DIR}
 
 exit 0

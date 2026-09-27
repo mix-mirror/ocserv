@@ -82,6 +82,7 @@ fi
 echo "Testing whether Acct-Session-Time stays accurate across cookie reconnects... "
 
 function finish {
+  rm -rf "raddb.$$.tmp"
   echo " * Cleaning up..."
   cleanup_client_server
   test -n "${RADIUSPID}" && kill ${RADIUSPID} >/dev/null 2>&1
@@ -98,6 +99,7 @@ ${CMDNS2} ${IP} link set dev lo up
 
 # Run servers
 rm -f ${RADIUSLOG}
+update_raddb
 ${CMDNS2} ${RADIUSD} -d ${RADDB_DIR}/ -s -xx -l ${RADIUSLOG} &
 RADIUSPID=$!
 

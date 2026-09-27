@@ -22,6 +22,7 @@ SERV="${SERV:-../src/ocserv}"
 srcdir=${srcdir:-.}
 
 . `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
 
 eval "${GETPORT}"
 
@@ -85,7 +86,7 @@ echo $DTLS_HELLO | xxd -r -p | nc -w 1 -u localhost $PORT > /dev/null
 
 sleep 5
 
-ping -c 4 192.168.1.1 || fail $PID Tunnel was broken
+ping -c 4 ${VPNNET_BASE}.1 || fail $PID Tunnel was broken
 
 
 exit 0

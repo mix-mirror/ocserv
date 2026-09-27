@@ -22,6 +22,7 @@ SERV="${SERV:-../src/ocserv}"
 srcdir=${srcdir:-.}
 
 . `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
 
 eval "${GETPORT}"
 

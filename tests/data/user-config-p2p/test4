@@ -1,0 +1,2 @@
+ipv4-network = @VPNNET_BASE@.8/30
+explicit-ipv4 = @VPNNET_BASE@.10

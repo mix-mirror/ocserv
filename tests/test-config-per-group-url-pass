@@ -56,17 +56,12 @@ function finish {
 }
 trap finish EXIT
 
-# server address
-ADDRESS=10.204.5.1
-CLI_ADDRESS=10.204.6.1
-VPNNET=192.168.24.0/24
-VPNADDR=192.168.24.1
-VPNNET6=fd91:6d87:7344:dc6a:dc16::/112
-VPNADDR6=fd91:6d87:7344:dc6a:dc16::1
 OCCTL_SOCKET=./occtl-cpg-$$.socket
-ROUTE1=192.168.24.0/24
 USERNAME=test
 PASSWORD=test
+
+. `dirname $0`/random-net.sh
+ROUTE1=${VPNNET}
 
 . `dirname $0`/ns.sh
 
@@ -108,7 +103,7 @@ if test $? != 0;then
 fi
 cat $OUTFILE
 
-grep "DNS: 1.1.1.1" ${OUTFILE} >/dev/null
+grep -F "DNS: 203.0.113.1" ${OUTFILE} >/dev/null
 if test $? = 0;then
 cat $OUTFILE
 	${OCCTL} -s ${OCCTL_SOCKET} show user ${USERNAME}
@@ -116,14 +111,14 @@ cat $OUTFILE
 	exit 1
 fi
 
-grep "1.1.1.0/24" ${OUTFILE}|grep Routes >/dev/null
+grep -F "203.0.113.0/24" ${OUTFILE}|grep Routes >/dev/null
 if test $? = 0;then
 	${OCCTL} -s ${OCCTL_SOCKET} show user ${USERNAME}
 	echo "occtl show user didn't the right routes!"
 	exit 1
 fi
 
-grep "No-routes: 192.168.98.0" ${OUTFILE} >/dev/null
+grep -F "No-routes: 198.51.100.0" ${OUTFILE} >/dev/null
 if test $? != 0;then
 cat $OUTFILE
 	${OCCTL} -s ${OCCTL_SOCKET} show user ${USERNAME}
@@ -162,14 +157,14 @@ if test $? != 0;then
 fi
 cat $OUTFILE
 
-grep "DNS: 1\.1\.1\.1" ${OUTFILE} >/dev/null
+grep "DNS: 203\.0\.113\.1" ${OUTFILE} >/dev/null
 if test $? != 0;then
 	${OCCTL} -s ${OCCTL_SOCKET} show user ${USERNAME}
 	echo "occtl show user didn't the right DNS address!"
 	exit 1
 fi
 
-grep "1\.1\.1\.0/255\.255\.255\.0" ${OUTFILE}|grep Routes >/dev/null
+grep "203\.0\.113\.0/255\.255\.255\.0" ${OUTFILE}|grep Routes >/dev/null
 if test $? != 0;then
 cat $OUTFILE
 	${OCCTL} -s ${OCCTL_SOCKET} show user ${USERNAME}

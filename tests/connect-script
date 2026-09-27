@@ -20,22 +20,23 @@ verify_env_set "USER_AGENT"
 verify_env_set "DEVICE_PLATFORM"
 verify_env_set "DEVICE_TYPE"
 
+# VPNNET_BASE is exported by the test (test-pass-script) to ocserv
 case "$REASON" in
   connect)
 	verify_env_set "DEVICE"
 
-	test "${OCSERV_DNS}" = "192.168.1.1 192.168.5.1 " && \
-	test "${OCSERV_DNS4}" = "192.168.1.1 192.168.5.1 " && \
-	test "${OCSERV_ROUTES}" = "192.168.1.0/255.255.255.0 192.168.5.0/255.255.255.0 " && \
-	test "${OCSERV_ROUTES4}" = "192.168.1.0/255.255.255.0 192.168.5.0/255.255.255.0 " && \
+	test "${OCSERV_DNS}" = "${VPNNET_BASE}.1 203.0.113.1 " && \
+	test "${OCSERV_DNS4}" = "${VPNNET_BASE}.1 203.0.113.1 " && \
+	test "${OCSERV_ROUTES}" = "${VPNNET_BASE}.0/255.255.255.0 203.0.113.0/255.255.255.0 " && \
+	test "${OCSERV_ROUTES4}" = "${VPNNET_BASE}.0/255.255.255.0 203.0.113.0/255.255.255.0 " && \
 	echo "${IP_REMOTE}" > ${builddir}/connect.ok
 	;;
   disconnect)
 	if ! test -z "$DEVICE";then
-		test "${OCSERV_DNS}" = "192.168.1.1 192.168.5.1 " && \
-		test "${OCSERV_DNS4}" = "192.168.1.1 192.168.5.1 " && \
-		test "${OCSERV_ROUTES}" = "192.168.1.0/255.255.255.0 192.168.5.0/255.255.255.0 " && \
-		test "${OCSERV_ROUTES4}" = "192.168.1.0/255.255.255.0 192.168.5.0/255.255.255.0 " && \
+		test "${OCSERV_DNS}" = "${VPNNET_BASE}.1 203.0.113.1 " && \
+		test "${OCSERV_DNS4}" = "${VPNNET_BASE}.1 203.0.113.1 " && \
+		test "${OCSERV_ROUTES}" = "${VPNNET_BASE}.0/255.255.255.0 203.0.113.0/255.255.255.0 " && \
+		test "${OCSERV_ROUTES4}" = "${VPNNET_BASE}.0/255.255.255.0 203.0.113.0/255.255.255.0 " && \
 		echo "${IP_REMOTE}" > ${builddir}/disconnect.ok
 	fi
 	;;

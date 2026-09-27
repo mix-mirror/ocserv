@@ -57,6 +57,7 @@ fi
 echo "Testing ocserv with radius (user config)... "
 
 function finish {
+  rm -rf "raddb.$$.tmp"
   echo " * Cleaning up..."
   cleanup_client_server
   test -n "${RADIUSPID}" && kill ${RADIUSPID} >/dev/null 2>&1
@@ -69,12 +70,7 @@ trap finish EXIT
 # server address
 . `dirname $0`/random-net.sh
 
-# These addresses must match the radius sent ranges
-VPNNET=192.168.66.0/24
-VPNADDR=192.168.66.1
-CLIVPNADDR=192.168.66.192
-VPNNET6=fd91:6d14:7241:dc6a::/112
-VPNADDR6=fd91:6d14:7241:dc6a::1
+CLIVPNADDR=${VPNNET_BASE}.192
 OCCTL_SOCKET=./occtl-radius-$$.socket
 
 . `dirname $0`/ns.sh
@@ -83,6 +79,7 @@ ${CMDNS2} ${IP} link set dev lo up
 
 # Run servers
 rm -f ${RADIUSLOG}
+update_raddb
 ${CMDNS2} ${RADIUSD} -d ${RADDB_DIR}/ -s -xx -l ${RADIUSLOG} &
 RADIUSPID=$!
 
@@ -127,7 +124,7 @@ if test $? != 0;then
 fi
 
 #check whether the routes have been applied
-MATCH='192.168.67.0/255.255.255.0'
+MATCH='198.51.100.0/255.255.255.0'
 ${OCCTL} -s ${OCCTL_SOCKET} show user $USERNAME >${OUTFILE} 2>&1
 grep "$MATCH" ${OUTFILE}
 if test $? != 0;then

@@ -24,10 +24,13 @@
 SERV="${SERV:-../src/ocserv}"
 srcdir=${srcdir:-.}
 TMPFILE=outfile.$$
+# server debug output lets a CI failure be diagnosed from the test log
+VERBOSE=1
 OCCTL_SOCKET=./occtl-p2p-$$.socket
 SERVERCERT=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8=
 
 . `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
 
 eval "${GETPORT}"
 
@@ -67,8 +70,9 @@ fi
 
 echo "Testing IPv4 leases from /31 point-to-point networks... "
 
+update_config_dir user-config-p2p
 update_config test-ipv4-p2p.config
-launch_simple_server -d 1 -f -c "${CONFIG}"
+launch_simple_server -d 3 -f -c "${CONFIG}"
 PID=$!
 wait_server $PID
 
@@ -76,18 +80,18 @@ echo -n "Connecting with a /31 network... "
 connect test
 if test $? != 0;then
 	cat $TMPFILE
-	fail $PID "FAIL: expected a lease from 192.168.211.0/31, got no connection"
+	fail $PID "FAIL: expected a lease from ${VPNNET_BASE}.0/31, got no connection"
 fi
-check_header X-CSTP-Address 192.168.211.1
+check_header X-CSTP-Address ${VPNNET_BASE}.1
 check_header X-CSTP-Netmask 255.255.255.254
 echo ok
 
 echo -n "Checking the server side address of the /31 link... "
 ${OCCTL} -s ${OCCTL_SOCKET} show user test >$TMPFILE.occtl 2>&1
-if ! grep -E "P-t-P IPv4: 192\.168\.211\.0\b" $TMPFILE.occtl >/dev/null;then
+if ! grep -wF "P-t-P IPv4: ${VPNNET_BASE}.0" $TMPFILE.occtl >/dev/null;then
 	cat $TMPFILE.occtl
 	kill $CPID
-	fail $PID "FAIL: expected P-t-P IPv4: 192.168.211.0"
+	fail $PID "FAIL: expected P-t-P IPv4: ${VPNNET_BASE}.0"
 fi
 rm -f $TMPFILE.occtl
 kill $CPID
@@ -97,7 +101,7 @@ echo -n "Connecting with the server address of a /31 as explicit IP... "
 connect test2
 if test $? = 0;then
 	kill $CPID
-	fail $PID "FAIL: expected rejection of 192.168.211.2 (server address), got a connection"
+	fail $PID "FAIL: expected rejection of ${VPNNET_BASE}.2 (server address), got a connection"
 fi
 echo ok
 
@@ -105,7 +109,7 @@ echo -n "Connecting with the broadcast address of a /30 as explicit IP... "
 connect test3
 if test $? = 0;then
 	kill $CPID
-	fail $PID "FAIL: expected rejection of 192.168.211.7 (broadcast), got a connection"
+	fail $PID "FAIL: expected rejection of ${VPNNET_BASE}.7 (broadcast), got a connection"
 fi
 echo ok
 
@@ -113,14 +117,15 @@ echo -n "Connecting with a host address of a /30 as explicit IP... "
 connect test4
 if test $? != 0;then
 	cat $TMPFILE
-	fail $PID "FAIL: expected a connection with 192.168.211.10, got none"
+	fail $PID "FAIL: expected a connection with ${VPNNET_BASE}.10, got none"
 fi
-check_header X-CSTP-Address 192.168.211.10
+check_header X-CSTP-Address ${VPNNET_BASE}.10
 check_header X-CSTP-Netmask 255.255.255.252
 kill $CPID
 echo ok
 
 rm -f $TMPFILE ${CONFIG}
+rm -rf ${CONFIG_PER_USER_DIR}
 kill $PID
 wait
 

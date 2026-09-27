@@ -26,6 +26,7 @@ PIDFILE=ocserv-pid.$$.tmp
 OCCTL_SOCKET=./occtl-drain-$$.socket
 
 . `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
 
 eval "${GETPORT}"
 

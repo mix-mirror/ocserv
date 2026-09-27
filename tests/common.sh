@@ -115,7 +115,7 @@ _subst_placeholders() {
 	       -e 's|@MATCH_CIPHERS@|'${MATCH_CIPHERS}'|g' \
 	       -e 's|@OCCTL_SOCKET@|'${OCCTL_SOCKET}'|g' \
 	       -e 's|@LISTEN_NS@|'${LISTEN_NS}'|g' \
-	       -e 's|@CONFIG_DIR@|'${CONFIG_DIR}'|g' \
+	       -e 's|@CONFIG_PER_USER_DIR@|'${CONFIG_PER_USER_DIR}'|g' \
 	       -e 's|@RADIUSCLIENT_DIR@|'${RADIUSCLIENT_DIR}'|g' "$1"
 }
 
@@ -128,8 +128,8 @@ update_config() {
 }
 
 # update_config_dir DIR: materializes the per-user or per-group config
-# directory tests/data/DIR into $CONFIG_DIR; call it before update_config
-# so that @CONFIG_DIR@ in the server config resolves.
+# directory tests/data/DIR into $CONFIG_PER_USER_DIR; call it before
+# update_config so that @CONFIG_PER_USER_DIR@ in the server config resolves.
 update_config_dir() {
 	dir=$1
 	rm -rf "$dir.$$.tmp"
@@ -137,7 +137,7 @@ update_config_dir() {
 	for f in "$dir.$$.tmp"/*; do
 		_subst_placeholders "$f"
 	done
-	CONFIG_DIR="$(pwd)/$dir.$$.tmp"
+	CONFIG_PER_USER_DIR="$(pwd)/$dir.$$.tmp"
 }
 
 # update_raddb: gives this test a private copy of the FreeRADIUS directory

@@ -58,7 +58,7 @@ trap finish EXIT
 
 # server address
 OCCTL_SOCKET=./occtl-cpg-$$.socket
-ROUTE1=192.168.4.0/24
+ROUTE1=198.18.4.0/24
 USERNAME=test2
 PASSWORD=test2
 
@@ -103,7 +103,7 @@ if test $? != 0;then
 fi
 cat $OUTFILE
 
-grep "DNS: 1.1.1.1" ${OUTFILE} >/dev/null
+grep -F "DNS: 203.0.113.1" ${OUTFILE} >/dev/null
 if test $? = 0;then
 cat $OUTFILE
 	${OCCTL} -s ${OCCTL_SOCKET} show user ${USERNAME}
@@ -111,7 +111,7 @@ cat $OUTFILE
 	exit 1
 fi
 
-grep "1.1.1.0/24" ${OUTFILE}|grep Routes >/dev/null
+grep -F "203.0.113.0/24" ${OUTFILE}|grep Routes >/dev/null
 if test $? = 0;then
 	${OCCTL} -s ${OCCTL_SOCKET} show user ${USERNAME}
 	echo "occtl show user didn't the right routes!"
@@ -150,14 +150,14 @@ if test $? != 0;then
 fi
 cat $OUTFILE
 
-grep "DNS: 1\.1\.1\.1" ${OUTFILE} >/dev/null
+grep "DNS: 203\.0\.113\.1" ${OUTFILE} >/dev/null
 if test $? != 0;then
 	${OCCTL} -s ${OCCTL_SOCKET} show user ${USERNAME}
 	echo "occtl show user didn't the right DNS address!"
 	exit 1
 fi
 
-grep "1\.1\.1\.0/255\.255\.255\.0" ${OUTFILE}|grep Routes >/dev/null
+grep "203\.0\.113\.0/255\.255\.255\.0" ${OUTFILE}|grep Routes >/dev/null
 if test $? != 0;then
 cat $OUTFILE
 	${OCCTL} -s ${OCCTL_SOCKET} show user ${USERNAME}

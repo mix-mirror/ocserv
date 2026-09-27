@@ -25,6 +25,9 @@ srcdir=${srcdir:-.}
 # the expose-iroutes option has an effect to other users.
 
 . `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
+# the per-user network of testipnet in tests/data/user-config
+alloc_vpnnet4 VPNUSERNET
 
 eval "${GETPORT}"
 
@@ -36,6 +39,7 @@ TMPFILE2=test-user-config-2.$$.tmp
 rm -f ${TMPFILE1}
 rm -f ${TMPFILE2}
 
+update_config_dir user-config
 update_config test-user-config.config
 launch_simple_server -d 3 -f -c "${CONFIG}"
 PID=$!
@@ -83,7 +87,7 @@ kill $kpid2
 
 echo -n "Checking if proper dns was sent... "
 
-CONTENTS=`cat ${TMPFILE1}|grep "X-CSTP-DNS: 8.8.8.8"`
+CONTENTS=`cat ${TMPFILE1}|grep "X-CSTP-DNS: 192.0.2.8"`
 if test -z "$CONTENTS";then
 	cat ${TMPFILE1}|grep X-CSTP-DNS
 	fail $PID "Expected DNS was not sent"
@@ -93,7 +97,7 @@ echo ok
 
 echo -n "Checking if routes have been sent... "
 
-CONTENTS=`cat ${TMPFILE1}|grep X-CSTP-Split-Include|grep 192.168.1.0`
+CONTENTS=`cat ${TMPFILE1}|grep X-CSTP-Split-Include|grep -F 203.0.113.0`
 if test -z "$CONTENTS";then
 	cat ${TMPFILE1}|grep X-CSTP-Split-Include
 	fail $PID "Temporary file contents are not correct; iroute was not found"
@@ -178,16 +182,18 @@ $OPENCONNECT -v localhost:$PORT --sslkey "${srcdir}/certs/user-key.pem" -c "${sr
 echo ok
 sleep 3
 
-CONTENTS=`cat ${TMPFILE1}|grep X-CSTP-Netmask|grep '255.255.0.0'`
+CONTENTS=`cat ${TMPFILE1}|grep X-CSTP-Netmask|grep '255.255.255.128'`
 if test -z "$CONTENTS";then
 	cat ${TMPFILE1}|grep X-CSTP-Netmask
-	fail $PID "Temporary file contents are not correct; netmask was not the expected (255.255.0.0)"
+	fail $PID "Temporary file contents are not correct; netmask was not the expected (255.255.255.128)"
 fi
 
-CONTENTS=`cat ${TMPFILE1}|grep X-CSTP-Address|grep ' 10.9.'`
-if test -z "$CONTENTS";then
+# testipnet's network is ${VPNUSERNET_BASE}.128/25, distinct from the
+# global pool, so an address from the global pool fails the check
+LAST_OCTET=`cat ${TMPFILE1}|grep X-CSTP-Address:|head -1|sed 's/.*'"${VPNUSERNET_BASE}"'\.\([0-9]*\).*/\1/'|tr -d '\r'`
+if ! test "${LAST_OCTET}" -ge 129 2>/dev/null || ! test "${LAST_OCTET}" -le 254;then
 	cat ${TMPFILE1}|grep X-CSTP-Address
-	fail $PID "Temporary file contents are not correct; address was not the expected (10.9.)"
+	fail $PID "Temporary file contents are not correct; address was not the expected (${VPNUSERNET_BASE}.128/25)"
 fi
 
 echo -n "Checking if main config split-dns has been sent... "
@@ -212,6 +218,7 @@ echo ok
 
 kill $kpid3
 rm -f ${TMPFILE1} ${CONFIG}
+rm -rf ${CONFIG_PER_USER_DIR}
 rm -f ${TMPFILE2}
 kill $PID
 wait

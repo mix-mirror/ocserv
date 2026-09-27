@@ -23,12 +23,12 @@ OCCTL="${OCCTL:-../src/occtl/occtl}"
 srcdir=${srcdir:-.}
 builddir=${builddir:-.}
 PIDFILE=ocserv-pid.$$.tmp
-VPNNET=172.29.205.0/24
 OUTFILE=out.$$.tmp
 USERNAME=test
 OCCTL_SOCKET=./occtl-test-script-$$.socket
 
 . `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
 
 eval "${GETPORT}"
 

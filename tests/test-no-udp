@@ -39,6 +39,7 @@ finish() {
 	test -n "${CLIPID}" && kill $(cat ${CLIPID}) >/dev/null 2>&1
 	test -n "${CLIPID}" && rm -f ${CLIPID} >/dev/null 2>&1
 	test -n "${CONFIG}" && rm -f ${CONFIG} >/dev/null 2>&1
+	test -n "${CONFIG_PER_USER_DIR}" && rm -rf ${CONFIG_PER_USER_DIR} >/dev/null 2>&1
 	rm -f ${OUTFILE}
 }
 
@@ -87,11 +88,14 @@ disconnect() {
 
 . `dirname $0`/common.sh
 . `dirname $0`/random-net.sh
+# the per-user network of testipnet in tests/data/user-config
+alloc_vpnnet4 VPNUSERNET
 . `dirname $0`/ns.sh
 
 eval "${GETPORT}"
 
 # Run server
+update_config_dir user-config
 update_config test-no-udp.config
 if test "$VERBOSE" = 1;then
 	DEBUG="-d 3"

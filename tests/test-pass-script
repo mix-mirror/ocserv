@@ -26,6 +26,9 @@ OPIDFILE2=pass-script2.$$.tmp
 PARAMSFILE=pass-script.params.$$.tmp
 
 . `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
+# connect-script checks the routes and DNS servers derived from it
+export VPNNET_BASE
 
 eval "${GETPORT}"
 

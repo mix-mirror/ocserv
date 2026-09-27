@@ -24,6 +24,9 @@ srcdir=${srcdir:-.}
 # Test whether append-routes behaves as expected.
 
 . `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
+# the per-user network of testipnet in tests/data/user-config
+alloc_vpnnet4 VPNUSERNET
 
 eval "${GETPORT}"
 
@@ -33,6 +36,7 @@ TMPFILE1=test-append-routes.$$.tmp
 
 rm -f ${TMPFILE1}
 
+update_config_dir user-config
 update_config test-user-config.config
 echo "append-routes = true" >> ${CONFIG}
 
@@ -49,7 +53,7 @@ cat ${TMPFILE1}
 
 echo -n "Checking if routes have been sent... "
 
-CONTENTS=`cat ${TMPFILE1}|grep X-CSTP-Split-Include|grep "192.168.5.0/255.255.255.0"`
+CONTENTS=`cat ${TMPFILE1}|grep X-CSTP-Split-Include|grep -F "${VPNNET_BASE}.0/255.255.255.0"`
 if test -z "$CONTENTS";then
 	cat ${TMPFILE1}
 	fail $PID "Temporary file contents are not correct; route was not found"
@@ -59,7 +63,7 @@ echo ok
 
 echo -n "Checking if no-routes have been sent... "
 
-CONTENTS=`cat ${TMPFILE1}|grep X-CSTP-Split-Exclude|grep "192.168.98.0/255.255.255.0"`
+CONTENTS=`cat ${TMPFILE1}|grep X-CSTP-Split-Exclude|grep -F "198.51.100.0/255.255.255.0"`
 if test -z "$CONTENTS";then
 	cat ${TMPFILE1}
 	fail $PID "Temporary file contents are not correct; no-route was not found"
@@ -69,6 +73,7 @@ echo ok
 
 rm -f ${TMPFILE1}
 rm -f ${CONFIG}
+rm -rf ${CONFIG_PER_USER_DIR}
 
 kill $PID
 wait

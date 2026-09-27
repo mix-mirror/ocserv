@@ -101,7 +101,10 @@ ${IP} netns exec "${NSNAME2}" sysctl -w net.ipv4.ip_forward=1 >/dev/null
 # Add a second IP on NS3 that ocserv will NOT advertise to clients.
 # This simulates an address a user tries to reach by manually adding a
 # route after the VPN is up.
-BLOCKED_IP="10.111.0.1"
+# a destination outside the advertised routes; it is configured on
+# an interface of NS3, so it comes from a generated network
+alloc_vpnnet4 BLOCKEDNET
+BLOCKED_IP="${BLOCKEDNET_ADDR}"
 ${IP} -n "${NSNAME3}" addr add "${BLOCKED_IP}/32" dev "${ETHNAME3}"
 # NS2 must have a route to BLOCKED_IP so packets reach the forward chain.
 ${IP} -n "${NSNAME2}" route add "${BLOCKED_IP}/32" via "${ADDRESS2}" dev "${ETHNAME4}" onlink

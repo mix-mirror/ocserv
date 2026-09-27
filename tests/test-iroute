@@ -22,6 +22,9 @@ SERV="${SERV:-../src/ocserv}"
 srcdir=${srcdir:-.}
 
 . `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
+# the per-user network of testipnet in tests/data/user-config
+alloc_vpnnet4 VPNUSERNET
 
 eval "${GETPORT}"
 
@@ -29,6 +32,7 @@ echo "Testing ocserv and user route application... "
 
 rm -f test-iroute.tmp
 
+update_config_dir user-config
 update_config test-iroute.config
 launch_simple_server -d 1 -f -c "${CONFIG}"
 PID=$!
@@ -56,7 +60,7 @@ if [ ! -f test-iroute.tmp ];then
 fi
 
 CONTENTS=`cat test-iroute.tmp`
-if [[ "$CONTENTS" =~ "192.168.1.0/255.255.255.0 192.168.1.0/24 [vpns|tun]$" ]];then
+if [[ "$CONTENTS" =~ "203.0.113.0/255.255.255.0 203.0.113.0/24 [vpns|tun]$" ]];then
 	cat test-iroute.tmp
 	fail $PID "Temporary file contents are not correct"
 fi
@@ -64,6 +68,7 @@ fi
 echo ok
 
 rm -f test-iroute.tmp ${CONFIG}
+rm -rf ${CONFIG_PER_USER_DIR}
 
 kill $PID
 wait

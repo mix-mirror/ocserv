@@ -63,6 +63,8 @@ if test $? != 0;then
 fi
 
 . `dirname $0`/random-net.sh
+alloc_vpnnet4 VPNNET2
+alloc_vpnnet4 VPNNET3
 unset VPNNET6 VPNADDR6
 
 . `dirname $0`/ns.sh

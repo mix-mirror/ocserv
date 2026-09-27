@@ -23,6 +23,7 @@ srcdir=${srcdir:-.}
 TMPFILE=$(mktemp)
 
 . `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
 
 eval "${GETPORT}"
 
@@ -49,7 +50,7 @@ echo ok
 
 echo -n "Checking routes... "
 
-cat ${TMPFILE}|grep X-CSTP-Split-Exclude|grep 192.168.98.0 >/dev/null
+cat ${TMPFILE}|grep X-CSTP-Split-Exclude|grep -F 198.51.100.0 >/dev/null
 if test $? != 0;then
 	cat ${TMPFILE}|grep X-CSTP-Split
 	echo "Temporary file contents are not correct"
@@ -74,7 +75,7 @@ echo ok
 
 echo -n "Checking routes... "
 
-cat ${TMPFILE}|grep X-CSTP-Split-Exclude|grep 192.168.98.0 >/dev/null
+cat ${TMPFILE}|grep X-CSTP-Split-Exclude|grep -F 198.51.100.0 >/dev/null
 if test $? != 0;then
 	cat ${TMPFILE}|grep X-CSTP-Split
 	echo "Temporary file contents are not correct"

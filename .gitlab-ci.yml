@@ -32,6 +32,14 @@ config-scope-check:
   - tags
   - schedules
 
+test-addresses-check:
+  stage: preliminaries
+  script:
+  - python3 tests/check-test-addresses.py
+  except:
+  - tags
+  - schedules
+
 Signoff:
   stage: preliminaries
   script:

@@ -21,11 +21,11 @@
 SERV="${SERV:-../src/ocserv}"
 srcdir=${srcdir:-.}
 builddir=${builddir:-.}
-VPNNET=172.23.115.0/24
 TMPFILE=ios.$$.tmp
 VERBOSE=1
 
 . `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
 
 eval "${GETPORT}"
 

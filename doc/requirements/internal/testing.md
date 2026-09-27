@@ -10,6 +10,7 @@ sources:
   - tests/random-vpnnet.sh
   - tests/random-net.sh
   - tests/random-net2.sh
+  - tests/check-test-addresses.py
   - .gitlab-ci.yml
   - meson_options.txt
 ---
@@ -219,9 +220,10 @@ a literal absolute path, username, or port baked in by the test author.
 The same applies to a per-user or per-group configuration directory
 (`config-per-user`, `config-per-group`): its files MUST live under
 `tests/data/<dir>/` and be materialized with `update_config_dir <dir>`,
-which applies the same substitution to every file and sets `CONFIG_DIR`
-(referenced from the server config as `@CONFIG_DIR@`). A test using
-FreeRADIUS MUST call `update_raddb` before starting `radiusd`: it copies
+which applies the same substitution to every file and sets
+`CONFIG_PER_USER_DIR` (referenced from the server config as
+`@CONFIG_PER_USER_DIR@`). A test using FreeRADIUS MUST call `update_raddb`
+before starting `radiusd`: it copies
 `$RADDB_DIR` into a private directory, applies the same substitution to its
 `users` file, removes group and world write permission (which FreeRADIUS
 requires), and points `RADDB_DIR` at the copy, which the test removes on
@@ -328,17 +330,22 @@ netmasks and prefix lengths; IPv6 link-local addresses (`fe80::/10`),
 which are scoped to one interface and cannot collide; C unit tests
 (`tests/*.c`), and shell tests whose addresses are only input data to the
 script under test (`tests/test-fw-normalize-route`,
-`tests/test-fw-script`); and tests that existed when this requirement was
-introduced, which are to be converted separately.
+`tests/test-fw-script`).
 **Strength:** MUST / MUST NOT
 **Status:** DERIVED
-**Source:** `tests/random-vpnnet.sh`, `tests/random-net.sh`;
-`tests/test-ipv4-p2p` as the reference
+**Source:** `tests/random-vpnnet.sh`, `tests/random-net.sh`,
+`tests/check-test-addresses.py`; `tests/test-ipv4-p2p` as the reference
 consumer; maintainer decision recorded with this requirement.
-**Acceptance:** code-review — grep the test, its `tests/data/` template
-and its per-user/per-group templates for IPv4 and IPv6 literals: every
-match MUST be in a documentation range and data only (class (b)), or out
-of scope; a class (a) value in a documentation range is a finding. local — run
+**Acceptance:** CI — `tests/check-test-addresses.py`, run by the
+`test-addresses-check` job in the `preliminaries` stage of
+`.gitlab-ci.yml`, scans every file under `tests/` except C sources,
+certificates and the out-of-scope files above, reports each literal outside
+the allowed ranges as `file:line: literal`, and passes. local, negative —
+add an untracked file under `tests/` containing `VPNNET=192.168.7.0/24` and
+confirm the check prints `tests/<file>:<line>: 192.168.7.0` and exits 1.
+code-review — for each literal the check accepts
+because it is in a documentation range, confirm it is data only (class
+(b)); a class (a) value in a documentation range is a finding. local — run
 a converted test twice and confirm from its printed banner that different
 networks were used and both runs pass.
 **Links:** REQ-GEN-TEST-008, REQ-GEN-TEST-011

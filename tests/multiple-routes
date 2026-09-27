@@ -24,6 +24,7 @@ srcdir=${srcdir:-.}
 # Test whether more than 128 routes can be read from a config file.
 
 . `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
 
 eval "${GETPORT}"
 

@@ -57,6 +57,8 @@ OCCTL_SOCKET=./occtl-defvhost-$$.socket
 USERNAME=vhost
 
 . `dirname $0`/random-net.sh
+alloc_vpnnet4 VPNNET2
+alloc_vpnnet4 VPNNET3
 . `dirname $0`/ns.sh
 
 # Run servers
