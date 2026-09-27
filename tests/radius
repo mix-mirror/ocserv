@@ -183,8 +183,6 @@ if test $? != 0;then
 fi
 
 set -e
-${CMDNS2} iperf3 -s -D -1
-
 echo " * ping remote address"
 
 ${CMDNS1} ping -c 3 ${VPNADDR}
@@ -193,8 +191,9 @@ ${CMDNS1} ping -c 3 ${VPNADDR}
 
 ${CMDNS1} ping -6 -c 3 ${VPNADDR6}
 
+# some traffic through the VPN for the accounting checks below
 echo " * traffic"
-${CMDNS1} iperf3 -t 6 -c ${VPNADDR}
+${CMDNS1} ping -c 10 -s 1000 ${VPNADDR}
 
 set +e
 
