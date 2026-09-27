@@ -181,12 +181,15 @@ choice depends on `user_agent_type`, see REQ-PROTO-CFG-002); OCSERV
 `X-CSTP-Split-Include*` header is sent and the client tunnels all traffic.
 **Divergence**: the *choice of DNS header name* (`X-CSTP-DNS` vs
 `X-CSTP-DNS-IP6`) for IPv6 entries is AnyConnect-vs-OpenConnect divergent — see
-REQ-PROTO-CFG-002 for the dedicated entry. The "/127 for IPv6, server-address-
-first for IPv4" RECOMMENDED conventions from OC-PROTO-CONN-007's Notes were
-**not verified** against `src/ip-lease.c` in this pass — `[REVIEW]`: confirm
-`ip-lease.c`'s allocation order against these SHOULD-strength conventions in a
-follow-up.
-**Links**: REQ-PROTO-CFG-001, REQ-PROTO-CFG-002, REQ-MAIN-NET-001
+REQ-PROTO-CFG-002 for the dedicated entry. Of the SHOULD-strength conventions
+in OC-PROTO-CONN-007's Notes, ocserv follows "server address first" for both
+families (REQ-MAIN-NET-004 for IPv4, REQ-MAIN-NET-006 for IPv6). It diverges
+from "/127 for IPv6": `X-CSTP-Address-IP6` carries `ipv6-subnet-prefix`
+(`src/worker-vpn.c`, default 128, or e.g. 64 for a delegated subnet), because
+ocserv leases a client its own subnet rather than one side of a shared `/127`
+link. Informational.
+**Links**: REQ-PROTO-CFG-001, REQ-PROTO-CFG-002, REQ-MAIN-NET-001,
+REQ-MAIN-NET-004, REQ-MAIN-NET-006
 
 ---
 

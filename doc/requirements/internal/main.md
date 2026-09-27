@@ -250,6 +250,29 @@ and `explicit-ipv4 = 192.168.1.0`, confirm the session is rejected (no IP).
 **Links:** REQ-MAIN-NET-001, OC-PROTO-CONN-007 (server address first in the
 network, SHOULD)
 
+### REQ-MAIN-NET-006 — Server-side IPv6 TUN address is the network address
+
+**Requirement:** `get_ipv6_lease()` MUST set the server-side (local) TUN
+address `lip` to the network address of the configured `ipv6-network` (all
+host bits zero) and MUST NOT lease to the client (`rip`) an address whose
+`ipv6-subnet-prefix` subnet equals `lip`. IPv6 has no reserved network
+address, so for a `/127` network (RFC 6164) the server takes the network
+address and the client is leased the other one (`network + 1`). An explicit
+per-user IPv6 address (`explicit-ipv6`) whose subnet equals `lip` MUST be
+rejected with `ERR_NO_IP`.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/ip-lease.c:442-443 (`lip`), src/ip-lease.c:447-481
+(explicit IP), src/ip-lease.c:545 (pool allocation), src/ip-lease.c:150-164
+(`is_ipv6_ok`)
+**Acceptance:** local — with `ipv6-network = N/127`, confirm the server TUN
+address is `N` and the client receives `N+1`; with the same `/127` and
+`explicit-ipv6 = N`, confirm the session is rejected (no IP). With a wider
+network (e.g. `/112`), confirm the server TUN address is `N` and an
+`explicit-ipv6` equal to `N` is rejected.
+**Links:** REQ-MAIN-NET-001, REQ-MAIN-NET-004, OC-PROTO-CONN-007 (server
+address first in the network, SHOULD)
+
 ---
 
 ### REQ-MAIN-NET-005 — A user's iroutes are applied with `route-add-cmd` when the user connects, with `%{R}`, `%{RI}` and `%{D}` substituted
