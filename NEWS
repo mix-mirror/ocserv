@@ -20,6 +20,9 @@
   session when shutting down (#643)
 - Simplified the radius backend by standardizing in radcli and removing
   compatibility with legacy radius libraries.
+- IPv4 /31 networks (netmask 255.255.255.254) can now be used for leases as
+  point-to-point links (RFC 3021); previously no address could be leased from
+  them. The server takes the network address and the client the other one.
 
 
 * Version 1.5.0 (released 2026-06-07)

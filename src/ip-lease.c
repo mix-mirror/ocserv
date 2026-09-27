@@ -164,6 +164,13 @@ static int is_ipv6_ok(main_server_st *s, struct sockaddr_storage *ip,
 	return 1;
 }
 
+/* RFC 3021: /31 networks are point-to-point links with no reserved
+ * network or broadcast address */
+static bool is_ipv4_p2p_mask(struct sockaddr_storage *mask)
+{
+	return SA_IN_P(mask)->s_addr == htonl(0xfffffffe);
+}
+
 static int is_ipv4_ok(main_server_st *s, struct sockaddr_storage *ip,
 		      struct sockaddr_storage *net,
 		      struct sockaddr_storage *mask)
@@ -176,10 +183,15 @@ static int is_ipv4_ok(main_server_st *s, struct sockaddr_storage *ip,
 		SA_IN_U8_P(&broadcast)[i] |= ~(SA_IN_U8_P(mask)[i]);
 	}
 
-	if (ip_lease_exists(s, ip, sizeof(struct sockaddr_in)) != 0 ||
-	    ip_cmp(ip, net) == 0 || ip_cmp(ip, &broadcast) == 0) {
+	if (ip_lease_exists(s, ip, sizeof(struct sockaddr_in)) != 0) {
 		return 0;
 	}
+
+	if (!is_ipv4_p2p_mask(mask) &&
+	    (ip_cmp(ip, net) == 0 || ip_cmp(ip, &broadcast) == 0)) {
+		return 0;
+	}
+
 	return 1;
 }
 
@@ -260,10 +272,11 @@ static int get_ipv4_lease(main_server_st *s, struct proc_st *proc)
 			goto fail;
 		}
 
-		/* LIP = network address + 1 */
+		/* LIP = network address + 1, except for /31 networks (RFC 3021) */
 		memcpy(&proc->ipv4->lip, &network, sizeof(struct sockaddr_in));
 		proc->ipv4->lip_len = sizeof(struct sockaddr_in);
-		SA_IN_U8_P(&proc->ipv4->lip)[3] |= 1;
+		if (!is_ipv4_p2p_mask(&mask))
+			SA_IN_U8_P(&proc->ipv4->lip)[3] |= 1;
 
 		if (ip_cmp(&proc->ipv4->lip, &proc->ipv4->rip) == 0) {
 			mslog(s, NULL, LOG_ERR,
@@ -344,10 +357,11 @@ static int get_ipv4_lease(main_server_st *s, struct proc_st *proc)
 
 		memcpy(&proc->ipv4->sig, &rnd, sizeof(struct sockaddr_in));
 
-		/* LIP = network address + 1 */
+		/* LIP = network address + 1, except for /31 networks (RFC 3021) */
 		memcpy(&proc->ipv4->lip, &network, sizeof(struct sockaddr_in));
 		proc->ipv4->lip_len = sizeof(struct sockaddr_in);
-		SA_IN_U8_P(&proc->ipv4->lip)[3] |= 1;
+		if (!is_ipv4_p2p_mask(&mask))
+			SA_IN_U8_P(&proc->ipv4->lip)[3] |= 1;
 
 		if (memcmp(SA_IN_U8_P(&proc->ipv4->lip),
 			   SA_IN_U8_P(&proc->ipv4->rip),

@@ -1,0 +1,127 @@
+#!/bin/sh
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+# Tests IPv4 lease allocation from /31 point-to-point networks (RFC 3021)
+# and that network/broadcast addresses remain reserved for wider networks.
+# See REQ-MAIN-NET-001 and REQ-MAIN-NET-004.
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+TMPFILE=outfile.$$
+OCCTL_SOCKET=./occtl-p2p-$$.socket
+SERVERCERT=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8=
+
+. `dirname $0`/common.sh
+
+eval "${GETPORT}"
+
+# connect <user>: on success leaves the client running as $CPID with its
+# verbose output in $TMPFILE
+connect()
+{
+user=$1
+COOKIE=''
+eval `echo "$user" | $OPENCONNECT -q localhost:$PORT -u $user --servercert=$SERVERCERT --authenticate`
+if [ -z "$COOKIE" ];then
+	return 1
+fi
+
+rm -f $TMPFILE
+echo "$user" | $OPENCONNECT -v localhost:$PORT -u $user -C "$COOKIE" --servercert=$SERVERCERT --script=/bin/true >$TMPFILE 2>&1 &
+CPID=$!
+
+sleep 3
+if ! grep "Established DTLS" $TMPFILE >/dev/null 2>&1;then
+	kill $CPID 2>/dev/null
+	return 1
+fi
+
+return 0
+}
+
+# check_header <header> <expected value>
+check_header()
+{
+got=`grep "$1:" $TMPFILE | head -1 | sed 's/.*'"$1"': *//' | tr -d '\r'`
+if test "$got" != "$2";then
+	kill $CPID
+	fail $PID "FAIL: expected $1: $2, got '$got'"
+fi
+}
+
+echo "Testing IPv4 leases from /31 point-to-point networks... "
+
+update_config test-ipv4-p2p.config
+launch_simple_server -d 1 -f -c "${CONFIG}"
+PID=$!
+wait_server $PID
+
+echo -n "Connecting with a /31 network... "
+connect test
+if test $? != 0;then
+	cat $TMPFILE
+	fail $PID "FAIL: expected a lease from 192.168.211.0/31, got no connection"
+fi
+check_header X-CSTP-Address 192.168.211.1
+check_header X-CSTP-Netmask 255.255.255.254
+echo ok
+
+echo -n "Checking the server side address of the /31 link... "
+${OCCTL} -s ${OCCTL_SOCKET} show user test >$TMPFILE.occtl 2>&1
+if ! grep -E "P-t-P IPv4: 192\.168\.211\.0\b" $TMPFILE.occtl >/dev/null;then
+	cat $TMPFILE.occtl
+	kill $CPID
+	fail $PID "FAIL: expected P-t-P IPv4: 192.168.211.0"
+fi
+rm -f $TMPFILE.occtl
+kill $CPID
+echo ok
+
+echo -n "Connecting with the server address of a /31 as explicit IP... "
+connect test2
+if test $? = 0;then
+	kill $CPID
+	fail $PID "FAIL: expected rejection of 192.168.211.2 (server address), got a connection"
+fi
+echo ok
+
+echo -n "Connecting with the broadcast address of a /30 as explicit IP... "
+connect test3
+if test $? = 0;then
+	kill $CPID
+	fail $PID "FAIL: expected rejection of 192.168.211.7 (broadcast), got a connection"
+fi
+echo ok
+
+echo -n "Connecting with a host address of a /30 as explicit IP... "
+connect test4
+if test $? != 0;then
+	cat $TMPFILE
+	fail $PID "FAIL: expected a connection with 192.168.211.10, got none"
+fi
+check_header X-CSTP-Address 192.168.211.10
+check_header X-CSTP-Netmask 255.255.255.252
+kill $CPID
+echo ok
+
+rm -f $TMPFILE ${CONFIG}
+kill $PID
+wait
+
+exit 0
