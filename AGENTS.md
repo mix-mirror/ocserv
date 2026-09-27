@@ -200,7 +200,15 @@ DISABLE_ASAN_BROKEN_TESTS=1  # Skip ldpreload-based tests (incompatible with ASA
 
 - `tests/` — Shell test scripts and supporting files
 - `tests/data/` — Config templates with placeholders (`@USERNAME@`, `@PORT@`, `@SRCDIR@`)
-  substituted by `update_config()` in `tests/common.sh`
+  substituted by `update_config()` in `tests/common.sh`; per-user/per-group config
+  directories under `tests/data/` are materialized with `update_config_dir()`; RADIUS tests
+  get a private raddb directory with `update_raddb()`
+- `tests/random-vpnnet.sh` — Generates random VPN networks (`@VPNNET@`, `@VPNNET_BASE@`,
+  `@VPNNET_ADDR@`, `@VPNNET6@`, …); `alloc_vpnnet4 NAME` / `alloc_vpnnet6 NAME` allocate
+  more (`@NAME@`, `@NAME_BASE@`, `@NAME_ADDR@`). Tests using `ns.sh` source `random-net.sh`
+  (and `random-net2.sh`) instead. Addresses configured on an interface MUST come from
+  these; routes, DNS and other data-only addresses MUST use documentation ranges
+  (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24, 2001:db8::/32) (**REQ-GEN-TEST-010**)
 - `tests/certs/` — Test certificates and keys
 - `tests/common.sh` — Shared utilities (requires the `openconnect` client)
 - `tests/*.c` — Unit tests for specific components

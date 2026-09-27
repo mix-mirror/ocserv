@@ -63,8 +63,12 @@ if test "${NEED_SOCKET_WRAPPER}" = 1 || test "${NO_NEED_ROOT}" = 1;then
 	fi
 fi
 
-update_config() {
-	file=$1
+# value_of NAME: prints the value of the variable called NAME
+value_of() {
+	eval "printf '%s' \"\${$1}\""
+}
+
+_subst_placeholders() {
 	username=$(whoami)
 	group=$(groups|cut -f 1 -d ' ')
 
@@ -76,24 +80,76 @@ update_config() {
 		fi
 	fi
 
+	# a VPN network placeholder without a value would silently produce
+	# a broken config; see REQ-GEN-TEST-008
+	for _var in $(grep -o '@VPN[A-Z0-9_]*@' "$1" | tr -d @ | sort -u); do
+		if test -z "$(value_of ${_var})"; then
+			echo "FAIL: $1 uses @${_var}@ but ${_var} is not set; source random-vpnnet.sh (or random-net.sh) before update_config" >&2
+			exit 1
+		fi
+	done
+
+	vpnnet_subst=""
+	for _net in ${VPNNET_VARS}; do
+		for _var in ${_net} ${_net}_BASE ${_net}_ADDR; do
+			vpnnet_subst="${vpnnet_subst} -e s|@${_var}@|$(value_of ${_var})|g"
+		done
+	done
+
+	sed -i ${vpnnet_subst} \
+	       -e 's|@USERNAME@|'${username}'|g' \
+	       -e 's|@GROUP@|'${group}'|g' \
+	       -e 's|@SRCDIR@|'${srcdir}'|g' \
+	       -e 's|@ISOLATE_WORKERS@|'${ISOLATE_WORKERS}'|g' \
+	       -e 's|@OTP_FILE@|'${OTP_FILE}'|g' \
+	       -e 's|@CRLNAME@|'${CRLNAME}'|g' \
+	       -e 's|@PORT@|'${PORT}'|g' \
+	       -e 's|@ADDRESS@|'${ADDRESS}'|g' \
+	       -e 's|@VPNNET@|'${VPNNET}'|g' \
+	       -e 's|@VPNNET_BASE@|'${VPNNET_BASE}'|g' \
+	       -e 's|@VPNADDR@|'${VPNADDR}'|g' \
+	       -e 's|@VPNNET6@|'${VPNNET6}'|g' \
+	       -e 's|@VPNADDR6@|'${VPNADDR6}'|g' \
+	       -e 's|@ROUTE1@|'${ROUTE1}'|g' \
+	       -e 's|@ROUTE2@|'${ROUTE2}'|g' \
+	       -e 's|@MATCH_CIPHERS@|'${MATCH_CIPHERS}'|g' \
+	       -e 's|@OCCTL_SOCKET@|'${OCCTL_SOCKET}'|g' \
+	       -e 's|@LISTEN_NS@|'${LISTEN_NS}'|g' \
+	       -e 's|@CONFIG_DIR@|'${CONFIG_DIR}'|g' \
+	       -e 's|@RADIUSCLIENT_DIR@|'${RADIUSCLIENT_DIR}'|g' "$1"
+}
+
+# update_config FILE: materializes tests/data/FILE into $CONFIG
+update_config() {
+	file=$1
 	cp "${srcdir}/data/${file}" "$file.$$.tmp"
-	sed -i -e 's|@USERNAME@|'${username}'|g' "$file.$$.tmp" \
-	       -e 's|@GROUP@|'${group}'|g' "$file.$$.tmp" \
-	       -e 's|@SRCDIR@|'${srcdir}'|g' "$file.$$.tmp" \
-	       -e 's|@ISOLATE_WORKERS@|'${ISOLATE_WORKERS}'|g' "$file.$$.tmp" \
-	       -e 's|@OTP_FILE@|'${OTP_FILE}'|g' "$file.$$.tmp" \
-	       -e 's|@CRLNAME@|'${CRLNAME}'|g' "$file.$$.tmp" \
-	       -e 's|@PORT@|'${PORT}'|g' "$file.$$.tmp" \
-	       -e 's|@ADDRESS@|'${ADDRESS}'|g' "$file.$$.tmp" \
-	       -e 's|@VPNNET@|'${VPNNET}'|g' "$file.$$.tmp" \
-	       -e 's|@VPNNET6@|'${VPNNET6}'|g' "$file.$$.tmp" \
-	       -e 's|@ROUTE1@|'${ROUTE1}'|g' "$file.$$.tmp" \
-	       -e 's|@ROUTE2@|'${ROUTE2}'|g' "$file.$$.tmp" \
-	       -e 's|@MATCH_CIPHERS@|'${MATCH_CIPHERS}'|g' "$file.$$.tmp" \
-	       -e 's|@OCCTL_SOCKET@|'${OCCTL_SOCKET}'|g' "$file.$$.tmp" \
-	       -e 's|@LISTEN_NS@|'${LISTEN_NS}'|g' "$file.$$.tmp" \
-	       -e 's|@RADIUSCLIENT_DIR@|'${RADIUSCLIENT_DIR}'|g' "$file.$$.tmp"
+	_subst_placeholders "$file.$$.tmp"
 	CONFIG="$file.$$.tmp"
+}
+
+# update_config_dir DIR: materializes the per-user or per-group config
+# directory tests/data/DIR into $CONFIG_DIR; call it before update_config
+# so that @CONFIG_DIR@ in the server config resolves.
+update_config_dir() {
+	dir=$1
+	rm -rf "$dir.$$.tmp"
+	cp -r "${srcdir}/data/${dir}" "$dir.$$.tmp"
+	for f in "$dir.$$.tmp"/*; do
+		_subst_placeholders "$f"
+	done
+	CONFIG_DIR="$(pwd)/$dir.$$.tmp"
+}
+
+# update_raddb: gives this test a private copy of the FreeRADIUS directory
+# in $RADDB_DIR, with the users file materialized so that its framed
+# addresses fall in the test's generated networks; see REQ-GEN-TEST-010
+update_raddb() {
+	rm -rf "raddb.$$.tmp"
+	cp -r "${RADDB_DIR}" "raddb.$$.tmp"
+	_subst_placeholders "raddb.$$.tmp/users"
+	# FreeRADIUS refuses group- or world-writable configuration
+	chmod -R go-w "raddb.$$.tmp"
+	RADDB_DIR="$(pwd)/raddb.$$.tmp"
 }
 
 fail() {

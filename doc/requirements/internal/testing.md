@@ -7,6 +7,9 @@ sources:
   - AGENTS.md
   - tests/meson.build
   - tests/common.sh
+  - tests/random-vpnnet.sh
+  - tests/random-net.sh
+  - tests/random-net2.sh
   - .gitlab-ci.yml
   - meson_options.txt
 ---
@@ -140,6 +143,9 @@ LD_PRELOAD mechanism incompatible with the active sanitizer. When that
 precondition is unmet, the test MUST `exit 77`. It MUST NOT `exit 0` (a
 false pass hiding zero coverage) and MUST NOT run anyway and fail for an
 unrelated reason (a false fail indistinguishable from a real regression).
+A hard test dependency (`REQ-GEN-TEST-012`) is not a precondition under
+this requirement: its absence is a broken test environment and fails the
+test instead of skipping it.
 **Strength:** MUST / MUST NOT
 **Status:** DERIVED
 **Source:** `tests/common.sh:35-40` (no-root skip), `tests/common.sh:58-63`
@@ -150,7 +156,7 @@ precondition checks; confirm each unmet precondition path is `exit 77`
 before any assertion runs. Running the test locally without root (where
 `NO_NEED_ROOT` is not set) MUST print the skip reason and exit 77, not hang
 or fail.
-**Links:** REQ-GEN-TEST-001, REQ-GEN-TEST-004
+**Links:** REQ-GEN-TEST-001, REQ-GEN-TEST-004, REQ-GEN-TEST-012
 
 ---
 
@@ -210,14 +216,39 @@ substitution (`@SRCDIR@`, `@PORT@`, `@USERNAME@`, etc.), so the same test
 config works unmodified across out-of-tree builds, parallel build
 directories, and CI runners. A test MUST NOT write a config file containing
 a literal absolute path, username, or port baked in by the test author.
+The same applies to a per-user or per-group configuration directory
+(`config-per-user`, `config-per-group`): its files MUST live under
+`tests/data/<dir>/` and be materialized with `update_config_dir <dir>`,
+which applies the same substitution to every file and sets `CONFIG_DIR`
+(referenced from the server config as `@CONFIG_DIR@`). A test using
+FreeRADIUS MUST call `update_raddb` before starting `radiusd`: it copies
+`$RADDB_DIR` into a private directory, applies the same substitution to its
+`users` file, removes group and world write permission (which FreeRADIUS
+requires), and points `RADDB_DIR` at the copy, which the test removes on
+exit; the shared build-tree copy MUST NOT be used directly, since its
+`users` file contains placeholders. Generated networks
+(`REQ-GEN-TEST-010`) reach templates through `@NAME@`, `@NAME_BASE@` and
+`@NAME_ADDR@` for every network `NAME` allocated by
+`tests/random-vpnnet.sh` (`VPNNET`, `VPNNET6`, and any further network
+from `alloc_vpnnet4`/`alloc_vpnnet6`), plus the older aliases `@VPNADDR@`
+and `@VPNADDR6@`. When a template uses a `@VPN…@` placeholder whose
+variable is not set, the substitution MUST fail the test with a message
+naming the placeholder; it MUST NOT substitute an empty string.
 **Strength:** MUST / MUST NOT
 **Status:** DERIVED
-**Source:** `tests/common.sh:66-97` (`update_config()`); used by 119 of the
-test scripts in `tests/`; placeholder vocabulary documented in AGENTS.md
-(Test Structure).
-**Acceptance:** code-review, local — confirm the new test's config template
-lives under `tests/data/` and is materialized via `update_config`, not
-`cp`'d or hand-written with resolved values.
+**Source:** `tests/common.sh` (`_subst_placeholders()`, `update_config()`,
+`update_config_dir()`, `update_raddb()`); `tests/data/raddb/users`; `update_config` is used by 119 of the test scripts
+in `tests/`; placeholder vocabulary documented in AGENTS.md (Test
+Structure).
+**Acceptance:** code-review, local — confirm the new test's config
+template, and any per-user/per-group directory it uses, live under
+`tests/data/` and are materialized via `update_config`/`update_config_dir`,
+not `cp`'d or hand-written with resolved values; after materialization no
+`@PLACEHOLDER@` remains in the generated files. local, negative — call
+`update_config` on a template containing `@VPNNET@` without sourcing
+`random-vpnnet.sh`; confirm it prints
+`FAIL: … uses @VPNNET@ but VPNNET is not set …` and exits 1.
+**Links:** REQ-GEN-TEST-010, REQ-GEN-TEST-011
 
 ---
 
@@ -247,3 +278,143 @@ test (including the top-level failure of any command not wrapped in
 `|| fail ...`) and confirm the server PID(s) captured at launch are killed
 on each one. Running the test and checking `ps`/`pgrep ocserv` afterward
 MUST show no surviving process.
+
+---
+
+### REQ-GEN-TEST-010 — A test MUST take addresses configured on an interface from the generated-network subsystem and use documentation ranges for all other addresses; it MUST NOT hardcode any other address
+
+**Requirement:** An IPv4 or IPv6 address or network in a test — its
+script (including expected values in assertions and failure messages),
+its `tests/data/` configuration template, its per-user/per-group
+configuration templates, or the RADIUS `users` file — falls in one of
+two classes:
+
+  (a) **Configured on an interface**, on the host or in a test's network
+      namespace: `ipv4-network`, `ipv6-network`, `explicit-ipv4`,
+      `explicit-ipv6`, RADIUS `Framed-IP-Address`/`Framed-IPv6-Prefix`,
+      `ns.sh` endpoint addresses, and any other address the test itself
+      assigns to an interface. These MUST be derived from the
+      variables of the generated-network subsystem (`REQ-GEN-TEST-011`) —
+      `VPNNET`, `VPNNET6`, any network from `alloc_vpnnet4`/
+      `alloc_vpnnet6` and their `_BASE`/`_ADDR` forms, and for namespace
+      tests `ADDRESS`, `CLI_ADDRESS`, `ADDRESS2`, `CLI_ADDRESS2` — and
+      reach configuration files through the `REQ-GEN-TEST-008`
+      placeholders. Hosts and sub-networks inside a generated IPv4
+      network are written relative to it (e.g. `@VPNNET_BASE@.4/30` in a
+      template, `${VPNNET_BASE}.10` in a script). This holds even when
+      the test creates no TUN device, if its template is shared with a
+      test that does.
+  (b) **Data only**, never configured on an interface of the machine
+      running the test: routes and `no-route`/`iroute` entries pushed to
+      a client, DNS/NBNS servers, split-DNS entries, and the address pool
+      of a test that creates no TUN device. These MUST either be derived
+      from a generated network as in (a) — e.g. a route to, or a DNS
+      server in, the VPN network itself — or use documentation ranges:
+      `192.0.2.0/24`, `198.51.100.0/24` or `203.0.113.0/24` (RFC 5737);
+      `198.18.0.0/15` (RFC 2544) only when a prefix shorter than `/24`
+      or more distinct networks than the RFC 5737 ranges provide are
+      needed; and `2001:db8::/32` (RFC 3849) for IPv6. Distinct networks
+      in the original test MUST stay distinct after conversion.
+
+A test MUST NOT contain any other literal address, so that it can never
+collide with the local network of the machine running it.
+
+Out of scope: loopback addresses (`127.0.0.0/8`, `::1`) and
+socket_wrapper's interface addresses (`fd00::5357:5f00/120`); the
+unspecified addresses and default routes (`0.0.0.0/0`, `::/0`, and
+`2000::/3`, which ocserv itself sends to Apple clients as the IPv6
+default route);
+netmasks and prefix lengths; IPv6 link-local addresses (`fe80::/10`),
+which are scoped to one interface and cannot collide; C unit tests
+(`tests/*.c`), and shell tests whose addresses are only input data to the
+script under test (`tests/test-fw-normalize-route`,
+`tests/test-fw-script`); and tests that existed when this requirement was
+introduced, which are to be converted separately.
+**Strength:** MUST / MUST NOT
+**Status:** DERIVED
+**Source:** `tests/random-vpnnet.sh`, `tests/random-net.sh`;
+`tests/test-ipv4-p2p` as the reference
+consumer; maintainer decision recorded with this requirement.
+**Acceptance:** code-review — grep the test, its `tests/data/` template
+and its per-user/per-group templates for IPv4 and IPv6 literals: every
+match MUST be in a documentation range and data only (class (b)), or out
+of scope; a class (a) value in a documentation range is a finding. local — run
+a converted test twice and confirm from its printed banner that different
+networks were used and both runs pass.
+**Links:** REQ-GEN-TEST-008, REQ-GEN-TEST-011
+
+---
+
+### REQ-GEN-TEST-011 — The generated-network subsystem MUST provide distinct random private networks whose first host address does not answer ICMP echo
+
+**Requirement:** The subsystem consists of three shell fragments that a
+test sources after `common.sh`:
+
+  (a) `tests/random-vpnnet.sh` MUST allocate `VPNNET`, a random IPv4 `/24`
+      from the private ranges of RFC 1918 (`ipcalc -r 24`), and
+      `VPNNET6`, a random IPv6 `/112` from the unique-local range
+      `fc00::/7` (`ipcalc -r 112`). It MUST define `alloc_vpnnet4 NAME`
+      and `alloc_vpnnet6 NAME`, which allocate a further network of the
+      same kind into `NAME`. For every allocated `NAME` it MUST set
+      `NAME_BASE`, the network address without its last all-zero octet
+      (IPv4, e.g. `10.22.134`) or group (IPv6, ending in `:`), and
+      `NAME_ADDR`, the first host address (`NAME_BASE` followed by `.1`
+      or `1`), and it MUST append `NAME` to `VPNNET_VARS` so that
+      `update_config` substitutes it (`REQ-GEN-TEST-008`). It MUST also
+      set `VPNADDR` and `VPNADDR6` to `VPNNET_ADDR` and `VPNNET6_ADDR`.
+      It MUST NOT modify `ADDRESS` or `CLI_ADDRESS`, so a test using
+      socket_wrapper keeps the loopback address set by `common.sh`.
+  (b) `tests/random-net.sh` MUST provide everything in (a) and
+      additionally set `ADDRESS` and `CLI_ADDRESS` to random private
+      `/32` addresses for use as `ns.sh` endpoints.
+  (c) `tests/random-net2.sh`, sourced after (b), MUST additionally set
+      `ADDRESS2` and `CLI_ADDRESS2` the same way.
+
+A drawn network MUST be discarded and redrawn while its first host
+address answers `ping -W 1 -c 2`, or while it equals a network already
+allocated by the same test; a drawn endpoint address MUST be redrawn
+while it answers the same ping. The subsystem MUST NOT return a network
+or address that answered. It MUST print every allocated network and
+address to standard output, so that a failing test's log identifies them
+(`REQ-GEN-TEST-001`(c)).
+
+"Does not collide with the local network" is defined operationally by the
+ping check above. Known limitations, accepted as-is: a local subnet whose
+first host address does not answer ICMP echo is not detected, and two
+tests running in parallel may draw the same network (the IPv4 draw space
+is about 70,000 `/24` networks).
+**Strength:** MUST / MUST NOT
+**Status:** DERIVED
+**Source:** `tests/random-vpnnet.sh`, `tests/random-net.sh`,
+`tests/random-net2.sh`, `tests/common.sh` (`_subst_placeholders()`)
+**Acceptance:** local — with `ADDRESS=127.0.0.2` set, source
+`random-vpnnet.sh`, call `alloc_vpnnet4 VPNNET2`, and confirm: `ADDRESS`
+is unchanged and `CLI_ADDRESS` unset; `"${VPNNET_BASE}.0/24" = "$VPNNET"`
+and `VPNADDR = VPNNET_ADDR = ${VPNNET_BASE}.1`; `VPNNET6` ends in `/112`
+and `VPNADDR6 = ${VPNNET6_BASE}1`; `VPNNET2 != VPNNET`; and a template
+containing `@VPNNET2@ @VPNNET2_BASE@.9 @VPNNET2_ADDR@` is materialized by
+`update_config` with those values. Source `random-net.sh` and confirm
+`ADDRESS` and `CLI_ADDRESS` are set to addresses different from
+`127.0.0.2`. CI — every test sourcing the subsystem prints the allocated
+networks in its log.
+**Links:** REQ-GEN-TEST-008, REQ-GEN-TEST-010, REQ-GEN-TEST-012
+
+---
+
+### REQ-GEN-TEST-012 — `ipcalc` is a hard test dependency; its absence MUST fail the test, not skip it
+
+**Requirement:** The generated-network subsystem (`REQ-GEN-TEST-011`)
+MUST use `ipcalc-ng`, falling back to `ipcalc`, found in `PATH`. When
+neither is found, it MUST print `ipcalc was not found` and `exit 1`. It
+MUST NOT `exit 77`: `ipcalc` is listed among the test build dependencies
+in `README.md` and is present in every CI image, so its absence is a
+broken test environment, and skipping would silently drop the coverage
+of every test that uses the subsystem (`REQ-GEN-TEST-006`).
+**Strength:** MUST / MUST NOT
+**Status:** DERIVED
+**Source:** `tests/random-vpnnet.sh` (ipcalc lookup); `README.md` (build
+dependencies: `ipcalc-ng` on Debian/Ubuntu, `ipcalc` on Fedora/RHEL)
+**Acceptance:** local — run a test that sources `random-vpnnet.sh` with a
+`PATH` that contains neither `ipcalc` nor `ipcalc-ng`; confirm it prints
+`ipcalc was not found` and exits 1.
+**Links:** REQ-GEN-TEST-005, REQ-GEN-TEST-006, REQ-GEN-TEST-011

@@ -18,43 +18,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # This script generates a pair of random client and server addresses and
-# two (IPv4+IPv6) random network addresses for use with the VPN;
-# it sets variables needs by ns.sh. For tests that need two server
-# sets include additionally random-net2.sh
+# two (IPv4+IPv6) random network addresses for use with the VPN (via
+# random-vpnnet.sh); it sets variables needed by ns.sh. For tests that need
+# two server sets include additionally random-net2.sh. Tests that do not use
+# ns.sh should include random-vpnnet.sh instead.
 
-IPCALC=$(command -v ipcalc-ng)
-if test -z "${IPCALC}"; then
-	IPCALC=$(command -v ipcalc)
-fi
-
-if test -z "${IPCALC}"; then
-	echo "ipcalc was not found"
-	exit 1
-fi
-
-PINGOPS="-W 1 -c 2"
-
-# Generate random IPv4 VPN network
-ret=0
-while [ $ret = 0 ]
-do
-	eval $(${IPCALC} -r 24 -np --minaddr)
-	VPNNET="${NETWORK}/${PREFIX}"
-	VPNADDR=${MINADDR}
-	ping ${PINGOPS} ${VPNADDR} >/dev/null 2>&1
-	ret=$?
-done
-
-# Generate random IPv6 VPN network
-ret=0
-while [ $ret = 0 ]
-do
-	eval $(${IPCALC} -r 112 -np --minaddr)
-	VPNNET6="${NETWORK}/${PREFIX}"
-	VPNADDR6="${NETWORK}1"
-	ping ${PINGOPS} ${VPNADDR6} >/dev/null 2>&1
-	ret=$?
-done
+. "$(dirname "$0")/random-vpnnet.sh"
 
 # Generate random IPv4 addresses for the client and server
 ret=0
@@ -76,10 +45,6 @@ do
 done
 
 echo "**************************"
-echo "VPN IPv4 network: $VPNNET"
-echo "VPN IPv4 server address: $VPNADDR"
-echo "VPN IPv6 network: $VPNNET6"
-echo "VPN IPv6 server address: $VPNADDR6"
 echo "Client address: $CLI_ADDRESS"
 echo "Server address: $ADDRESS"
 echo "**************************"
