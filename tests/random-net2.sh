@@ -21,28 +21,13 @@
 # addresses for use by ns.sh. It is intended to be used by tests that
 # require two separate ocserv instances and clients.
 
-if test -z "${IPCALC}"; then
-	echo "ipcalc was not found"
+if ! type _alloc_addr >/dev/null 2>&1; then
+	echo "random-net2.sh must be sourced after random-net.sh"
 	exit 1
 fi
 
-ret=0
-while [ $ret = 0 ]
-do
-	eval $(${IPCALC} -r 32 --minaddr)
-	ADDRESS2=${MINADDR}
-	ping ${PINGOPS} ${ADDRESS2} >/dev/null 2>&1
-	ret=$?
-done
-
-ret=0
-while [ $ret = 0 ]
-do
-	eval $(${IPCALC} -r 32 --minaddr)
-	CLI_ADDRESS2=${MINADDR}
-	ping ${PINGOPS} ${CLI_ADDRESS2} >/dev/null 2>&1
-	ret=$?
-done
+_alloc_addr ADDRESS2
+_alloc_addr CLI_ADDRESS2
 
 echo "**************************"
 echo "Client address2: $CLI_ADDRESS2"

@@ -25,24 +25,8 @@
 
 . "$(dirname "$0")/random-vpnnet.sh"
 
-# Generate random IPv4 addresses for the client and server
-ret=0
-while [ $ret = 0 ]
-do
-	eval $(${IPCALC} -r 32 --minaddr)
-	ADDRESS=${MINADDR}
-	ping ${PINGOPS} ${ADDRESS} >/dev/null 2>&1
-	ret=$?
-done
-
-ret=0
-while [ $ret = 0 ]
-do
-	eval $(${IPCALC} -r 32 --minaddr)
-	CLI_ADDRESS=${MINADDR}
-	ping ${PINGOPS} ${CLI_ADDRESS} >/dev/null 2>&1
-	ret=$?
-done
+_alloc_addr ADDRESS
+_alloc_addr CLI_ADDRESS
 
 echo "**************************"
 echo "Client address: $CLI_ADDRESS"

@@ -352,7 +352,7 @@ networks were used and both runs pass.
 
 ---
 
-### REQ-GEN-TEST-011 — The generated-network subsystem MUST provide distinct random private networks whose first host address does not answer ICMP echo
+### REQ-GEN-TEST-011 — The generated-network subsystem MUST provide distinct random private networks that no local route overlaps
 
 **Requirement:** The subsystem consists of three shell fragments that a
 test sources after `common.sh`:
@@ -377,23 +377,38 @@ test sources after `common.sh`:
   (c) `tests/random-net2.sh`, sourced after (b), MUST additionally set
       `ADDRESS2` and `CLI_ADDRESS2` the same way.
 
-A drawn network MUST be discarded and redrawn while its first host
-address answers `ping -W 1 -c 2`, or while it equals a network already
-allocated by the same test; a drawn endpoint address MUST be redrawn
-while it answers the same ping. The subsystem MUST NOT return a network
-or address that answered. It MUST print every allocated network and
-address to standard output, so that a failing test's log identifies them
+A drawn network or endpoint address MUST be discarded and redrawn while
+a route in any routing table of the network namespace running the test
+overlaps it, or while it equals a network or address already allocated
+by the same test. A route overlaps the drawn prefix when it lies inside
+it (`ip route show table all root PREFIX`) or covers it
+(`ip route show table all match PREFIX`); this includes the addresses of
+local interfaces, which appear in the `local` table. Default-like
+covering routes are ignored: `default` and any route whose prefix is
+shorter than the private block the draw comes from (`/8` for IPv4, `/7`
+for IPv6), such as the `0.0.0.0/1` split default of a VPN client —
+otherwise every draw would be rejected on such a host. `ip` is looked up
+in `PATH`, with `/usr/sbin` and `/sbin` appended.
+
+The check MUST fail closed: if `ip` exits non-zero, the subsystem MUST
+print the failing command and `exit 1`; it MUST NOT treat a failed query
+as "no route". If 100 consecutive draws for one variable are rejected,
+it MUST print that no free network was found and `exit 1` rather than
+loop forever. It MUST print every allocated network and address to
+standard output, so that a failing test's log identifies them
 (`REQ-GEN-TEST-001`(c)).
 
-"Does not collide with the local network" is defined operationally by the
-ping check above. Known limitations, accepted as-is: a local subnet whose
-first host address does not answer ICMP echo is not detected, and two
-tests running in parallel may draw the same network (the IPv4 draw space
-is about 70,000 `/24` networks).
+Known limitations, accepted as-is: networks reachable only through a
+default-like route (e.g. a remote site behind the default gateway) are
+not detected — the more specific route to the generated network wins on
+the test host, and `ns.sh` configures it in isolated namespaces anyway;
+and two tests running in parallel may draw the same network (the IPv4
+draw space is about 70,000 `/24` networks).
 **Strength:** MUST / MUST NOT
 **Status:** DERIVED
-**Source:** `tests/random-vpnnet.sh`, `tests/random-net.sh`,
-`tests/random-net2.sh`, `tests/common.sh` (`_subst_placeholders()`)
+**Source:** `tests/random-vpnnet.sh` (`_is_routed()`, `_alloc_vpnnet()`,
+`_alloc_addr()`), `tests/random-net.sh`, `tests/random-net2.sh`,
+`tests/common.sh` (`_subst_placeholders()`)
 **Acceptance:** local — with `ADDRESS=127.0.0.2` set, source
 `random-vpnnet.sh`, call `alloc_vpnnet4 VPNNET2`, and confirm: `ADDRESS`
 is unchanged and `CLI_ADDRESS` unset; `"${VPNNET_BASE}.0/24" = "$VPNNET"`
@@ -402,26 +417,35 @@ and `VPNADDR6 = ${VPNNET6_BASE}1`; `VPNNET2 != VPNNET`; and a template
 containing `@VPNNET2@ @VPNNET2_BASE@.9 @VPNNET2_ADDR@` is materialized by
 `update_config` with those values. Source `random-net.sh` and confirm
 `ADDRESS` and `CLI_ADDRESS` are set to addresses different from
-`127.0.0.2`. CI — every test sourcing the subsystem prints the allocated
+`127.0.0.2`. In a fresh network namespace with routes covering
+`10.0.0.0/8`, `172.16.0.0/12` and `192.168.0.0/17` and a `0.0.0.0/1`
+route, confirm `VPNNET` falls in `192.168.128.0/17`. With an `ip` in
+`PATH` that exits 1, confirm the subsystem prints the failing command
+and exits 1. CI — every test sourcing the subsystem prints the allocated
 networks in its log.
 **Links:** REQ-GEN-TEST-008, REQ-GEN-TEST-010, REQ-GEN-TEST-012
 
 ---
 
-### REQ-GEN-TEST-012 — `ipcalc` is a hard test dependency; its absence MUST fail the test, not skip it
+### REQ-GEN-TEST-012 — `ipcalc` and `ip` are hard test dependencies; their absence MUST fail the test, not skip it
 
 **Requirement:** The generated-network subsystem (`REQ-GEN-TEST-011`)
-MUST use `ipcalc-ng`, falling back to `ipcalc`, found in `PATH`. When
-neither is found, it MUST print `ipcalc was not found` and `exit 1`. It
-MUST NOT `exit 77`: `ipcalc` is listed among the test build dependencies
-in `README.md` and is present in every CI image, so its absence is a
-broken test environment, and skipping would silently drop the coverage
-of every test that uses the subsystem (`REQ-GEN-TEST-006`).
+MUST use `ipcalc-ng`, falling back to `ipcalc`, found in `PATH`, and
+`ip` (iproute2), found in `PATH` with `/usr/sbin` and `/sbin` appended.
+When no `ipcalc` is found, it MUST print `ipcalc was not found` and
+`exit 1`; when `ip` is not found, it MUST print `ip was not found` and
+`exit 1`. It MUST NOT `exit 77`: both are listed among the test build
+dependencies in `README.md` and are present in every CI image, so their
+absence is a broken test environment, and skipping would silently drop
+the coverage of every test that uses the subsystem (`REQ-GEN-TEST-006`).
 **Strength:** MUST / MUST NOT
 **Status:** DERIVED
-**Source:** `tests/random-vpnnet.sh` (ipcalc lookup); `README.md` (build
-dependencies: `ipcalc-ng` on Debian/Ubuntu, `ipcalc` on Fedora/RHEL)
+**Source:** `tests/random-vpnnet.sh` (`ipcalc` and `ip` lookup);
+`README.md` (build dependencies: `ipcalc-ng` and `iproute2` on
+Debian/Ubuntu, `ipcalc` and `iproute` on Fedora/RHEL)
 **Acceptance:** local — run a test that sources `random-vpnnet.sh` with a
 `PATH` that contains neither `ipcalc` nor `ipcalc-ng`; confirm it prints
-`ipcalc was not found` and exits 1.
+`ipcalc was not found` and exits 1. Likewise, with `ipcalc` available
+but no `ip` in `PATH`, `/usr/sbin` or `/sbin` (e.g. in a container
+without iproute2), confirm it prints `ip was not found` and exits 1.
 **Links:** REQ-GEN-TEST-005, REQ-GEN-TEST-006, REQ-GEN-TEST-011
