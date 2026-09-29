@@ -23,6 +23,10 @@ builddir=${builddir:-.}
 
 OPENCONNECT=${OPENCONNECT:-$(command -v openconnect)}
 
+# Tests run in parallel from the same directory; give each run its own
+# file for the default route that scripts/vpnc-script saves and restores.
+export DEFAULT_ROUTE_FILE="./defaultroute.$(basename "$0").$$"
+
 if test -z "${OPENCONNECT}" || ! test -x ${OPENCONNECT};then
 	echo "You need openconnect to run this test"
 	exit 1
@@ -279,6 +283,7 @@ cleanup_client_server() {
 		wait ${PID} 2>/dev/null
 	fi
 	test -n "${PIDFILE}" && rm -f "${PIDFILE}" >/dev/null 2>&1
+	test -n "${DEFAULT_ROUTE_FILE}" && rm -f "${DEFAULT_ROUTE_FILE}" >/dev/null 2>&1
 	test -n "${CONFIG}" && rm -f "${CONFIG}" >/dev/null 2>&1
 }
 

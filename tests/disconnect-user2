@@ -78,6 +78,8 @@ if test $? != 0;then
 	exit 1
 fi
 
+CLIENT_PID=$(cat ${CLIPID})
+
 set -e
 echo " * ping remote address"
 
@@ -96,6 +98,14 @@ fi
 # worker's AUTH_COOKIE_REQ goes unread, causing a deadlock.
 for i in $(seq 1 10); do
 	${OCCTL} -s ${OCCTL_SOCKET} show user test >/dev/null 2>&1 || break
+	sleep 1
+done
+
+# The disconnected client runs its vpnc-script disconnect handler, which
+# rewrites the namespace's routes, before exiting; reconnecting before it
+# is done lets it remove the route the new connection uses.
+for i in $(seq 1 10); do
+	test -n "${CLIENT_PID}" && kill -0 ${CLIENT_PID} 2>/dev/null || break
 	sleep 1
 done
 

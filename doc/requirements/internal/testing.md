@@ -11,6 +11,7 @@ sources:
   - tests/random-net.sh
   - tests/random-net2.sh
   - tests/check-test-addresses.py
+  - tests/scripts/vpnc-script
   - .gitlab-ci.yml
   - meson_options.txt
 ---
@@ -449,3 +450,40 @@ Debian/Ubuntu, `ipcalc` and `iproute` on Fedora/RHEL)
 but no `ip` in `PATH`, `/usr/sbin` or `/sbin` (e.g. in a container
 without iproute2), confirm it prints `ip was not found` and exits 1.
 **Links:** REQ-GEN-TEST-005, REQ-GEN-TEST-006, REQ-GEN-TEST-011
+
+---
+
+### REQ-GEN-TEST-013 — State a test or its client script keeps between steps MUST live in a file no other test uses; it MUST NOT use a fixed name shared by several tests
+
+**Requirement:** Tests run in parallel from the same `build/tests`
+directory (`REQ-GEN-TEST-007`), so a file with a fixed name in the working
+directory is shared by every test that uses it. State that a test, or a
+helper it runs, writes in one step and reads back in a later one MUST be
+kept in a file that no other test writes: a file used by a single test may
+have a fixed name that identifies that test (e.g. `test-iroute.tmp` in
+`tests/test-iroute`), while a helper run by several tests MUST take the
+file name from the calling test. In particular the
+default route that `tests/scripts/vpnc-script` saves on connect and
+restores on disconnect MUST be stored in the file named by
+`DEFAULT_ROUTE_FILE`, which `tests/common.sh` MUST export as
+`./defaultroute.<test name>.<test PID>`; the script MUST fall back to
+`./defaultroute` only when `DEFAULT_ROUTE_FILE` is unset (manual use
+outside the test suite). Otherwise one test's client can restore another
+test's route in its own namespace (`Cannot find device "ocen1c<pid>"`),
+leaving the client with no route to the server and the test hanging until
+the meson timeout.
+**Strength:** MUST / MUST NOT
+**Status:** DERIVED
+**Source:** `tests/scripts/vpnc-script` (`DEFAULT_ROUTE_FILE`,
+`set_default_route()`, `reset_default_route()`), `tests/common.sh`
+(`DEFAULT_ROUTE_FILE` export); CI job 16818030683, where `disconnect-user`
+timed out after restoring the default route saved by `disconnect-user2`.
+**Acceptance:** code-review, local — confirm that `tests/common.sh`
+exports `DEFAULT_ROUTE_FILE` containing `$$`, that `vpnc-script` honours
+it, and that no inter-step state file in the working directory is written
+by more than one test, whether directly or through a shared helper script
+or template. Running `disconnect-user` and
+`disconnect-user2` concurrently (`meson test -C build disconnect-user
+disconnect-user2 --repeat 10`) MUST show no `Cannot find device` message
+in either test's log and no timeout.
+**Links:** REQ-GEN-TEST-007, REQ-GEN-TEST-009

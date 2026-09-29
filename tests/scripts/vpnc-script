@@ -78,7 +78,7 @@ PATH=/sbin:/usr/sbin:$PATH
 OS="`uname -s`"
 
 HOOKS_DIR=/etc/vpnc
-DEFAULT_ROUTE_FILE=./defaultroute
+DEFAULT_ROUTE_FILE=${DEFAULT_ROUTE_FILE:-./defaultroute}
 SCRIPTNAME=`basename $0`
 
 # some systems, eg. Darwin & FreeBSD, prune /var/run on boot
