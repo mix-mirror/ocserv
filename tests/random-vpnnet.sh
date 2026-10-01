@@ -33,7 +33,8 @@
 #                 to derive addresses and sub-networks within VPNNET
 #   VPNNET_ADDR - the first host address of VPNNET (also as VPNADDR)
 #   VPNNET6     - random IPv6 /112 network
-#   VPNNET6_BASE, VPNNET6_ADDR (also as VPNADDR6) - likewise for VPNNET6
+#   VPNNET6_BASE, VPNNET6_ADDR (also as VPNADDR6) - likewise for VPNNET6,
+#                 except that VPNNET6_ADDR is the network address itself
 #   alloc_vpnnet4 NAME, alloc_vpnnet6 NAME - allocate a further network,
 #                 distinct from the ones already allocated, into NAME,
 #                 NAME_BASE and NAME_ADDR. Every allocated NAME is
@@ -115,13 +116,14 @@ _alloc_vpnnet() {
 		echo "VPN network $1: ${NETWORK}/${PREFIX} overlaps a local route, redrawing"
 	done
 	# the network address minus its last all-zero group or octet;
-	# for IPv6 it ends in ':', so BASE + host number is an address
+	# for IPv6 it ends in ':', so BASE + host number is an address.
+	# The IPv6 server address is the network address (REQ-MAIN-NET-006).
 	if test "$2" = 24; then
 		_base="${NETWORK%.0}"
 		_addr="${_base}.1"
 	else
 		_base="${NETWORK%0}"
-		_addr="${_base}1"
+		_addr="${NETWORK}"
 	fi
 	_VPNNETS_ALLOCATED="${_VPNNETS_ALLOCATED} ${NETWORK}"
 	VPNNET_VARS="${VPNNET_VARS} $1"

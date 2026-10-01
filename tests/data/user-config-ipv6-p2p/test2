@@ -1,0 +1,2 @@
+ipv6-network = @VPNNET6_BASE@2/127
+explicit-ipv6 = @VPNNET6_BASE@2

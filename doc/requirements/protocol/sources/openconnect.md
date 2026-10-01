@@ -113,9 +113,12 @@ each individually optional depending on what's been requested/negotiated
 **Notes:** "X-CSTP-Address-IP6 ... prefix length is RECOMMENDED to be set to
 127-bits" (RFC 6164) and "X-CSTP-Netmask ... RECOMMENDED the server address to
 be the first in defined network" are both SHOULD-strength conventions, not
-MUST — `[CANDIDATE: check whether ocserv's `ip-lease.c` (REQ-MAIN-NET-001)
-follows the /127 and "server address first" recommendations for IPv6/IPv4
-respectively.]`
+MUST. ocserv follows "server address first": the IPv4 server address is
+the network address + 1, or the network address for a `/31`
+(REQ-MAIN-NET-004), and the IPv6 server address is the network address
+(REQ-MAIN-NET-006). ocserv does not follow the /127 recommendation: the
+prefix sent in `X-CSTP-Address-IP6` is `ipv6-subnet-prefix` (default 128),
+not 127 — see REQ-PROTO-CONN-007.
 
 ---
 
