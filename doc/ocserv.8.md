@@ -359,6 +359,26 @@ MSS of TCP connections to MTU will eliminate the "black hole" connection issues.
 See http://lartc.org/howto/lartc.cookbook.mtu-mss.html for instructions
 to enable it on a Linux system.
 
+When VPN packets travel over the TLS connection rather than over DTLS,
+TCP traffic in the tunnel is carried inside a TCP connection, which
+performs poorly on lossy paths, because both layers retransmit.
+
+With `listen-mptcp`, clients that support Multipath TCP (MPTCP) can use
+several network paths at once for the TLS connection and keep it open when
+one of them fails. This applies to the TCP channel only: once DTLS is
+established, VPN packets travel over UDP on a single path, so paths are
+only aggregated when the client stays on the TCP channel (for example with
+`udp-port` unset, or `no-udp = true` for that user). On Linux,
+`ip mptcp endpoint` and `ip mptcp limits` control which addresses and how
+many subflows each side uses.
+
+The client address that ocserv logs, shows in `occtl` and sends to RADIUS
+as Calling-Station-Id is that of the connection's first path. It stays the
+same for the whole session, also when the client adds paths, or when the
+first path fails and the session goes on over another one; a client that
+reconnects is shown with the address of the new connection's first path.
+On Linux, `ip mptcp monitor` shows the paths as clients add and close them.
+
 ## AUTHORS
 Written by Nikos Mavrogiannopoulos. Many people have contributed to it.
 

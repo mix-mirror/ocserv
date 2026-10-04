@@ -194,6 +194,7 @@ VERBOSE=1                    # Enable verbose server output
 COVERAGE=1                   # Disable worker isolation for coverage
 ISOLATE_WORKERS=false        # Disable seccomp (needed for ASAN/coverage)
 DISABLE_ASAN_BROKEN_TESTS=1  # Skip ldpreload-based tests (incompatible with ASAN)
+OCSERV_TEST_REQUIRE_MPTCP=1  # Fail test-listen-mptcp, not skip it, without MPTCP
 ```
 
 ### Test Structure

@@ -1184,6 +1184,10 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 			if (error_on_vhost(vhost->name, "udp-port"))
 				return 0;
 			READ_NUMERIC(vhost->static_config.udp_port);
+		} else if (strcmp(name, "listen-mptcp") == 0) {
+			if (error_on_vhost(vhost->name, "listen-mptcp"))
+				return 0;
+			READ_TF(vhost->static_config.listen_mptcp);
 		} else if (strcmp(name, "run-as-user") == 0) {
 			if (error_on_vhost(vhost->name, "run-as-user"))
 				return 0;

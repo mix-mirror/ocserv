@@ -44,6 +44,9 @@
 - A virtual host that does not set 'kkdcp' now inherits it from the
   top-level configuration, like other options; it previously was not
   inherited.
+- Added the listen-mptcp option: the TCP listening sockets accept Multipath
+  TCP (MPTCP) connections, falling back to TCP with a warning when the
+  kernel does not provide MPTCP.
 
 * Version 1.6.0 (released 2026-10-16)
 - Send the RADIUS session ID as Acct-Session-Id in the Access-Request (#751)

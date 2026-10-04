@@ -308,6 +308,16 @@ endif
 # --------------------------------------------------------------------------
 
 if get_option('root-tests')
+  # mptcp-shim: LD_PRELOAD library used by test-listen-mptcp to make
+  # openconnect connect with Multipath TCP.
+  if cc.has_header_symbol('netinet/in.h', 'IPPROTO_MPTCP')
+    mptcp_shim = shared_library('mptcp-shim', 'mptcp-shim.c',
+      dependencies: [cc.find_library('dl', required: false)],
+      install: false,
+    )
+    test_env.set('MPTCP_SHIM', mptcp_shim.full_path())
+  endif
+
   foreach s : ['test-fw-script', 'fw-ocserv', 'fw-ocserv-ports-routes']
     test(s, find_program(s),
       env:     test_env,
@@ -337,7 +347,8 @@ if get_option('root-tests')
     'test-config-per-group', 'test-config-per-group-url-pass',
     'test-config-per-group-url-cert', 'test-multiple-client-ip',
     'terminate-user-multi-secmod', 'test-occtl-fd-inherit',
-    'test-rekey-tls13', 'test-rekey-tls12',
+    'test-rekey-tls13', 'test-rekey-tls12', 'test-listen-mptcp',
+    'test-listen-mptcp-fallback',
   ]
 
   foreach s : root_scripts

@@ -411,6 +411,35 @@ worker-memory-limit/Fedora:
     exclude:
       - "**/*.tmp"
 
+# The hosted runners' kernels have no MPTCP (CONFIG_MPTCP is not set) and no
+# KVM, so the MPTCP tests skip in the other jobs. Here they run in a
+# virtme-ng guest that boots the Fedora image's kernel under QEMU without KVM
+# (build-images installs the kernel, QEMU and virtme-ng), and fail instead of
+# skipping if MPTCP is missing.
+mptcp/Fedora:
+  stage: testing
+  image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$FEDORA_BUILD
+  script:
+  - git submodule update --init
+  - KVER=$(rpm -q --qf '%{VERSION}-%{RELEASE}.%{ARCH}\n' kernel-core | tail -n 1)
+  - meson setup build
+  - ninja -C build -j$JOBS
+  - >-
+    vng --run /lib/modules/$KVER/vmlinuz --disable-kvm --cpus 2 --memory 2G
+    --rw --user root --exec "modprobe tun &&
+    OCSERV_TEST_REQUIRE_MPTCP=1 meson test -C build --no-rebuild --verbose
+    test-listen-mptcp test-listen-mptcp-fallback"
+  tags:
+  - saas-linux-medium-amd64
+  except:
+  - tags
+  - schedules
+  artifacts:
+    expire_in: 1 week
+    when: on_failure
+    paths:
+      - build/meson-logs/
+
 minimal:
   stage: testing
   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$CENTOS8_BUILD
