@@ -135,6 +135,14 @@ const char *cmd_request_to_str(unsigned int _cmd)
 		return "latency stats delta";
 	case CMD_SEC_CLI_STATS:
 		return "sm: worker cli stats";
+	case CMD_SEC_OIDC_START:
+		return "sm: oidc start";
+	case CMD_SEC_OIDC_START_REPLY:
+		return "sm: oidc start reply";
+	case CMD_SEC_OIDC_FINISH:
+		return "sm: oidc finish";
+	case CMD_SEC_OIDC_FINISH_REPLY:
+		return "sm: oidc finish reply";
 	case CMD_SEC_AUTH_INIT:
 		return "sm: auth init";
 	case CMD_SEC_AUTH_CONT:

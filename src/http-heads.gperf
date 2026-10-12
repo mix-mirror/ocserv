@@ -22,3 +22,5 @@ X-AnyConnect-Identifier-DeviceType, HEADER_DEVICE_TYPE
 X-AnyConnect-Identifier-Platform, HEADER_PLATFORM
 X-Support-HTTP-Auth, HEADER_SUPPORT_SPNEGO
 Authorization, HEADER_AUTHORIZATION
+Host, HEADER_HOST
+X-AnyConnect-STRAP-DH-Pubkey, HEADER_STRAP_DH_PUBKEY

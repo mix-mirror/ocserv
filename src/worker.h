@@ -46,6 +46,17 @@
 // between ocserv-main and ocserv-worker.
 #define OCSERV_ENV_WORKER_STARTUP_MSG "OCSERV_WORKER_STARTUP_MSG"
 
+/*
+ * Room for the key a client sends in X-AnyConnect-STRAP-DH-Pubkey: the
+ * base64 encoding of the DER SubjectPublicKeyInfo of a secp256r1 point in
+ * uncompressed form, which is 91 bytes long, plus the terminating null.
+ * That is the only curve the external browser mode uses. Whitespace in the
+ * header is dropped; a longer value is ignored and the client is not given
+ * the token that way.
+ */
+#define STRAP_DH_PUBKEY_DER_SIZE 91
+#define STRAP_DH_PUBKEY_SIZE (((STRAP_DH_PUBKEY_DER_SIZE + 2) / 3) * 4 + 1)
+
 typedef enum {
 	UP_DISABLED,
 	UP_WAIT_FD,
@@ -72,7 +83,9 @@ enum {
 	HEADER_CSTP_ENCODING,
 	HEADER_DTLS_ENCODING,
 	HEADER_SUPPORT_SPNEGO,
-	HEADER_AUTHORIZATION
+	HEADER_AUTHORIZATION,
+	HEADER_HOST,
+	HEADER_STRAP_DH_PUBKEY
 };
 
 enum { HTTP_HEADER_INIT = 0, HTTP_HEADER_RECV, HTTP_HEADER_VALUE_RECV };
@@ -128,7 +141,9 @@ extern asn1_node _kkdcp_pkix1_asn;
 #endif
 
 struct http_req_st {
-	char url[256];
+	/* OpenID Connect redirects come back with code, state and issuer in
+	 * the query string, which does not fit in a smaller buffer */
+	char url[1024];
 
 	str_st header;
 	str_st value;
@@ -138,6 +153,13 @@ struct http_req_st {
 	char devtype[MAX_AGENT_NAME]; /* Device-Type */
 	char devplatform[MAX_AGENT_NAME]; /* Device-Platform */
 	char hostname[MAX_HOSTNAME_SIZE];
+	/* the Host header as sent by the client; unlike hostname it is not
+	 * reduced to its first label, so it can be used to build URLs which
+	 * point back at this server */
+	char full_hostname[MAX_HOSTNAME_SIZE];
+	/* the client's key agreement public key, used to encrypt the token
+	 * returned through an external browser */
+	char strap_dh_pubkey[STRAP_DH_PUBKEY_SIZE];
 	char user_agent[MAX_AGENT_NAME];
 	unsigned int user_agent_type;
 
@@ -363,6 +385,14 @@ int auth_user_deinit(worker_st *ws);
 
 int get_auth_handler(worker_st *server, unsigned int http_ver);
 int post_auth_handler(worker_st *server, unsigned int http_ver);
+#ifdef SUPPORT_OIDC_AUTH
+bool oidc_browser_login_enabled(worker_st *server);
+char *oidc_get_login_url(worker_st *server, unsigned int external_browser);
+int get_oidc_callback_handler(worker_st *server, unsigned int http_ver);
+int oidc_complete_auth(worker_st *server, unsigned int http_ver,
+		       const char *token);
+int get_oidc_final_handler(worker_st *server, unsigned int http_ver);
+#endif
 int post_kkdcp_handler(worker_st *server, unsigned int http_ver);
 int get_svc_handler(worker_st *ws, unsigned int http_ver);
 int post_svc_handler(worker_st *ws, unsigned int http_ver);
@@ -391,10 +421,12 @@ void http_req_deinit(worker_st *ws);
 void http_req_reset(worker_st *ws);
 void http_req_init(worker_st *ws);
 
+unsigned int valid_fqdn(const char *host);
 unsigned int valid_hostname(const char *host);
+unsigned int valid_hostport(const char *host);
 void strip_domain(char *host);
 
-url_handler_fn http_get_url_handler(const char *url);
+url_handler_fn http_get_url_handler(worker_st *ws, const char *url);
 url_handler_fn http_post_url_handler(worker_st *ws, const char *url);
 url_handler_fn http_post_known_service_check(worker_st *ws, const char *url);
 

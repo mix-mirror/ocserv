@@ -283,6 +283,89 @@ static int auto_select_cert_group(worker_st *ws)
 	return 1;
 }
 
+#ifdef SUPPORT_OIDC_AUTH
+/*
+ * Escape the characters which cannot appear in XML character data. Only
+ * ampersand and the angle brackets matter for a URL.
+ */
+static char *xml_escape(void *pool, const char *str)
+{
+	const char *p;
+	char *out;
+	size_t len = 0;
+
+	for (p = str; *p != 0; p++) {
+		switch (*p) {
+		case '&':
+			len += sizeof("&amp;") - 1;
+			break;
+		case '<':
+			len += sizeof("&lt;") - 1;
+			break;
+		case '>':
+			len += sizeof("&gt;") - 1;
+			break;
+		default:
+			len++;
+		}
+	}
+
+	out = talloc_size(pool, len + 1);
+	if (out == NULL)
+		return NULL;
+
+	len = 0;
+	for (p = str; *p != 0; p++) {
+		switch (*p) {
+		case '&':
+			memcpy(out + len, "&amp;", sizeof("&amp;") - 1);
+			len += sizeof("&amp;") - 1;
+			break;
+		case '<':
+			memcpy(out + len, "&lt;", sizeof("&lt;") - 1);
+			len += sizeof("&lt;") - 1;
+			break;
+		case '>':
+			memcpy(out + len, "&gt;", sizeof("&gt;") - 1);
+			len += sizeof("&gt;") - 1;
+			break;
+		default:
+			out[len++] = *p;
+		}
+	}
+	out[len] = 0;
+
+	return out;
+}
+#endif
+
+#ifdef SUPPORT_OIDC_AUTH
+/*
+ * Whether to serve the login form of the browser login. It takes both the
+ * administrator and the client: the browser login must be configured
+ * (oidc[mode=browser]), and the client must announce single-sign-on-v2 and
+ * present no bearer token. A client which presents one, as the Intune
+ * client does, is handled as a bearer token client whatever it announces,
+ * and refused unless the mode is bearer.
+ */
+static bool oidc_wants_browser_login(worker_st *ws)
+{
+	if (!(ws->selected_auth->type & AUTH_TYPE_OIDC) ||
+	    !oidc_browser_login_enabled(ws))
+		return false;
+
+	if (ws->req.authorization != NULL &&
+	    ws->req.authorization_size >= sizeof(HTTP_AUTH_OIDC_PREFIX) - 1 &&
+	    strncasecmp(ws->req.authorization, HTTP_AUTH_OIDC_PREFIX,
+			sizeof(HTTP_AUTH_OIDC_PREFIX) - 1) == 0)
+		return false;
+
+	return ws->req.body != NULL && ws->req.body_length > 0 &&
+	       memmem(ws->req.body, ws->req.body_length, "single-sign-on-v2",
+		      sizeof("single-sign-on-v2") - 1) != NULL;
+}
+#endif
+
 int get_auth_handler2(worker_st *ws, unsigned int http_ver, const char *pmsg,
 		      unsigned int pcounter)
 {
@@ -292,6 +375,124 @@ int get_auth_handler2(worker_st *ws, unsigned int http_ver, const char *pmsg,
 	str_st str;
 	const char *login_start;
 	const char *login_end;
+
+#ifdef SUPPORT_OIDC_AUTH
+	/*
+	 * Clients which announce the single-sign-on-v2 capability can complete
+	 * the login in a browser; hand them the authorization request to open
+	 * and the page which signals that the browser leg has finished.
+	 */
+	if (oidc_wants_browser_login(ws)) {
+		const char *host = ws->req.full_hostname[0] ?
+					   ws->req.full_hostname :
+					   ws->our_ip_str;
+		const char *secret = "";
+		char *secret_param = NULL;
+		char *login_url;
+		char *escaped_url;
+		const char *browser_mode = "";
+		unsigned int external_browser = 0;
+
+		/*
+		 * With camouflage enabled the browser is redirected to the
+		 * final page with the secret, and the final URL named here
+		 * carries it too. The clients compare the page they loaded with
+		 * this URL differently: the iOS one needs the same URL, query
+		 * included, while the Android one drops the query of the loaded
+		 * page first and would never see the login complete. So only
+		 * the Android client is given the URL without the secret.
+		 */
+		if (WSRCONFIG(ws)->camouflage &&
+		    WSRCONFIG(ws)->camouflage_secret != NULL &&
+		    strncasecmp(ws->req.devplatform, "android", 7) != 0) {
+			secret_param = talloc_asprintf(
+				ws, "?%s", WSRCONFIG(ws)->camouflage_secret);
+			if (secret_param == NULL)
+				return -1;
+			secret = secret_param;
+		}
+
+		/*
+		 * A client which can drive a browser of its own is told to do
+		 * so; the token then comes back through its local listener
+		 * rather than through a cookie. The Cisco mobile clients
+		 * announce the capability as well but do not listen for the
+		 * token, so they are kept on the embedded browser.
+		 */
+		if (!ws->req.is_mobile &&
+		    memmem(ws->req.body, ws->req.body_length,
+			   "single-sign-on-external-browser",
+			   sizeof("single-sign-on-external-browser") - 1) !=
+			    NULL) {
+			browser_mode =
+				"<sso-v2-browser-mode>external</sso-v2-browser-mode>\n";
+			external_browser = 1;
+		}
+
+		/*
+		 * When sec-mod refuses to start the login, as when the limits
+		 * on pending requests are reached, refuse the client with a
+		 * 401 rather than drop the connection.
+		 */
+		login_url = oidc_get_login_url(ws, external_browser);
+		if (login_url == NULL) {
+			talloc_free(secret_param);
+			return oidc_auth_handler(ws, http_ver);
+		}
+
+		escaped_url = xml_escape(ws, login_url);
+		talloc_free(login_url);
+		if (escaped_url == NULL) {
+			talloc_free(secret_param);
+			return -1;
+		}
+
+		str_init(&str, ws);
+		ret = str_append_printf(
+			&str,
+			"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+			"<config-auth client=\"vpn\" type=\"auth-request\" aggregate-auth-version=\"2\">\n"
+			"<auth id=\"main\">\n"
+			"<title>Login</title>\n"
+			"<message>Complete authentication in the browser</message>\n"
+			"%s"
+			"<sso-v2-login>%s</sso-v2-login>\n"
+			"<sso-v2-login-final>https://%s/+CSCOE+/saml_ac_login.html%s</sso-v2-login-final>\n"
+			"<sso-v2-token-cookie-name>acSamlv2Token</sso-v2-token-cookie-name>\n"
+			"<sso-v2-error-cookie-name>acSamlv2Error</sso-v2-error-cookie-name>\n"
+			"<form><input type=\"sso\" name=\"sso-token\"/></form>\n"
+			"</auth></config-auth>",
+			browser_mode, escaped_url, host, secret);
+		talloc_free(escaped_url);
+		talloc_free(secret_param);
+
+		if (ret < 0) {
+			str_clear(&str);
+			return -1;
+		}
+
+		oclog(ws, LOG_HTTP_DEBUG, "OIDC: sso-v2 form served");
+
+		cstp_cork(ws);
+		ret = cstp_printf(ws, "HTTP/1.%u 200 OK\r\n", http_ver);
+		if (ret >= 0)
+			ret = cstp_puts(
+				ws,
+				"Content-Type: text/xml; charset=utf-8\r\n");
+		if (ret >= 0)
+			ret = cstp_printf(ws, "Content-Length: %d\r\n",
+					  (int)str.length);
+		if (ret >= 0)
+			ret = cstp_puts(ws, "X-Transcend-Version: 1\r\n\r\n");
+		if (ret >= 0)
+			ret = cstp_send(ws, (char *)str.data, str.length);
+		if (ret >= 0)
+			ret = cstp_uncork(ws);
+
+		str_clear(&str);
+		return ret;
+	}
+#endif
 
 	if (ws->req.user_agent_type == AGENT_OPENCONNECT_V3) {
 		/* certain v2.x modified clients require a different auth_id
@@ -1605,6 +1806,87 @@ cleanup:
 #define MSG_NO_CERT_ERROR "No certificate"
 #define MSG_NO_PASSWORD_ERROR "No password"
 
+#ifdef SUPPORT_OIDC_AUTH
+/*
+ * Complete a browser login: the client presents the token the browser
+ * login handed to it, and sec-mod turns it into the session identity.
+ */
+int oidc_complete_auth(worker_st *ws, unsigned int http_ver, const char *token)
+{
+	SecAuthInitMsg ireq = SEC_AUTH_INIT_MSG__INIT;
+	const char *reason = "Authentication failed";
+	char *msg = NULL;
+	unsigned int pcounter = 0;
+	int ret, sd = -1;
+
+	ireq.auth_type = AUTH_TYPE_OIDC;
+	ireq.user_name = "";
+	ireq.oidc_token = (char *)token;
+
+	if (ws->groupname[0] != 0)
+		ireq.group_name = ws->groupname;
+
+	ireq.vhost = ws->vhost->name;
+	ireq.remote_ip = ws->remote_ip_str;
+	ireq.orig_remote_ip = ws->orig_remote_ip_str;
+	ireq.our_ip = ws->our_ip_str;
+	ireq.session_start_time = ws->session_start_time;
+	ireq.hmac.data = (uint8_t *)ws->sec_auth_init_hmac;
+	ireq.hmac.len = sizeof(ws->sec_auth_init_hmac);
+
+	if (ws->req.user_agent[0] != 0)
+		ireq.user_agent = ws->req.user_agent;
+	if (ws->req.devtype[0] != 0)
+		ireq.device_type = ws->req.devtype;
+	if (ws->req.devplatform[0] != 0)
+		ireq.device_platform = ws->req.devplatform;
+
+	sd = connect_to_secmod(ws);
+	if (sd == -1) {
+		reason = MSG_INTERNAL_ERROR;
+		oclog(ws, LOG_ERR, "failed connecting to sec mod");
+		goto fail;
+	}
+
+	ret = send_msg_to_secmod(
+		ws, sd, CMD_SEC_AUTH_INIT, &ireq,
+		(pack_size_func)sec_auth_init_msg__get_packed_size,
+		(pack_func)sec_auth_init_msg__pack);
+	if (ret < 0) {
+		reason = MSG_INTERNAL_ERROR;
+		oclog(ws, LOG_ERR, "failed sending auth init to sec mod");
+		goto fail;
+	}
+
+	ret = recv_auth_reply(ws, sd, &msg, &pcounter);
+	close(sd);
+	sd = -1;
+
+	if (ret < 0) {
+		oclog(ws, LOG_INFO, "OIDC authentication failed");
+		goto fail;
+	}
+
+	oclog(ws, LOG_HTTP_DEBUG, "user '%s' obtained cookie", ws->username);
+	ws->auth_state = S_AUTH_COOKIE;
+
+	ret = post_common_handler(ws, http_ver, msg);
+	talloc_free(msg);
+	return ret;
+
+fail:
+	if (sd != -1)
+		close(sd);
+	talloc_free(msg);
+	oclog(ws, LOG_HTTP_DEBUG, "HTTP sending: 401 Unauthorized");
+	cstp_printf(ws, "HTTP/1.%u 401 %s\r\nContent-Length: 0\r\n\r\n",
+		    http_ver, reason);
+	cstp_fatal_close(ws, GNUTLS_A_ACCESS_DENIED);
+	exit_worker(ws);
+	return -1;
+}
+#endif
+
 int post_auth_handler(worker_st *ws, unsigned int http_ver)
 {
 	int ret = -1, sd = -1;
@@ -1685,6 +1967,32 @@ int post_auth_handler(worker_st *ws, unsigned int http_ver)
 
 #ifdef SUPPORT_OIDC_AUTH
 		if (ws->selected_auth->type & AUTH_TYPE_OIDC) {
+			char *sso_token = NULL;
+
+			/*
+			 * The client returns the token it picked up once the
+			 * browser leg finished; sec-mod has the identity
+			 * waiting under it.
+			 */
+			if (parse_reply(ws, req->body, req->body_length,
+					"sso-token", sizeof("sso-token") - 1,
+					NULL, 0, &sso_token) == 0 &&
+			    sso_token != NULL && sso_token[0] != 0) {
+				ret = oidc_complete_auth(ws, http_ver,
+							 sso_token);
+				talloc_free(sso_token);
+				return ret;
+			}
+			talloc_free(sso_token);
+
+			/*
+			 * Clients which announce the single-sign-on-v2
+			 * capability and present no bearer token complete the
+			 * login in a browser; serve them the sso-v2 form.
+			 */
+			if (oidc_wants_browser_login(ws))
+				return get_auth_handler(ws, http_ver);
+
 			if (req->authorization == NULL ||
 			    req->authorization_size == 0)
 				return oidc_auth_handler(ws, http_ver);

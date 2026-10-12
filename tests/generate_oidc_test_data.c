@@ -184,6 +184,144 @@ bool write_jws_to_file(cjose_jws_t *jws, const char *file)
 	return true;
 }
 
+static void write_private_key(const char *output_folder, cjose_jwk_t *key)
+{
+	cjose_err err;
+	char key_file[1024];
+	const char *key_str;
+	FILE *f;
+
+	snprintf(key_file, sizeof(key_file), "%s/oidc-key.json", output_folder);
+
+	/* the private half, so that a token can be minted later */
+	key_str = cjose_jwk_to_json(key, true, &err);
+	if (key_str == NULL) {
+		exit(1);
+	}
+
+	f = fopen(key_file, "w");
+	if (f == NULL) {
+		exit(1);
+	}
+
+	fprintf(f, "%s", key_str);
+	fclose(f);
+}
+
+static cjose_jwk_t *load_private_key(const char *folder)
+{
+	cjose_err err;
+	char key_file[1024];
+	char buf[4096];
+	size_t len;
+	FILE *f;
+
+	snprintf(key_file, sizeof(key_file), "%s/oidc-key.json", folder);
+
+	f = fopen(key_file, "r");
+	if (f == NULL) {
+		return NULL;
+	}
+
+	len = fread(buf, 1, sizeof(buf) - 1, f);
+	fclose(f);
+	buf[len] = 0;
+
+	return cjose_jwk_import(buf, len, &err);
+}
+
+/*
+ * Mint a token for the mock provider, which has to answer with one carrying
+ * the nonce ocserv generated for that particular authorization request.
+ */
+static int mint_token(const char *folder, const char *user_name,
+		      const char *nonce, int ngroups, char **groups)
+{
+	static const char audience[] = "SomeAudience";
+	static const char issuer[] = "SomeIssuer";
+	cjose_err err;
+	cjose_jwk_t *key;
+	json_t *header;
+	json_t *claims;
+	cjose_jws_t *jws;
+	const char *jws_str;
+	const char *kid;
+	time_t now = time(NULL);
+	int i;
+
+	key = load_private_key(folder);
+	if (key == NULL) {
+		fprintf(stderr, "cannot load the signing key\n");
+		return 1;
+	}
+
+	kid = cjose_jwk_get_kid(key, &err);
+
+	header = create_header("JWT", "ES256", kid);
+	claims = create_claims(audience, issuer, now - 60, 0, now + 3600,
+			       user_name);
+
+	/*
+	 * The provider in the test suite chooses the audience, the issuer
+	 * and the authorized party of the token: a comma separated list makes
+	 * 'aud' an array.
+	 */
+	if (getenv("OIDC_MINT_AUD") != NULL) {
+		char *list = strdup(getenv("OIDC_MINT_AUD"));
+		char *save = NULL;
+		char *item;
+		json_t *array = json_array();
+
+		for (item = strtok_r(list, ",", &save); item != NULL;
+		     item = strtok_r(NULL, ",", &save))
+			json_array_append_new(array, json_string(item));
+
+		if (json_array_size(array) == 1)
+			json_object_set(claims, "aud",
+					json_array_get(array, 0));
+		else
+			json_object_set(claims, "aud", array);
+
+		json_decref(array);
+		free(list);
+	}
+
+	if (getenv("OIDC_MINT_ISS") != NULL)
+		json_object_set_new(claims, "iss",
+				    json_string(getenv("OIDC_MINT_ISS")));
+
+	if (getenv("OIDC_MINT_AZP") != NULL)
+		json_object_set_new(claims, "azp",
+				    json_string(getenv("OIDC_MINT_AZP")));
+
+	if (nonce != NULL && nonce[0] != 0) {
+		json_object_set_new(claims, "nonce", json_string(nonce));
+	}
+
+	if (ngroups > 0) {
+		json_t *array = json_array();
+
+		for (i = 0; i < ngroups; i++) {
+			json_array_append_new(array, json_string(groups[i]));
+		}
+		json_object_set_new(claims, "groups", array);
+	}
+
+	jws = create_jws(key, header, claims);
+	if (jws == NULL || !cjose_jws_export(jws, &jws_str, &err)) {
+		fprintf(stderr, "cannot sign the token\n");
+		return 1;
+	}
+
+	printf("%s", jws_str);
+
+	cjose_jws_release(jws);
+	json_decref(header);
+	json_decref(claims);
+	cjose_jwk_release(key);
+	return 0;
+}
+
 void generate_token(const char *output_folder, const char *token_name,
 		    cjose_jwk_t *key, const char *typ, const char *alg,
 		    const char *kid, const char *audience, const char *issuer,
@@ -261,7 +399,7 @@ void generate_config_files(const char *output_folder, cjose_jwk_t *key,
 	json_decref(keys);
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
 	char working_directory[1024];
 	static const char audience[] = "SomeAudience";
@@ -281,7 +419,20 @@ int main(void)
 	strncat(working_directory, "/data", sizeof(working_directory) - 1);
 	working_directory[sizeof(working_directory) - 1] = 0;
 
+	if (argc > 1 && strcmp(argv[1], "--mint") == 0) {
+		if (argc < 4) {
+			fprintf(stderr,
+				"usage: %s --mint <user> <nonce> [group...]\n",
+				argv[0]);
+			return 1;
+		}
+		return mint_token(working_directory, argv[2], argv[3], argc - 4,
+				  argv + 4);
+	}
+
 	cjose_jwk_t *key = create_key(kid);
+
+	write_private_key(working_directory, key);
 
 	generate_config_files(working_directory, key, audience, issuer,
 			      user_name_claim);
@@ -320,9 +471,8 @@ int main(void)
 	generate_token(working_directory, "fail_missing_iat", key, typ, alg,
 		       kid, audience, issuer, user_name, 0, now - 60,
 		       now + 3600);
-	generate_token(working_directory, "fail_missing_nbf", key, typ, alg,
-		       kid, audience, issuer, user_name, now - 60, 0,
-		       now + 3600);
+	generate_token(working_directory, "nonbf_token", key, typ, alg, kid,
+		       audience, issuer, user_name, now - 60, 0, now + 3600);
 	generate_token(working_directory, "fail_missing_exp", key, typ, alg,
 		       kid, audience, issuer, user_name, now - 60, now - 60, 0);
 	return 0;

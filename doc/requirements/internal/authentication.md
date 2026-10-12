@@ -1040,25 +1040,43 @@ REQ-AUTH-AUTH-003.
 
 ## AUTH — OIDC (`auth = oidc[config=<path-to-json>]`, requires `SUPPORT_OIDC_AUTH`)
 
-### REQ-AUTH-AUTH-036 — `oidc[...]` points at a JSON config file requiring `openid_configuration_url`, `required_claims`, `user_name_claim`; missing keys are fatal
+### REQ-AUTH-AUTH-036 — `oidc[...]` points at a JSON config file requiring `openid_configuration_url`, `required_claims`, `user_name_claim`, and selects a mode; missing keys are fatal, and only one OIDC method is allowed
 
-**Requirement:** `oidc_get_brackets_string()` returns the configured path;
+**Requirement:** `oidc_get_brackets_string()` returns an `oidc_cfg_st`
+carrying the configured path and the mode: `mode=bearer`, the default, or
+`mode=browser`; any other mode or suboption MUST be fatal at startup;
 `oidc_vhost_init()` MUST `json_load_file()` it and `exit(EXIT_FAILURE)` (via
 `mslog`/`fprintf` + exit) if the JSON cannot be parsed, or if any of
 `openid_configuration_url`, `required_claims`, `user_name_claim` is absent.
 `minimum_jwk_refresh_time` defaults to `MINIMUM_KEY_REFRESH_INTERVAL` (`900`
 seconds) if not configured. `oidc_vhost_init()` MUST then call
 `oidc_fetch_oidc_keys()` (REQ-AUTH-AUTH-037) and `exit(EXIT_FAILURE)` if it
-fails — an unreachable OIDC provider at startup is fatal, not deferred.
+fails — an unreachable OIDC provider at startup is fatal, not deferred. With
+`mode=browser`, `oidc_vhost_init()` MUST also exit if `client_id` or
+`redirect_uri` is missing from the JSON, or if the provider's metadata names
+no issuer, authorization endpoint or token endpoint. `figure_auth_funcs()`
+MUST refuse a second OIDC method on a virtual host, whether in `auth` or
+`enable-auth`: the worker falls back from one method to the next, while
+sec-mod looks up the method handling the browser login once, so with two of
+them the processes could act on different configurations. A named virtual
+host without an `auth` of its own MUST NOT inherit an OIDC method in
+`mode=browser` from the default one, as its `redirect_uri` leads back to the
+default host, where sec-mod does not know the login; `mode=bearer` is
+inherited.
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/subconfig.c:369+ (`oidc_get_brackets_string`);
-src/auth/openidconnect.c:36 (`MINIMUM_KEY_REFRESH_INTERVAL`), 57-119
-(`oidc_vhost_init`)
+**Source:** src/subconfig.c (`oidc_get_brackets_string`); src/config.c
+(`check_for_duplicate_oidc_auth`, `vhost_inherit_static_config`);
+src/auth/openidconnect.c:36
+(`MINIMUM_KEY_REFRESH_INTERVAL`), 57-119 (`oidc_vhost_init`)
 **Acceptance:** negative, local — an `oidc` config JSON missing
 `required_claims`; confirm `ocserv` exits at startup with "config file missing
-required_claims". Missing `user_name_claim`: analogous message. An
-unreachable `openid_configuration_url`: `exit(EXIT_FAILURE)` at startup.
+required_claims". Missing `user_name_claim`: analogous message. An unreachable
+`openid_configuration_url`: `exit(EXIT_FAILURE)` at startup. A second OIDC
+method in `enable-auth`, an unknown mode, `mode=browser` without a
+`client_id`, and a virtual host inheriting `mode=browser` are each refused at
+startup with their own message, while one inheriting `mode=bearer` starts; see
+tests/test-oidc.
 **Links:** REQ-AUTH-AUTH-037, REQ-AUTH-AUTH-038
 
 ### REQ-AUTH-AUTH-037 — JWKS are fetched from the provider's `jwks_uri` and refreshed on unknown `kid`, throttled by `minimum_jwk_refresh_time`
@@ -1084,74 +1102,102 @@ rejected (no refresh storm). `[REVIEW: confirm the throttle window's start
 point — last successful fetch vs. last attempted fetch.]`
 **Links:** REQ-AUTH-AUTH-038
 
-### REQ-AUTH-AUTH-038 — Token verification pipeline: signature → lifetime → required claims → username mapping
+### REQ-AUTH-AUTH-038 — Token verification pipeline: signature → lifetime → required claims → issuer and audience (code flow) → username mapping
 
 **Requirement:** `oidc_verify_token()` MUST, in order: (1)
-`cjose_jws_import()` the bearer token as a JWS; (2)
+`cjose_jws_import()` the token as a JWS; (2)
 `oidc_verify_signature()` — find the JWK by `kid` (REQ-AUTH-AUTH-037) and
 `cjose_jws_verify()`; (3) `oidc_extract_claims()` — parse the JWS payload as
-JSON; (4) `oidc_verify_lifetime()` — `nbf`, `iat`, and `exp` claims MUST all be
-present, and the current time MUST be within `[nbf, exp]`; (5)
+JSON; (4) `oidc_verify_lifetime()` — `iat` and `exp` MUST be present, and
+the current time MUST not be past `exp`; `nbf` is not among the claims OpenID
+Connect Core 1.0 section 2 requires of an ID Token, so it is optional, but
+when present it MUST be an integer and the current time MUST not be before
+it; (5)
 `oidc_verify_required_claims()` — every key configured in `required_claims`
-MUST be present in the token claims and `json_equal` the configured value; (6)
+MUST be present in the token claims and `json_equal` the configured value;
+(6) for a token obtained through the authorization code flow only,
+`oidc_verify_issuer_audience()` — `iss` MUST equal the `issuer` of the
+provider's metadata document exactly; `aud` MUST contain `client_id`; when
+`aud` names other audiences as well, `azp` MUST be present; and `azp`, when
+present, MUST equal `client_id` (OpenID Connect Core 1.0, section 3.1.3.7);
+(7)
 `oidc_map_user_name()` — the claim named by `user_name_claim` MUST be present
 and a non-empty string, copied into `user_name`. Any failure at any stage MUST
-abort the pipeline with `token_verified == false`.
+abort the pipeline with `token_verified == false`. A bearer token was obtained
+by the client for its own application, so its issuer and audience are left
+to `required_claims`.
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/auth/openidconnect.c:407-448 (`oidc_verify_lifetime`),
+**Source:** src/auth/openidconnect.c (`oidc_verify_issuer_audience`),
+src/auth/openidconnect.c:407-448 (`oidc_verify_lifetime`),
 449-479 (`oidc_verify_required_claims`), 480-502 (`oidc_map_user_name`),
 503-531 (`oidc_extract_claims`), 532-627 (`oidc_verify_signature`), 628-695
 (`oidc_verify_token`)
 **Acceptance:** [SEC] negative — for each stage, construct a token that fails
 only that stage (bad signature; `exp` in the past; missing a
 `required_claims` key; missing `user_name_claim`) and confirm
-`oidc_auth_init` returns `ERR_AUTH_FAIL` in every case. Positive — a token
-valid on all five checks completes authentication with
-`e->acct_info.username` equal to the `user_name_claim` value.
+`oidc_auth_init` returns `ERR_AUTH_FAIL` in every case. For the code flow, a
+token from another issuer, one whose `aud` lacks `client_id`, one with several audiences and no `azp`,
+and one whose `azp` is another party are refused, while one with several
+audiences and `azp` equal to `client_id` is accepted; see
+tests/test-oidc-code-flow. Positive — a token valid on every check completes
+authentication with `e->acct_info.username` equal to the `user_name_claim`
+value.
 **Links:** REQ-AUTH-AUTH-036, REQ-AUTH-AUTH-037, REQ-AUTH-AUTH-039
 
-### REQ-AUTH-AUTH-039 — OIDC is single-step: the bearer token is submitted as the "username" in `auth_init`; `auth_pass` always fails
+### REQ-AUTH-AUTH-039 — OIDC is single-step: `auth_init` takes either a bearer token or the token of a completed browser login; `auth_pass` always fails
 
-**Requirement:** `oidc_auth_init()` MUST treat `info->username` (the field
-populated from the worker's `SEC_AUTH_INIT`) as the OIDC bearer token, call
-`oidc_verify_token()` (REQ-AUTH-AUTH-038), and return `0` if
-`token_verified`, else `ERR_AUTH_FAIL` — there is no `ERR_AUTH_CONTINUE`
-round. `oidc_auth_pass()` MUST always return `ERR_AUTH_FAIL` (it exists only
-to satisfy the vtable; OIDC never reaches a password stage).
-`oidc_auth_user()` MUST return the `user_name` extracted in
-REQ-AUTH-AUTH-038 if `token_verified`, else fail.
+**Requirement:** `oidc_auth_init()` MUST accept one of two inputs. When
+`info->oidc_token` is set and non-empty, it names a browser login completed
+through REQ-AUTH-AUTH-043: the entry is taken from the completed logins with
+`oidc_sso_claim_take()`, and the user name and groups recorded in it become
+those of the session. The state of the request MUST NOT be accepted in its
+place, since it is part of the authorization request and can be known to
+anyone that request was handed to. Otherwise `info->username` (the field
+populated from the worker's `SEC_AUTH_INIT`) is a bearer token: it MUST be
+refused unless the mode is bearer, and is then verified with
+`oidc_verify_token()` (REQ-AUTH-AUTH-038). Either way `oidc_auth_init()`
+returns `0` on success and `ERR_AUTH_FAIL` otherwise — there is no
+`ERR_AUTH_CONTINUE` round. `oidc_auth_pass()` MUST always return
+`ERR_AUTH_FAIL` (it exists only to satisfy the vtable; OIDC never reaches a
+password stage). `oidc_auth_user()` MUST return the user name established by
+whichever path was taken, else fail.
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/auth/openidconnect.c:139-160 (`oidc_auth_init`), 161-171
-(`oidc_auth_user`), 172-176 (`oidc_auth_pass`)
-**Acceptance:** positive, local — a valid bearer token in the initial
-`SEC_AUTH_INIT` yields `PS_AUTH_COMPLETED` (modulo REQ-AUTH-AUTH-004's group
-check) without any `SEC_AUTH_CONT` round. [SEC] negative — confirm that no
-sequence of `SEC_AUTH_CONT` messages can reach `PS_AUTH_COMPLETED` for OIDC
-(i.e. `oidc_auth_pass` is unreachable-success by construction).
-**Links:** REQ-AUTH-AUTH-038, REQ-AUTH-SEC-002
+**Source:** src/auth/openidconnect.c (`oidc_auth_init`, `oidc_auth_user`,
+`oidc_auth_pass`, `oidc_sso_claim_take`)
+**Acceptance:** positive, local — a valid bearer token, or the token of a
+completed browser login, in the initial `SEC_AUTH_INIT` yields
+`PS_AUTH_COMPLETED` (modulo REQ-AUTH-AUTH-004's group check) without any
+`SEC_AUTH_CONT` round. [SEC] negative — confirm that no sequence of
+`SEC_AUTH_CONT` messages can reach `PS_AUTH_COMPLETED` for OIDC, that a token
+is refused when presented a second time, that the state of a completed login
+does not claim its session, and that a bearer token is refused with
+`mode=browser`; see tests/test-oidc-code-flow.
+**Links:** REQ-AUTH-AUTH-038, REQ-AUTH-AUTH-043, REQ-AUTH-SEC-002
 
-### REQ-AUTH-AUTH-040 — OIDC has no group support; `allows_retries == 1`
+### REQ-AUTH-AUTH-040 — OIDC takes groups from a token claim; `group_list == NULL`; `allows_retries == 1`
 
-**Requirement:** `oidc_auth_funcs.auth_group == NULL` and
-`oidc_auth_funcs.group_list == NULL` — OIDC tokens carry no group concept in
-this implementation, so REQ-AUTH-AUTH-004's `check_group()` skips the
-module-`auth_group` step entirely for OIDC sessions (falling through to the
-certificate-group fallback of REQ-AUTH-AUTH-006 only if `certificate` is also
-combined). `oidc_auth_funcs.allows_retries == 1`: a failed token verification
-on a retried `SEC_AUTH_INIT` (new connection attempt with a different token)
-is scored via REQ-AUTH-AUTH-003 like other password-based methods, even though
-OIDC itself has no `SEC_AUTH_CONT` rounds.
+**Requirement:** `oidc_auth_funcs.auth_group == oidc_auth_group`, which MUST
+match `suggested` against the values of the claim named by `groups_claim` and
+MUST return `-1` when the user is not among them. When `suggested` is `NULL`
+no group is assigned: the claim comes from the directory and carries every
+group the user holds there, some of which may match a `config-per-group`
+entry, so choosing one would apply a configuration the user did not ask for.
+`oidc_auth_funcs.group_list == NULL` — the groups of a user are only known
+once a token has been obtained, so they cannot be offered for selection
+beforehand, and REQ-AUTH-AUTH-004's `check_group()` has nothing to enumerate.
+`oidc_auth_funcs.allows_retries == 1`: a failed verification on a retried
+`SEC_AUTH_INIT` is scored via REQ-AUTH-AUTH-003 like other password-based
+methods, even though OIDC itself has no `SEC_AUTH_CONT` rounds.
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/auth/openidconnect.c:190-210 (`oidc_auth_funcs`)
-**Acceptance:** unit, local — `auth = oidc[...]` with no `enable-auth`;
-confirm `select-group`/`auto-select-group` configuration referencing any group
-name is rejected or ignored at config time for an OIDC-only vhost (no
-`group_list` to validate against). Confirm two `SEC_AUTH_INIT` attempts with
-invalid tokens add `ban_points_wrong_password` twice (REQ-AUTH-AUTH-003).
-**Links:** REQ-AUTH-AUTH-003, REQ-AUTH-AUTH-006, REQ-AUTH-AUTH-038
+**Source:** src/auth/openidconnect.c (`oidc_auth_group`, `oidc_auth_funcs`)
+**Acceptance:** positive, local — a user connecting to a URL naming a group
+present in the claim is placed in it. negative — a group absent from the
+claim is refused, and with no group requested the session falls back to the
+server defaults. tests/test-oidc-code-flow covers all three, reading the
+group of each resulting session with occtl.
 
 ### REQ-AUTH-AUTH-042 — PAM credentials do not outlive the PAM context
 
@@ -1172,6 +1218,61 @@ erases both `pctx->password` and `pctx->username` before `pam_end()`. Buffer
 erasure is not externally observable, so no runtime test is required; a test
 that inspects `struct pam_ctx_st` would violate REQ-GEN-TEST-002.
 **Links:** REQ-AUTH-AUTH-018, REQ-AUTH-AUTH-019, REQ-AUTH-AUTH-020
+
+### REQ-AUTH-AUTH-043 — OIDC can perform the authorization code flow, keeping the verifier and nonce in the security module and handing the session only to the browser which completed the login
+
+**Requirement:** The browser login is only offered with `mode=browser`, which
+REQ-AUTH-AUTH-036 requires `client_id` and `redirect_uri` for; otherwise
+`oidc_sso_start()` MUST refuse. The worker MUST serve the login form only when
+that mode is configured and the client announces `single-sign-on-v2` and
+presents no bearer token. `oidc_sso_start()` MUST generate a state, a PKCE
+code verifier (RFC 7636) and a nonce, record them together with the client's
+key agreement key when one is supplied, and return the state and the
+authorization request built from the provider's `authorization_endpoint`.
+`oidc_sso_finish()` MUST take the request from the store whatever the outcome,
+so that a state serves one callback at most; MUST exchange the code at the
+`token_endpoint` using the verifier recorded for that state, validate the
+resulting token per REQ-AUTH-AUTH-038, and reject it unless its `nonce` equals
+the one recorded. On success it MUST generate a fresh random token, record the
+identity under it, and return the token only for the browser which completed
+the login — in the clear for a cookie, or encrypted to the client's key for an
+external browser — to be claimed once through REQ-AUTH-AUTH-039. The verifier
+and the nonce MUST NOT be sent to the client. A pending request MUST expire
+after `sso_login_timeout` seconds, and a completed login after
+`OIDC_CLAIM_TIMEOUT` seconds. The URLs of the browser login (`/sso/callback`
+and the final page) MUST only be served on a virtual host whose OpenID Connect
+method is configured with `mode=browser`, and answered like any unknown URL
+elsewhere. As a pending request is created for every form served, before
+anything is known about the client, `oidc_sso_start()` MUST refuse one once
+`sso_max_pending` requests are pending, or `sso_max_pending_per_ip` from the
+client's address. Expired entries MUST be dropped without visiting the others,
+so that the cost of an operation does not grow with the number of entries.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/auth/openidconnect.c (`oidc_sso_start`, `oidc_sso_finish`,
+`oidc_sso_state_new`, `oidc_sso_state_take`, `oidc_sso_pending_add`,
+`oidc_sso_state_expire`), src/worker-oidc.c (`oidc_browser_login_enabled`,
+`get_oidc_callback_handler`), src/worker-auth.c (`oidc_wants_browser_login`),
+src/worker-http.c (`url_is_served`)
+**Acceptance:** positive, local — a login driven through the endpoints yields
+`PS_AUTH_COMPLETED` for the user named by the token. negative — a callback
+presented twice, a token presented twice, a token that was never issued, and
+the state of a completed login used to claim its session are all refused, and
+a replayed callback does not reach the provider; forms beyond either limit are
+refused, and accepted again once the pending requests expire; a code presented
+with the state of another pending request reaches the provider with the wrong
+verifier and is refused there (PKCE); a token carrying a nonce other than the
+one of its request is refused; through an external browser the token reaches
+the client only encrypted to the key it sent in X-AnyConnect-STRAP-DH-Pubkey,
+cannot be decrypted with another key, and once decrypted claims the session;
+with camouflage enabled the flow completes, the provider's parameters reaching
+the callback after the secret, and the final page is named with the secret to
+the iOS client and without it to the Android client; see
+tests/test-oidc-code-flow. On a virtual host without OpenID Connect, and with
+the bearer token mode, the browser login URLs are answered like an unknown
+URL; see tests/test-oidc-routes and tests/test-oidc.
+**Links:** REQ-AUTH-AUTH-038, REQ-AUTH-AUTH-039, REQ-IPC-090,
+REQ-IPC-091, REQ-IPC-092
 
 ## ACCT — accounting method selection
 
@@ -1502,11 +1603,12 @@ certificate+pam`, `enable-auth = radius`; confirm rejection (both `pam` and
 **Requirement:** Because `oidc_auth_pass()` is hardcoded to return
 `ERR_AUTH_FAIL` unconditionally (REQ-AUTH-AUTH-039), there is no code path by
 which a `SEC_AUTH_CONT` message — regardless of its contents — can cause an
-OIDC session to reach `PS_AUTH_COMPLETED`. Only `auth_init`'s token
-verification (REQ-AUTH-AUTH-038) can do so.
+OIDC session to reach `PS_AUTH_COMPLETED`. Only `auth_init` can do so, either
+by verifying a bearer token (REQ-AUTH-AUTH-038) or by claiming a browser
+login completed beforehand (REQ-AUTH-AUTH-043).
 **Strength:** MUST NOT
 **Status:** DERIVED
-**Source:** src/auth/openidconnect.c:172-176
+**Source:** src/auth/openidconnect.c (`oidc_auth_pass`)
 **Acceptance:** [SEC] negative — send `SEC_AUTH_INIT` with an invalid token
 followed by an arbitrary `SEC_AUTH_CONT` (any payload); confirm the session
 never reaches `PS_AUTH_COMPLETED` and `auth_pass` is never the source of a `0`

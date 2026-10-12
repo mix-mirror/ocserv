@@ -64,6 +64,7 @@ typedef struct common_auth_init_st {
 	const char *our_ip;
 	const char *user_agent;
 	const char *sid; /* printable session id (== acct_info.safe_id) */
+	const char *oidc_token;
 	unsigned int id;
 } common_auth_init_st;
 
@@ -158,6 +159,9 @@ void handle_secm_list_cookies_reply(void *pool, int fd, sec_mod_st *sec);
 void handle_sec_auth_ban_ip_reply(sec_mod_st *sec, const BanIpReplyMsg *msg);
 int handle_sec_auth_init(int cfd, sec_mod_st *sec, const SecAuthInitMsg *req,
 			 pid_t pid);
+int handle_sec_oidc_start(int cfd, sec_mod_st *sec, const SecOidcStartMsg *req);
+int handle_sec_oidc_finish(int cfd, sec_mod_st *sec,
+			   const SecOidcFinishMsg *req);
 int handle_sec_auth_cont(int cfd, sec_mod_st *sec, const SecAuthContMsg *req);
 int handle_secm_session_open_cmd(sec_mod_st *sec, int fd,
 				 const SecmSessionOpenMsg *req);

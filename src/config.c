@@ -266,6 +266,34 @@ static auth_types_st avail_auth_types[] = {
 #endif
 };
 
+/*
+ * Only one OpenID Connect method may be configured on a virtual host.
+ * The worker falls back from one method to the next, but sec-mod looks up
+ * the method which handles the browser login once, so with two of them the
+ * two processes could act on different configurations.
+ */
+static void check_for_duplicate_oidc_auth(struct static_cfg_st *config,
+					  const char *vhostname,
+					  unsigned int type)
+{
+	unsigned int i;
+
+	if ((type & AUTH_TYPE_OIDC) == 0)
+		return;
+
+	for (i = 0; i < MAX_AUTH_METHODS; i++) {
+		if (config->auth[i].enabled == 0)
+			break;
+		if (config->auth[i].type & AUTH_TYPE_OIDC) {
+			fprintf(stderr,
+				ERRSTR
+				"%s: you cannot configure more than one OpenID Connect method\n",
+				vhostname);
+			exit(EXIT_FAILURE);
+		}
+	}
+}
+
 static void check_for_duplicate_password_auth(struct static_cfg_st *config,
 					      const char *vhostname,
 					      unsigned int type)
@@ -403,6 +431,9 @@ static void figure_auth_funcs(void *pool, const char *vhostname,
 								.name);
 
 					check_for_duplicate_password_auth(
+						config, vhostname,
+						avail_auth_types[i].type);
+					check_for_duplicate_oidc_auth(
 						config, vhostname,
 						avail_auth_types[i].type);
 					config->auth[x].amod =
@@ -1927,6 +1958,29 @@ static void vhost_inherit_static_config(vhost_cfg_st *vhost,
 			defvhost->static_config.auth_methods;
 		memcpy(vhost->static_config.auth, defvhost->static_config.auth,
 		       sizeof(vhost->static_config.auth));
+
+		/*
+		 * The redirect_uri of the browser login leads back to the
+		 * host it is configured for, while sec-mod keeps the pending
+		 * logins of each virtual host apart. A virtual host which
+		 * inherits it would send the browser to the default one,
+		 * where its login is unknown, so it needs its own.
+		 */
+		for (i = 0; i < vhost->static_config.auth_methods; i++) {
+			const auth_struct_st *auth =
+				&vhost->static_config.auth[i];
+
+			if ((auth->type & AUTH_TYPE_OIDC) &&
+			    auth->additional != NULL &&
+			    ((const oidc_cfg_st *)auth->additional)->mode ==
+				    OIDC_MODE_BROWSER) {
+				fprintf(stderr,
+					ERRSTR
+					"%sthe OpenID Connect browser login cannot be inherited from the default virtual host; set 'auth' with a redirect_uri of its own\n",
+					PREFIX_VHOST(vhost));
+				exit(EXIT_FAILURE);
+			}
+		}
 	}
 
 	/* Accounting */

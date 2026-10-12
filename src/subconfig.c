@@ -370,16 +370,48 @@ void *oidc_get_brackets_string(void *pool, struct static_cfg_st *config,
 			       const char *str)
 {
 	subcfg_val_st vals[MAX_SUBOPTIONS];
-	char *additional = NULL;
-
+	oidc_cfg_st *additional;
 	unsigned int vals_size, i;
+
+	additional = talloc_zero(pool, oidc_cfg_st);
+	if (additional == NULL)
+		return NULL;
+
+	/* the bearer token mode is what the module did before the browser
+	 * login was added, so it remains the default */
+	additional->mode = OIDC_MODE_BEARER;
 
 	vals_size = expand_brackets_string(pool, str, vals);
 
 	for (i = 0; i < vals_size; i++) {
 		if (strcasecmp(vals[i].name, "config") == 0) {
-			additional = talloc_strdup(pool, vals[i].value);
+			additional->config =
+				talloc_strdup(additional, vals[i].value);
+		} else if (strcasecmp(vals[i].name, "mode") == 0) {
+			if (vals[i].value != NULL &&
+			    strcasecmp(vals[i].value, "bearer") == 0)
+				additional->mode = OIDC_MODE_BEARER;
+			else if (vals[i].value != NULL &&
+				 strcasecmp(vals[i].value, "browser") == 0)
+				additional->mode = OIDC_MODE_BROWSER;
+			else {
+				fprintf(stderr,
+					"oidc: unknown mode '%s'; use 'bearer' or 'browser'\n",
+					vals[i].value ? vals[i].value : "");
+				exit(EXIT_FAILURE);
+			}
+		} else {
+			fprintf(stderr, "oidc: unknown option '%s'\n",
+				vals[i].name);
+			exit(EXIT_FAILURE);
 		}
+	}
+	free_expanded_brackets_string(vals, vals_size);
+
+	if (additional->config == NULL) {
+		fprintf(stderr, "oidc: no configuration specified: %s\n",
+			str ? str : "");
+		exit(EXIT_FAILURE);
 	}
 
 	return additional;

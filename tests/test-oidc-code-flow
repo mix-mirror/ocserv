@@ -1,0 +1,581 @@
+#!/bin/sh
+#
+# Copyright (C) 2026 Konstantin Satvaldyev
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+NO_NEED_ROOT=1
+PIDFILE=ocserv-pid.$$.tmp
+OCCTL_SOCKET=./occtl-oidc-code-$$.socket
+COOKIEJAR=cookies-$$.tmp
+OTHERJAR=cookies-other-$$.tmp
+SESSIONS=sessions-$$.tmp
+STRAPKEY=strap-key-$$.pem
+OTHERKEY=strap-other-$$.pem
+OIDCDIR=oidc-code-$$
+
+. `dirname $0`/common.sh
+
+if ! test -x "$(command -v python3)"; then
+	echo "python3 is needed to run this test"
+	exit 77
+fi
+
+eval "${GETPORT}"
+MOCKPORT=${PORT}
+eval "${GETPORT}"
+
+MOCKADDRESS=127.0.0.3
+
+echo "Testing the OpenID Connect authorization code flow... "
+
+CURL="LD_PRELOAD=libsocket_wrapper.so curl --insecure --silent"
+
+cleanup_all() {
+	test -n "${MOCKPID}" && kill ${MOCKPID} 2>/dev/null
+	rm -f ${COOKIEJAR} ${OTHERJAR} ${SESSIONS}.before ${SESSIONS}.after
+	rm -f ${STRAPKEY} ${OTHERKEY}
+	rm -rf ${OIDCDIR}
+}
+trap cleanup_all EXIT
+
+# The keys are generated for this test alone. The ones gen_oidc_test_data
+# leaves in data/ belong to the other OIDC tests, and regenerating them
+# while this one runs would change the key the provider signs with.
+mkdir -p ${OIDCDIR}/data
+if ! (cd ${OIDCDIR} && ../gen_oidc_test_data >/dev/null); then
+	echo "Could not generate the keys"
+	exit 1
+fi
+
+# The provider answers the metadata, the keys and the token endpoint; it
+# signs with the key generated above.
+SOCKET_WRAPPER_DEFAULT_IFACE=3 LD_PRELOAD=libsocket_wrapper.so \
+	python3 ${srcdir}/oidc-mock-provider.py \
+	--address ${MOCKADDRESS} --port ${MOCKPORT} \
+	--datadir "${PWD}/${OIDCDIR}/data" \
+	--minter "${PWD}/gen_oidc_test_data" \
+	--user testuser --group Developers --audience ocserv &
+MOCKPID=$!
+
+# The server fetches the metadata as it starts, so the provider has to be
+# listening first. Starting it can take a while when many tests run at
+# once; if it never answers, say so rather than fail further on.
+i=0
+while ! eval ${CURL} "http://${MOCKADDRESS}:${MOCKPORT}/jwks" \
+	--output /dev/null; do
+	i=$((i + 1))
+	if test $i -ge 150; then
+		echo "The provider did not start"
+		exit 1
+	fi
+	sleep 0.2
+done
+
+# $1 carries extra settings, each followed by a comma; $2 is appended to
+# the redirect URI. required_claims is left empty so that it is the checks
+# of the code flow which refuse the tokens with another issuer or audience
+# below; a real server must name 'iss' and 'aud' there, as bearer tokens are
+# always accepted (doc/README-oidc.md).
+write_oidc_config() {
+	cat >data/oidc-code.json <<EOF
+{
+    $1
+    "openid_configuration_url": "http://${MOCKADDRESS}:${MOCKPORT}/.well-known/openid-configuration",
+    "user_name_claim": "preferred_username",
+    "required_claims": {},
+    "client_id": "ocserv",
+    "redirect_uri": "https://${ADDRESS}:${PORT}/sso/callback$2",
+    "groups_claim": "groups",
+    "minimum_jwk_refresh_time": 0
+}
+EOF
+}
+
+write_oidc_config ""
+
+update_config test-oidc-code-auth.config
+launch_simple_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG}
+PID=$!
+wait_server $PID
+
+# The form carries the login URL the client is to open. $2 can name
+# another curl command, to ask from another address.
+get_login_url() {
+	form=$(eval ${2:-${CURL}} "https://${ADDRESS}:${PORT}/$1" --request POST \
+		--data @${srcdir}/config-auth-sso.xml)
+	url=$(echo "${form}" |
+		sed -n 's|.*<sso-v2-login>\(.*\)</sso-v2-login>.*|\1|p' |
+		sed 's/&amp;/\&/g')
+
+	if test -z "${url}"; then
+		echo "The server answered: ${form}" >&2
+	fi
+
+	echo "${url}"
+}
+
+# Take one step in the browser whose cookies are kept in $1, and print
+# where it is sent next.
+browse() {
+	eval ${CURL} --cookie $1 --cookie-jar $1 --dump-header - \
+		--output /dev/null "'$2'" |
+		sed -n 's/^[Ll]ocation: *//p' | tr -d '\r'
+}
+
+# Follow the login URL the way a browser would, through the provider and
+# back to the callback, which hands the browser the token in a cookie.
+follow_login() {
+	rm -f $1
+	touch $1
+	eval ${CURL} --location --cookie $1 --cookie-jar $1 "'$2'" \
+		--output /dev/null
+	grep acSamlv2Token $1 | awk '{print $7}'
+}
+
+claim_session() {
+	eval ${CURL} "https://${ADDRESS}:${PORT}/$1" --request POST \
+		--data "sso-token=$2"
+}
+
+list_sessions() {
+	timeout 10 ${OCCTL} -s ${OCCTL_SOCKET}.occtl --json show sessions all \
+		>$1
+}
+
+# The group of the one session created between the two listings; "?" when
+# there is not exactly one.
+new_session_group() {
+	python3 - ${SESSIONS}.before ${SESSIONS}.after <<'EOF'
+import json, sys
+before = {s["Full session"] for s in json.load(open(sys.argv[1]))}
+new = [s for s in json.load(open(sys.argv[2]))
+       if s["Full session"] not in before]
+print(new[0].get("Groupname", "") if len(new) == 1 else "?")
+EOF
+}
+
+echo "Checking that a login through the browser is accepted"
+LOGIN_URL=$(get_login_url Developers)
+if test -z "${LOGIN_URL}"; then
+	fail $PID "The form carried no login URL"
+fi
+
+TOKEN=$(follow_login ${COOKIEJAR} "${LOGIN_URL}")
+if test -z "${TOKEN}"; then
+	fail $PID "The callback handed back no token"
+fi
+
+RESULT=$(claim_session Developers "${TOKEN}")
+if ! echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "The session was refused: ${RESULT}"
+fi
+echo "OK"
+
+echo "Checking that a token is only accepted once"
+RESULT=$(claim_session Developers "${TOKEN}")
+if echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "A token was accepted twice"
+fi
+echo "OK"
+
+echo "Checking that an unknown token is refused"
+RESULT=$(claim_session Developers "0123456789abcdef")
+if echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "An unknown token was accepted"
+fi
+echo "OK"
+
+# The server is set up for the browser login (mode=browser), so a bearer
+# token, which the client obtained on its own, is refused; nor is a client
+# presenting one, as the Intune client does, served the login form.
+echo "Checking that a bearer token is refused in the browser login mode"
+BEARER=$(cd ${OIDCDIR} && ../gen_oidc_test_data --mint testuser "" Developers)
+RESULT=$(eval ${CURL} "https://${ADDRESS}:${PORT}/Developers" --request POST \
+	--data @${srcdir}/config-auth-sso.xml \
+	--header "'Authorization: Bearer=${BEARER}'")
+if echo "${RESULT}" | grep -q '<sso-v2-login>'; then
+	fail $PID "A client with a bearer token was served the login form"
+fi
+if echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "A bearer token was accepted in the browser login mode"
+fi
+echo "OK"
+
+# The login URL can be handed to anyone, and its state with it. Someone
+# who requested a form and got another user to complete its login must
+# not be able to claim that user's session with the state.
+echo "Checking that the state of a login does not claim its session"
+LOGIN_URL=$(get_login_url Developers)
+STATE=$(echo "${LOGIN_URL}" | sed -n 's/.*[?&]state=\([0-9a-f]*\).*/\1/p')
+if test -z "${STATE}"; then
+	fail $PID "The login URL carried no state"
+fi
+
+TOKEN=$(follow_login ${OTHERJAR} "${LOGIN_URL}")
+if test -z "${TOKEN}"; then
+	fail $PID "The callback handed back no token"
+fi
+
+RESULT=$(claim_session Developers "${STATE}")
+if echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "A session was claimed with the state"
+fi
+
+# the login itself went through; only its browser holds the token
+RESULT=$(claim_session Developers "${TOKEN}")
+if ! echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "The session was refused: ${RESULT}"
+fi
+echo "OK"
+
+echo "Checking that a callback is only accepted once"
+LOGIN_URL=$(get_login_url Developers)
+rm -f ${COOKIEJAR}
+touch ${COOKIEJAR}
+CALLBACK=$(browse ${COOKIEJAR} "${LOGIN_URL}")
+if test -z "${CALLBACK}"; then
+	fail $PID "The provider issued no code"
+fi
+
+if test -z "$(browse ${COOKIEJAR} "${CALLBACK}")"; then
+	fail $PID "The callback was refused"
+fi
+
+# the same request again, as a replay would carry it
+RESULT=$(eval ${CURL} --write-out "%{http_code}" --output /dev/null \
+	"'${CALLBACK}'")
+if test "${RESULT}" = "302"; then
+	fail $PID "A callback was accepted twice"
+fi
+
+# and the provider was asked to exchange the code only once
+CODE=$(echo "${CALLBACK}" | sed -n 's/.*[?&]code=\([0-9a-f]*\).*/\1/p')
+EXCHANGES=$(eval ${CURL} "http://${MOCKADDRESS}:${MOCKPORT}/exchanges?code=${CODE}")
+if test "${EXCHANGES}" != "1"; then
+	fail $PID "The code was exchanged ${EXCHANGES} times"
+fi
+echo "OK"
+
+# The verifier sent with a code must be that of the request the code was
+# issued for, which the provider checks against the challenge (PKCE). A
+# code delivered with the state of another pending request, as someone
+# injecting a code of their own would, reaches the provider with the
+# wrong verifier.
+echo "Checking that a code is only accepted with the request it was issued for"
+FAILURES=$(eval ${CURL} "http://${MOCKADDRESS}:${MOCKPORT}/pkce-failures")
+LOGIN_URL=$(get_login_url Developers)
+OTHER_URL=$(get_login_url Developers)
+OTHER_STATE=$(echo "${OTHER_URL}" | sed -n 's/.*[?&]state=\([0-9a-f]*\).*/\1/p')
+rm -f ${COOKIEJAR}
+touch ${COOKIEJAR}
+CALLBACK=$(browse ${COOKIEJAR} "${LOGIN_URL}")
+if test -z "${CALLBACK}" || test -z "${OTHER_STATE}"; then
+	fail $PID "The provider issued no code"
+fi
+
+SWAPPED=$(echo "${CALLBACK}" | sed "s/\([?&]state=\)[0-9a-f]*/\1${OTHER_STATE}/")
+if test -n "$(browse ${COOKIEJAR} "${SWAPPED}")"; then
+	fail $PID "A code was accepted with the state of another request"
+fi
+if grep -q acSamlv2Token ${COOKIEJAR}; then
+	fail $PID "A code with the state of another request yielded a token"
+fi
+if test "$(eval ${CURL} "http://${MOCKADDRESS}:${MOCKPORT}/pkce-failures")" \
+	!= "$((FAILURES + 1))"; then
+	fail $PID "The provider did not refuse the verifier"
+fi
+echo "OK"
+
+# The ID Token must be issued to this server by the provider it asked. $1
+# sets the claims of the next token; print the token which claims the
+# session, if the login was accepted.
+login_with_token_claims() {
+	eval ${CURL} "'http://${MOCKADDRESS}:${MOCKPORT}/next-token?$1'" \
+		--output /dev/null
+	LOGIN_URL=$(get_login_url Developers)
+	follow_login ${COOKIEJAR} "${LOGIN_URL}"
+}
+
+echo "Checking that a token from another issuer is refused"
+if test -n "$(login_with_token_claims 'iss=SomeOtherIssuer')"; then
+	fail $PID "A token from another issuer was accepted"
+fi
+echo "OK"
+
+# The nonce binds the token to the request it answers; a token carrying
+# another one must not complete the login.
+echo "Checking that a token with another nonce is refused"
+if test -n "$(login_with_token_claims 'nonce=SomeOtherNonce')"; then
+	fail $PID "A token with another nonce was accepted"
+fi
+echo "OK"
+
+echo "Checking that a token issued to another audience is refused"
+if test -n "$(login_with_token_claims 'aud=SomeAudience')"; then
+	fail $PID "A token issued to another audience was accepted"
+fi
+echo "OK"
+
+echo "Checking that a token with several audiences needs an authorized party"
+if test -n "$(login_with_token_claims 'aud=ocserv,SomeAudience')"; then
+	fail $PID "A token with several audiences and no azp was accepted"
+fi
+TOKEN=$(login_with_token_claims 'aud=ocserv,SomeAudience&azp=ocserv')
+if test -z "${TOKEN}"; then
+	fail $PID "A token with several audiences and azp was refused"
+fi
+RESULT=$(claim_session Developers "${TOKEN}")
+if ! echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "The session was refused: ${RESULT}"
+fi
+echo "OK"
+
+echo "Checking that a token authorized to another party is refused"
+if test -n "$(login_with_token_claims 'aud=ocserv&azp=SomeAudience')"; then
+	fail $PID "A token authorized to another party was accepted"
+fi
+echo "OK"
+
+# A client which drives a browser of its own announces it and sends a key
+# in X-AnyConnect-STRAP-DH-Pubkey. The callback then sends the browser to
+# the client's local listener with the token encrypted to that key, and
+# hands it no cookie. oidc-strap-client plays the client's part. The key is
+# sent with spaces in it, which are no part of the base64 value and must not
+# count against the room for it.
+echo "Checking a login through an external browser"
+PUBKEY=$(./oidc-strap-client keygen ${STRAPKEY})
+if test -z "${PUBKEY}"; then
+	fail $PID "Could not generate a client key"
+fi
+PUBKEY=$(echo "${PUBKEY}" | sed 's/.\{16\}/& /g')
+
+FORM=$(eval ${CURL} "https://${ADDRESS}:${PORT}/Developers" \
+	--request POST --data @${srcdir}/config-auth-sso-external.xml \
+	--header "'X-AnyConnect-STRAP-DH-Pubkey: ${PUBKEY}'")
+if ! echo "${FORM}" | grep -q '<sso-v2-browser-mode>external</sso-v2-browser-mode>'; then
+	fail $PID "The client was not offered an external browser: ${FORM}"
+fi
+LOGIN_URL=$(echo "${FORM}" |
+	sed -n 's|.*<sso-v2-login>\(.*\)</sso-v2-login>.*|\1|p' |
+	sed 's/&amp;/\&/g')
+
+rm -f ${COOKIEJAR}
+touch ${COOKIEJAR}
+CALLBACK=$(browse ${COOKIEJAR} "${LOGIN_URL}")
+LOCAL=$(browse ${COOKIEJAR} "${CALLBACK}")
+case "${LOCAL}" in
+http://localhost:29786/api/sso/*) ;;
+*) fail $PID "The callback did not send the browser to the client: ${LOCAL}" ;;
+esac
+if grep -q acSamlv2Token ${COOKIEJAR}; then
+	fail $PID "The token was handed out in the clear as well"
+fi
+
+BLOB=$(python3 -c 'import sys, urllib.parse
+print(urllib.parse.unquote(urllib.parse.urlsplit(sys.argv[1]).path.rsplit("/", 1)[1]))' "${LOCAL}")
+
+./oidc-strap-client keygen ${OTHERKEY} >/dev/null
+if ./oidc-strap-client decrypt ${OTHERKEY} "${BLOB}" >/dev/null; then
+	fail $PID "The token could be decrypted with another key"
+fi
+
+TOKEN=$(./oidc-strap-client decrypt ${STRAPKEY} "${BLOB}")
+if test -z "${TOKEN}"; then
+	fail $PID "The token could not be decrypted with the client's key"
+fi
+
+RESULT=$(claim_session Developers "${TOKEN}")
+if ! echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "The session was refused: ${RESULT}"
+fi
+echo "OK"
+
+echo "Checking that a group the user is not a member of is refused"
+LOGIN_URL=$(get_login_url Sales)
+if test -z "${LOGIN_URL}"; then
+	fail $PID "The form carried no login URL"
+fi
+
+TOKEN=$(follow_login ${COOKIEJAR} "${LOGIN_URL}")
+if test -z "${TOKEN}"; then
+	fail $PID "The callback handed back no token"
+fi
+
+RESULT=$(claim_session Sales "${TOKEN}")
+if echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "A group the user is not a member of was accepted"
+fi
+echo "OK"
+
+echo "Checking that a requested group from the claim is applied"
+list_sessions ${SESSIONS}.before
+TOKEN=$(follow_login ${COOKIEJAR} "$(get_login_url Developers)")
+RESULT=$(claim_session Developers "${TOKEN}")
+if ! echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "The session was refused: ${RESULT}"
+fi
+list_sessions ${SESSIONS}.after
+GROUP=$(new_session_group)
+if test "${GROUP}" != "Developers"; then
+	fail $PID "The session was placed in '${GROUP}', not in Developers"
+fi
+echo "OK"
+
+# The claim lists every group the user has at the provider, which is not
+# necessarily a list of VPN groups, so none is picked on the user's behalf.
+echo "Checking that no group is picked when none was requested"
+list_sessions ${SESSIONS}.before
+TOKEN=$(follow_login ${COOKIEJAR} "$(get_login_url "")")
+RESULT=$(claim_session "" "${TOKEN}")
+if ! echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "The session was refused: ${RESULT}"
+fi
+list_sessions ${SESSIONS}.after
+GROUP=$(new_session_group)
+# occtl reports a session without a group as (none)
+if test -n "${GROUP}" && test "${GROUP}" != "(none)"; then
+	fail $PID "The session was placed in '${GROUP}' without asking"
+fi
+echo "OK"
+
+# Every form served creates a pending request, so their number is bounded
+# per address and overall, and they expire. Restart with small limits and a
+# short lifetime to see all three.
+kill $PID
+wait $PID
+write_oidc_config '"sso_max_pending": 4, "sso_max_pending_per_ip": 3, "sso_login_timeout": 3,'
+launch_simple_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG}
+PID=$!
+wait_server $PID
+
+# a second client, at another address
+OTHER_CURL="SOCKET_WRAPPER_DEFAULT_IFACE=5 ${CURL}"
+
+echo "Checking that the pending requests of an address are limited"
+for i in 1 2 3; do
+	if test -z "$(get_login_url Developers 2>/dev/null)"; then
+		fail $PID "Request ${i} of 3 was refused"
+	fi
+done
+if test -n "$(get_login_url Developers 2>/dev/null)"; then
+	fail $PID "An address exceeded its limit of pending requests"
+fi
+echo "OK"
+
+echo "Checking that the pending requests are limited overall"
+if test -z "$(get_login_url Developers "${OTHER_CURL}" 2>/dev/null)"; then
+	fail $PID "Another address was refused below the overall limit"
+fi
+if test -n "$(get_login_url Developers "${OTHER_CURL}" 2>/dev/null)"; then
+	fail $PID "The overall limit of pending requests was exceeded"
+fi
+echo "OK"
+
+echo "Checking that pending requests expire"
+sleep 4
+if test -z "$(get_login_url Developers 2>/dev/null)"; then
+	fail $PID "Expired requests still count against the limits"
+fi
+echo "OK"
+
+# With camouflage the whole flow has to carry the secret: the redirect
+# URI is registered with it as its first parameter and the provider
+# appends its own after it, and the browser reaches the final page with it.
+# Restart with camouflage, and the default limits again.
+SECRET=oidcsecret
+kill $PID
+wait $PID
+write_oidc_config "" "?${SECRET}"
+# the template does not end with a newline
+printf '\ncamouflage = true\ncamouflage_secret = "%s"\n' ${SECRET} >>${CONFIG}
+launch_simple_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG}
+PID=$!
+wait_server $PID
+
+status() {
+	eval ${CURL} --output /dev/null --write-out "%{http_code}" \
+		"'https://${ADDRESS}:${PORT}$1'"
+}
+
+echo "Checking that camouflage hides the login without the secret"
+if test -n "$(get_login_url Developers 2>/dev/null)"; then
+	fail $PID "A login form was served without the secret"
+fi
+if test "$(status "/sso/callback?state=0&code=0")" != "404"; then
+	fail $PID "The callback answered without the secret"
+fi
+echo "OK"
+
+# The callback comes back as the redirect URI with the provider's
+# parameters after the secret; the login only completes if they reach
+# the handler once the secret is stripped.
+echo "Checking that a login through the browser completes with camouflage"
+LOGIN_URL=$(get_login_url "Developers?${SECRET}")
+if test -z "${LOGIN_URL}"; then
+	fail $PID "The form carried no login URL"
+fi
+TOKEN=$(follow_login ${COOKIEJAR} "${LOGIN_URL}")
+if test -z "${TOKEN}"; then
+	fail $PID "The callback handed back no token"
+fi
+RESULT=$(claim_session "Developers?${SECRET}" "${TOKEN}")
+if ! echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "The session was refused: ${RESULT}"
+fi
+echo "OK"
+
+echo "Checking that the secret is only accepted as the first parameter"
+for url in "/sso/callback?state=0&${SECRET}" "/sso/callback?${SECRET}x&state=0"; do
+	if test "$(status "${url}")" != "404"; then
+		fail $PID "${url} passed camouflage"
+	fi
+done
+echo "OK"
+
+# The iOS client needs the final page named exactly as the browser loads
+# it, secret included; the Android client drops the query before
+# comparing, so it is named without.
+final_page_for() {
+	eval ${CURL} "'https://${ADDRESS}:${PORT}/Developers?${SECRET}'" \
+		--request POST --header "'X-AnyConnect-Identifier-Platform: $1'" \
+		--data @${srcdir}/config-auth-sso.xml |
+		sed -n 's|.*<sso-v2-login-final>\(.*\)</sso-v2-login-final>.*|\1|p'
+}
+
+echo "Checking the final page named to each mobile client"
+case "$(final_page_for apple-ios)" in
+*"/+CSCOE+/saml_ac_login.html?${SECRET}") ;;
+*) fail $PID "The iOS client was not given the final page with the secret" ;;
+esac
+case "$(final_page_for android)" in
+*"/+CSCOE+/saml_ac_login.html") ;;
+*) fail $PID "The Android client was not given the final page without the secret" ;;
+esac
+echo "OK"
+
+if ! test -f ${PIDFILE}; then
+	fail $PID "Could not find pid file ${PIDFILE}"
+fi
+
+kill ${MOCKPID} 2>/dev/null
+MOCKPID=
+
+cleanup
+
+exit 0

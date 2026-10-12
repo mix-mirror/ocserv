@@ -818,7 +818,11 @@ fallback:
 
 static void check_camouflage_url(struct worker_st *ws)
 {
-	if (WSRCONFIG(ws)->camouflage_secret == NULL)
+	const char *secret = WSRCONFIG(ws)->camouflage_secret;
+	char *url_camouflage_part;
+	size_t secret_len;
+
+	if (secret == NULL)
 		return;
 
 	if (ws->auth_state >= S_AUTH_COOKIE) {
@@ -826,13 +830,34 @@ static void check_camouflage_url(struct worker_st *ws)
 		return;
 	}
 
-	char *url_camouflage_part = strchr(ws->req.url, '?');
+	url_camouflage_part = strchr(ws->req.url, '?');
+	if (url_camouflage_part == NULL)
+		return;
 
-	if (url_camouflage_part && !strcmp(url_camouflage_part + 1,
-					   WSRCONFIG(ws)->camouflage_secret)) {
-		*url_camouflage_part = '\0';
-		ws->camouflage_check_passed = 1;
+	secret_len = strlen(secret);
+
+	/*
+	 * The secret is expected first, so that a redirect back from an
+	 * identity provider, which appends its own parameters to the
+	 * registered URI, still presents it.
+	 */
+	if (strncmp(url_camouflage_part + 1, secret, secret_len) != 0)
+		return;
+
+	if (url_camouflage_part[1 + secret_len] != 0 &&
+	    url_camouflage_part[1 + secret_len] != '&')
+		return;
+
+	if (url_camouflage_part[1 + secret_len] == 0) {
+		*url_camouflage_part = 0;
+	} else {
+		/* drop the secret but keep the parameters which follow it */
+		memmove(url_camouflage_part + 1,
+			url_camouflage_part + 1 + secret_len + 1,
+			strlen(url_camouflage_part + 1 + secret_len + 1) + 1);
 	}
+
+	ws->camouflage_check_passed = 1;
 }
 
 /* vpn_server:
@@ -1035,7 +1060,7 @@ restart:
 
 	if (parser.method == HTTP_GET) {
 		oclog(ws, LOG_HTTP_DEBUG, "HTTP GET %s", ws->req.url);
-		fn = http_get_url_handler(ws->req.url);
+		fn = http_get_url_handler(ws, ws->req.url);
 		if (fn == NULL) {
 			oclog(ws, LOG_HTTP_DEBUG, "unexpected URL %s",
 			      ws->req.url);

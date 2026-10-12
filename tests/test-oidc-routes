@@ -1,0 +1,65 @@
+#!/bin/sh
+#
+# Copyright (C) 2026 Konstantin Satvaldyev
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# The URLs of the browser login only exist on a virtual host where
+# OpenID Connect is configured with mode=browser. Elsewhere they must be answered like any
+# unknown URL; tests/test-oidc-code-flow covers them where it is.
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+NO_NEED_ROOT=1
+PIDFILE=ocserv-pid.$$.tmp
+
+. `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
+
+eval "${GETPORT}"
+
+echo "Testing that the browser login URLs need OpenID Connect... "
+
+# any configuration without OpenID Connect
+update_config test1.config
+launch_simple_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG}
+PID=$!
+wait_server $PID
+
+CURL="LD_PRELOAD=libsocket_wrapper.so curl --insecure --silent"
+
+status() {
+	eval ${CURL} --output /dev/null --write-out "%{http_code}" \
+		"'https://${ADDRESS}:${PORT}$1'"
+}
+
+UNKNOWN=$(status /no-such-url)
+if test "${UNKNOWN}" != "404"; then
+	fail $PID "An unknown URL was answered with ${UNKNOWN}"
+fi
+
+for url in "/sso/callback?state=0&code=0" "/+CSCOE+/saml_ac_login.html"; do
+	echo "Checking ${url}"
+	RESULT=$(status "${url}")
+	if test "${RESULT}" != "${UNKNOWN}"; then
+		fail $PID "${url} was answered with ${RESULT}, not as an unknown URL"
+	fi
+done
+echo "OK"
+
+cleanup
+
+exit 0

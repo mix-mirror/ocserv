@@ -79,7 +79,8 @@ i386/Debian:
   script:
   - git submodule update --init
   # Radius seems to be malfunctioning on i386 build
-  - meson setup build -Doidc-auth=enabled -Dradius=disabled
+  # OpenID Connect needs GnuTLS 3.8.2, newer than this image has
+  - meson setup build -Dradius=disabled
   - ninja -C build -j$JOBS
   - VERBOSE=1 meson test -C build --num-processes $JOBS --no-rebuild --no-suite fw
   tags:
@@ -118,7 +119,8 @@ Ubuntu22.04:
   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$UBUNTU22_BUILD
   script:
   - git submodule update --init
-  - meson setup build -Doidc-auth=enabled -Dlatency-stats=enabled
+  # OpenID Connect needs GnuTLS 3.8.2, newer than Ubuntu 22.04 has
+  - meson setup build -Dlatency-stats=enabled
   - ninja -C build -j$JOBS
   - export MALLOC_CHECK_=3
   # gssapi tests are skipped: openssl on Ubuntu22 doesn't support md4

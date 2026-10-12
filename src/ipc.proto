@@ -263,6 +263,9 @@ message sec_auth_init_msg
 	required bytes hmac = 16;
 	required string orig_remote_ip = 17; /* if proxy proto is in use this is
 					the original IP that initiated the session */
+	/* the token the browser login handed to the client, which claims
+	 * the identity established by that login */
+	optional string oidc_token = 18;
 }
 
 /* SEC_AUTH_CONT */
@@ -282,6 +285,44 @@ message sec_auth_reply_msg
 	optional bytes dtls_session_id = 5;
 	optional bytes sid = 6; /* cookie */
 	optional uint32 passwd_counter = 8; /* if that's a password prompt indicates the number of password asked */
+}
+
+/* SEC_OIDC_START: worker asks sec-mod to begin a browser-based login */
+message sec_oidc_start_msg
+{
+	optional string vhost = 1;
+	required string remote_ip = 2;
+	optional string strap_dh_pubkey = 3;
+}
+
+/* SEC_OIDC_START_REPLY */
+message sec_oidc_start_reply_msg
+{
+	required bool ok = 1 [default = false];
+	/* identifies the request; it travels through the browser and the
+	 * provider, so it is not a secret */
+	optional string state = 2;
+	/* the authorization request the browser is sent to */
+	optional string authorization_url = 3;
+}
+
+/* SEC_OIDC_FINISH: worker hands over the code returned by the provider */
+message sec_oidc_finish_msg
+{
+	optional string vhost = 1;
+	required string state = 2;
+	required string code = 3;
+}
+
+/* SEC_OIDC_FINISH_REPLY */
+message sec_oidc_finish_reply_msg
+{
+	required bool ok = 1 [default = false];
+	/* only one of the two is set: the token encrypted to the client's
+	 * key when it asked for an external browser, or the token itself,
+	 * for the cookie of an embedded browser */
+	optional string sso_token = 2;
+	optional string token = 3;
 }
 
 /* SEC_SIGN/DECRYPT */

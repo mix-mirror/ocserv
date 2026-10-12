@@ -199,10 +199,17 @@ cjose_dep   = dependency('', required: false)
 jansson_dep = dependency('', required: false)
 oidc_enabled = false
 if not opt_oidc.disabled()
+  # the external browser hands the token back encrypted to the client's key,
+  # which needs gnutls_privkey_derive_secret(), added in GnuTLS 3.8.2
+  oidc_gnutls = gnutls_dep.version().version_compare('>= 3.8.2')
+  if opt_oidc.enabled() and not oidc_gnutls
+    error('OpenID Connect authentication needs GnuTLS 3.8.2 or later')
+  endif
   curl_dep    = dependency('libcurl',  required: opt_oidc)
   cjose_dep   = dependency('cjose',    required: opt_oidc)
   jansson_dep = dependency('jansson',  required: opt_oidc)
-  oidc_enabled = curl_dep.found() and cjose_dep.found() and jansson_dep.found()
+  oidc_enabled = oidc_gnutls and curl_dep.found() and cjose_dep.found() and \
+                 jansson_dep.found()
 endif
 
 # libwrap (TCP wrappers)
