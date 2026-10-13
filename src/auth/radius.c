@@ -463,7 +463,8 @@ static int radius_auth_pass(void *ctx, const char *pass, unsigned int pass_len)
 						sizeof(pctx->ipv6_net));
 				}
 			} else if (vp->attribute == PW_DELEGATED_IPV6_PREFIX &&
-				   vp->type == PW_TYPE_IPV6PREFIX) {
+				   vp->type == PW_TYPE_IPV6PREFIX &&
+				   vp->lvalue > 2 && vp->lvalue <= 18) {
 				/* Delegated-IPv6-Prefix */
 				if (inet_ntop(AF_INET6, vp->strvalue,
 					      pctx->ipv6,
