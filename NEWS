@@ -29,6 +29,11 @@
   updated. This makes /127 point-to-point networks (RFC 6164) lease the
   expected address to the client, and a client can no longer be assigned
   the server's address as part of the first subnet (#714)
+- The oidc authentication method supports the OpenID Connect authorization
+  code flow, selected with mode=browser: openconnect client users log in
+  through a browser. The default, mode=bearer, keeps validating a token
+  the client already holds. OIDC support now requires GnuTLS 3.8.2
+  or later.
 
 
 * Version 1.5.0 (released 2026-06-07)
