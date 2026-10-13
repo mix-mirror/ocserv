@@ -82,12 +82,7 @@ void ip_entries_clear(void);
 unsigned int need_help(const char *arg);
 unsigned int check_cmd_help(const char *line);
 
-#ifdef HAVE_DBUS
-#include <dbus/dbus.h>
-#define CONN_TYPE struct dbus_ctx
-#else
 #define CONN_TYPE struct unix_ctx
-#endif
 
 CONN_TYPE *conn_init(void *pool, const char *socket_file);
 void conn_close(CONN_TYPE *);

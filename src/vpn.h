@@ -311,14 +311,6 @@ unsigned int extract_prefix(char *network);
 #define TOS_UNPACK(x) (x >> 4)
 #define IS_TOS(x) ((x & 0x0f) == 0)
 
-/* Helper structures */
-enum option_types {
-	OPTION_NUMERIC,
-	OPTION_STRING,
-	OPTION_BOOLEAN,
-	OPTION_MULTI_LINE
-};
-
 #include "ip-util.h"
 
 void reload_cfg_file(void *pool, struct list_head *configs,
