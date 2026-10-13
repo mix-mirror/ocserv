@@ -34,6 +34,33 @@ void oc_base64_encode(const char *in, size_t inlen, char *out, size_t outlen)
 	out[raw] = 0;
 }
 
+void oc_base64url_encode(const char *in, size_t inlen, char *out, size_t outlen)
+{
+	unsigned int raw = BASE64_ENCODE_RAW_LENGTH(inlen);
+	unsigned int i;
+
+	if (outlen < raw + 1) {
+		if (outlen > 0)
+			out[0] = 0;
+		return;
+	}
+
+	base64_encode_raw((void *)out, inlen, (uint8_t *)in);
+	out[raw] = 0;
+
+	/* translate to the URL-safe alphabet and drop the padding */
+	for (i = 0; i < raw; i++) {
+		if (out[i] == '+') {
+			out[i] = '-';
+		} else if (out[i] == '/') {
+			out[i] = '_';
+		} else if (out[i] == '=') {
+			out[i] = 0;
+			break;
+		}
+	}
+}
+
 int oc_base64_decode(const uint8_t *src, unsigned int src_length, uint8_t *dst,
 		     size_t *dst_length)
 {

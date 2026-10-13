@@ -919,12 +919,16 @@ generic web server to any client that has not yet proven knowledge of a shared
 secret, with no protocol-visible indication that a VPN endpoint exists at the
 URL at all. This is a self-contained extension with two independently-triggered
 response behaviors and one bypass condition:
-  - **Pre-authentication URL-secret gate** (`check_camouflage_url`,
-    `src/worker-vpn.c:819-836`, gated at `src/worker-vpn.c:1029-1042`): on every
+  - **Pre-authentication URL-secret gate** (`check_camouflage_url` in
+    `src/worker-vpn.c`, and its call site): on every
     `GET`/`POST` while `camouflage_check_passed == 0`, the server inspects the
-    request URL for a `?<camouflage_secret>` suffix. If present and matching,
-    the suffix is stripped and the request proceeds through normal handling
-    (REQ-PROTO-CONN-003 etc.) as if camouflage were not configured. If absent or
+    request URL for `camouflage_secret` as the first query parameter, alone
+    (`?<camouflage_secret>`) or followed by others
+    (`?<camouflage_secret>&...`), so that a redirect back from an identity
+    provider, which appends its own parameters, still carries it. If present
+    and matching, the secret is stripped, the parameters after it are kept,
+    and the request proceeds through normal handling (REQ-PROTO-CONN-003 etc.)
+    as if camouflage were not configured. If absent or
     non-matching, the server responds `401 Unauthorized` with
     `WWW-Authenticate: Basic realm="<camouflage_realm>"` if `camouflage_realm`
     is configured, or `404 Not Found` if it is not, and closes the connection —
@@ -940,7 +944,7 @@ response behaviors and one bypass condition:
   - **Cookie-bearing reconnects bypass the URL-secret gate**: once
     `ws->auth_state >= S_AUTH_COOKIE` (the client already holds a session cookie
     from a prior full authentication), `check_camouflage_url` marks the check
-    passed unconditionally (`src/worker-vpn.c:824-827`) — the secret is required
+    passed unconditionally (`check_camouflage_url`) — the secret is required
     only on the initial, unauthenticated request.
 **Class**: EXTENSION
 **Strength**: MUST (when `camouflage = true`)
@@ -964,7 +968,10 @@ a VPN gateway.
 **Acceptance**:
   - *Positive*: `GET /?<camouflage_secret>` (or any path) on a
     `camouflage = true` vhost MUST be processed identically to the same request
-    against a `camouflage = false` vhost, once the secret suffix is stripped.
+    against a `camouflage = false` vhost, once the secret is stripped; so MUST
+    `GET /?<camouflage_secret>&a=b`, processed as `GET /?a=b`.
+  - *Negative (secret misplaced)*: `GET /?a=b&<camouflage_secret>`, or the
+    secret with characters appended, MUST be treated as carrying no secret.
   - *Negative (no realm)*: `GET /` (no secret) with `camouflage_realm` unset
     MUST return `404 Not Found` with no `config-auth`/VPN-identifying content.
   - *Negative (realm configured)*: `GET /` (no secret) with `camouflage_realm`

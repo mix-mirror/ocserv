@@ -30,7 +30,42 @@ eval "${GETPORT}"
 
 echo "Testing local backend with oidc token auth... "
 
+# Configurations the server must refuse, each with its own message.
+refused_config() {
+    output=$(timeout 10 ${SERV} -d 1 -p ${PIDFILE} -f -c ${CONFIG} 2>&1)
+    if ! echo "${output}" | grep -q "$1"; then
+        echo "${output}" >&2
+        echo "Failure: $2" >&2
+        exit 1
+    fi
+}
+
 update_config test-oidc-auth.config
+echo 'enable-auth = "oidc[config=./data/oidc.json]"' >>${CONFIG}
+refused_config "more than one OpenID Connect method" \
+    "A second OIDC method was accepted"
+
+update_config test-oidc-auth.config
+sed -i 's|oidc\[config=./data/oidc.json\]|oidc[config=./data/oidc.json,mode=other]|' ${CONFIG}
+refused_config "unknown mode 'other'" "An unknown mode was accepted"
+
+# data/oidc.json carries no client_id, which the browser login needs
+update_config test-oidc-auth.config
+sed -i 's|oidc\[config=./data/oidc.json\]|oidc[config=./data/oidc.json,mode=browser]|' ${CONFIG}
+refused_config "mode=browser needs client_id" \
+    "mode=browser was accepted without a client_id"
+
+# A virtual host may not inherit the browser login, whose redirect_uri
+# leads back to the default host
+update_config test-oidc-auth.config
+sed -i 's|oidc\[config=./data/oidc.json\]|oidc[config=./data/oidc.json,mode=browser]|' ${CONFIG}
+printf '[vhost:inherit.example.com]\nbanner = inherited\n' >>${CONFIG}
+refused_config "browser login cannot be inherited" \
+    "A virtual host inherited the browser login"
+
+# while the bearer token mode, which has no redirect, is inherited
+update_config test-oidc-auth.config
+printf '[vhost:inherit.example.com]\nbanner = inherited\n' >>${CONFIG}
 launch_simple_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG}
 PID=$!
 wait_server $PID
@@ -41,6 +76,38 @@ for token in data/success_*; do
         fail $PID "Token incorrectly rejected returned $http_result"
     fi
 done
+
+# The nbf claim is not required of an ID Token by OpenID Connect Core 1.0
+# section 2, so a token without it is accepted.
+http_result=$(LD_PRELOAD=libsocket_wrapper.so curl --insecure https://$ADDRESS:$PORT --request POST --data config-auth.xml --header "Authorization:Bearer=`cat data/nonbf_token.token`" --output /dev/null --write-out "%{http_code}")
+if [ "$http_result" != "200" ]; then
+    fail $PID "Token without nbf incorrectly rejected returned $http_result"
+fi
+
+# In the default bearer mode a client which presents a bearer token is
+# accepted even when it also announces the browser login, and a client which
+# only announces the browser login is asked for a token, as before.
+for token in data/success_*; do
+    http_result=$(LD_PRELOAD=libsocket_wrapper.so curl --insecure https://$ADDRESS:$PORT --request POST --data @${srcdir}/config-auth-sso.xml --header "Authorization:Bearer=`cat $token`" --output /dev/null --write-out "%{http_code}")
+    if [ "$http_result" != "200" ]; then
+        fail $PID "Token with the browser login capability rejected, returned $http_result"
+    fi
+done
+
+http_result=$(LD_PRELOAD=libsocket_wrapper.so curl --insecure https://$ADDRESS:$PORT --request POST --data @${srcdir}/config-auth-sso.xml --output /dev/null --silent --write-out "%{http_code}")
+if [ "$http_result" != "401" ]; then
+    fail $PID "The browser login capability alone returned $http_result rather than asking for a token"
+fi
+
+# The bearer token mode is the default; the URLs of the browser login do
+# not exist there, and are answered like any unknown URL.
+for url in "/sso/callback?state=0&code=0" "/+CSCOE+/saml_ac_login.html"; do
+    http_result=$(LD_PRELOAD=libsocket_wrapper.so curl --insecure "https://$ADDRESS:$PORT$url" --output /dev/null --silent --write-out "%{http_code}")
+    if [ "$http_result" != "404" ]; then
+        fail $PID "$url returned $http_result in the bearer token mode"
+    fi
+done
+
 for token in data/fail_*; do
     http_result=$(LD_PRELOAD=libsocket_wrapper.so curl --insecure https://$ADDRESS:$PORT --request POST --data config-auth.xml --header "Authorization:Bearer=`cat $token`" --output /dev/null --silent --write-out "%{http_code}")
     if [ "$http_result" != "401" ]; then

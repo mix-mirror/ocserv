@@ -266,6 +266,7 @@ worker_sources = core_sources + [http_heads_c] + files(
   'worker-auth.c',
   'worker-bandwidth.c',
   'worker-http.c',
+  'worker-oidc.c',
   'worker-http-handlers.c',
   'worker-kkdcp.c',
   'worker-misc.c',

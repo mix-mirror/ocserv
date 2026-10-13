@@ -73,5 +73,55 @@ int main(void)
 	assert(test_valid_hostname("192.168.1.1234") != 0 &&
 	       strcmp(hostname, "192") == 0);
 
+	/* check invalid fully qualified names */
+	assert(valid_fqdn("") == 0);
+	assert(valid_fqdn(".") == 0);
+	assert(valid_fqdn(".example.com") == 0);
+	assert(valid_fqdn("example..com") == 0);
+	assert(valid_fqdn("example.com.") == 0);
+	assert(valid_fqdn("exa mple.com") == 0);
+	assert(valid_fqdn("example.com:443") == 0);
+	assert(valid_fqdn("-example.com") == 0);
+	assert(valid_fqdn("example-.com") == 0);
+	assert(valid_fqdn("example.com/path") == 0);
+	/* a 64-character label exceeds the RFC 1035 §2.3.4 limit of 63 */
+	assert(valid_fqdn("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+			  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com") == 0);
+	/* a name longer than 253 characters cannot be represented in DNS */
+	assert(valid_fqdn("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa."
+			  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa."
+			  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa."
+			  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa."
+			  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa."
+			  "aaaa") == 0);
+
+	/* check valid fully qualified names */
+	assert(valid_fqdn("example") != 0);
+	assert(valid_fqdn("example.com") != 0);
+	assert(valid_fqdn("vpn.example.com") != 0);
+	assert(valid_fqdn("a.b.c.d.e.f") != 0);
+	assert(valid_fqdn("12-hello.example-1.com") != 0);
+	assert(valid_fqdn("192.168.1.1") != 0);
+	/* a 63-character label is allowed */
+	assert(valid_fqdn("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+			  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com") != 0);
+
+	/* check invalid names with a port */
+	assert(valid_hostport("") == 0);
+	assert(valid_hostport(":443") == 0);
+	assert(valid_hostport("example.com:") == 0);
+	assert(valid_hostport("example.com:44a") == 0);
+	assert(valid_hostport("example.com:443:443") == 0);
+	assert(valid_hostport("example.com: 443") == 0);
+	assert(valid_hostport("-example.com:443") == 0);
+	assert(valid_hostport("example..com:443") == 0);
+
+	/* check valid names with a port */
+	assert(valid_hostport("example.com") != 0);
+	assert(valid_hostport("example.com:443") != 0);
+	assert(valid_hostport("vpn.example.com:4443") != 0);
+	assert(valid_hostport("192.168.1.1:443") != 0);
+	assert(valid_hostport("example:8080") != 0);
+
 	return 0;
 }

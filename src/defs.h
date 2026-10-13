@@ -87,6 +87,10 @@ typedef enum {
 	CMD_SEC_SIGN_HASH,
 	CMD_SEC_GET_PK,
 	CMD_SEC_CLI_STATS,
+	CMD_SEC_OIDC_START,
+	CMD_SEC_OIDC_START_REPLY,
+	CMD_SEC_OIDC_FINISH,
+	CMD_SEC_OIDC_FINISH_REPLY,
 
 	/* from main to sec-mod and vice versa */
 	MIN_SECM_CMD = 239,

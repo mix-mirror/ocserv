@@ -872,6 +872,99 @@ static int set_module(sec_mod_st *sec, vhost_cfg_st *vhost, client_entry_st *e,
 	return -1;
 }
 
+/* The module which handles browser logins on this virtual host, if any. */
+static const struct auth_mod_st *find_sso_module(vhost_cfg_st *vhost,
+						 void **auth_ctx)
+{
+	unsigned int i;
+
+	for (i = 0; i < vhost->static_config.auth_methods; i++) {
+		if (vhost->static_config.auth[i].enabled &&
+		    vhost->static_config.auth[i].amod != NULL &&
+		    vhost->static_config.auth[i].amod->sso_start != NULL) {
+			*auth_ctx = vhost->static_config.auth[i].auth_ctx;
+			return vhost->static_config.auth[i].amod;
+		}
+	}
+
+	return NULL;
+}
+
+int handle_sec_oidc_start(int cfd, sec_mod_st *sec, const SecOidcStartMsg *req)
+{
+	SecOidcStartReplyMsg rep = SEC_OIDC_START_REPLY_MSG__INIT;
+	const struct auth_mod_st *amod;
+	void *auth_ctx = NULL;
+	void *lpool;
+	char *url = NULL;
+	char *state = NULL;
+	int ret;
+
+	amod = find_sso_module(find_vhost(sec->vconfig, req->vhost), &auth_ctx);
+
+	lpool = talloc_new(sec);
+	if (lpool == NULL)
+		return ERR_BAD_COMMAND;
+
+	if (amod == NULL) {
+		seclog(sec, LOG_NOTICE,
+		       "no authentication method supports a browser login");
+	} else if (amod->sso_start(auth_ctx, lpool, req->remote_ip,
+				   req->strap_dh_pubkey, &url, &state) == 0) {
+		rep.ok = 1;
+		rep.authorization_url = url;
+		rep.state = state;
+	}
+
+	ret = send_msg(
+		lpool, cfd, CMD_SEC_OIDC_START_REPLY, &rep,
+		(pack_size_func)sec_oidc_start_reply_msg__get_packed_size,
+		(pack_func)sec_oidc_start_reply_msg__pack);
+	if (ret < 0)
+		seclog(sec, LOG_ERR, "could not send oidc start reply");
+
+	talloc_free(lpool);
+	return ret;
+}
+
+int handle_sec_oidc_finish(int cfd, sec_mod_st *sec,
+			   const SecOidcFinishMsg *req)
+{
+	SecOidcFinishReplyMsg rep = SEC_OIDC_FINISH_REPLY_MSG__INIT;
+	const struct auth_mod_st *amod;
+	void *auth_ctx = NULL;
+	void *lpool;
+	char *token = NULL;
+	char *sso_token = NULL;
+	int ret;
+
+	amod = find_sso_module(find_vhost(sec->vconfig, req->vhost), &auth_ctx);
+
+	lpool = talloc_new(sec);
+	if (lpool == NULL)
+		return ERR_BAD_COMMAND;
+
+	if (amod == NULL) {
+		seclog(sec, LOG_NOTICE,
+		       "no authentication method supports a browser login");
+	} else if (amod->sso_finish(auth_ctx, lpool, req->code, req->state,
+				    &token, &sso_token) == 0) {
+		rep.ok = 1;
+		rep.token = token;
+		rep.sso_token = sso_token;
+	}
+
+	ret = send_msg(
+		lpool, cfd, CMD_SEC_OIDC_FINISH_REPLY, &rep,
+		(pack_size_func)sec_oidc_finish_reply_msg__get_packed_size,
+		(pack_func)sec_oidc_finish_reply_msg__pack);
+	if (ret < 0)
+		seclog(sec, LOG_ERR, "could not send oidc finish reply");
+
+	talloc_free(lpool);
+	return ret;
+}
+
 int handle_sec_auth_init(int cfd, sec_mod_st *sec, const SecAuthInitMsg *req,
 			 pid_t pid)
 {
@@ -976,6 +1069,7 @@ int handle_sec_auth_init(int cfd, sec_mod_st *sec, const SecAuthInitMsg *req,
 		st.our_ip = req->our_ip;
 		st.user_agent = req->user_agent;
 		st.sid = e->acct_info.safe_id;
+		st.oidc_token = req->oidc_token;
 		st.id = pid;
 
 		ret = e->module->auth_init(&e->auth_ctx, e, e->vhost_auth_ctx,

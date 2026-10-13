@@ -53,6 +53,20 @@ if [ "${http_result}" != "401" ]; then
 fi
 echo "OK"
 
+echo "Checking that the secret is accepted ahead of other parameters"
+http_result=$(curl --insecure "https://localhost:${PORT}${SECRETURL}&state=x" --output /dev/null --silent --write-out "%{http_code}")
+if [ "${http_result}" = "401" ]; then
+	fail ${PID} "Server rejected a URL carrying the secret first"
+fi
+echo "OK"
+
+echo "Checking that a secret with trailing characters is rejected"
+http_result=$(curl --insecure "https://localhost:${PORT}${SECRETURL}extra" --output /dev/null --silent --write-out "%{http_code}")
+if [ "${http_result}" != "401" ]; then
+	fail ${PID} "Server accepted a secret with trailing characters"
+fi
+echo "OK"
+
 echo "Connecting to obtain cookie without secret URL"
 eval `echo "test" | ${OPENCONNECT} -q localhost:${PORT} -u test --servercert ${SERVERCERT} --authenticate`
 if [ ! -z "${COOKIE}" ];then

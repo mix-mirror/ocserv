@@ -62,6 +62,20 @@ typedef struct pam_cfg_st {
 	int gid_min;
 } pam_cfg_st;
 
+/*
+ * How OpenID Connect users log in, as set with oidc[mode=...]: by
+ * presenting a token they obtained on their own, or through a browser,
+ * with ocserv performing the authorization code flow. A server serves one
+ * or the other.
+ */
+#define OIDC_MODE_BEARER 0
+#define OIDC_MODE_BROWSER 1
+
+typedef struct oidc_cfg_st {
+	char *config;
+	unsigned int mode;
+} oidc_cfg_st;
+
 #define CHECK_TRUE(str)                                                    \
 	((str != NULL &&                                                   \
 	  (strcasecmp(str, "true") == 0 || strcasecmp(str, "yes") == 0)) ? \

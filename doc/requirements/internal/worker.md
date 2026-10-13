@@ -176,18 +176,29 @@ MUST respond `405 Method Not Allowed` (indistinguishable from a non-VPN web
 server's response to an unexpected method) rather than `401`/`503`, which
 would reveal the presence of an ocserv endpoint to an unauthenticated
 prober. `check_camouflage_url()` sets `camouflage_check_passed = 1` only
-when the request URL's query string exactly equals
-`camouflage_secret`, OR when `ws->auth_state >= S_AUTH_COOKIE` (i.e. the
-client has already gotten past the camouflage gate once this session).
+when the request URL's query string begins with `camouflage_secret`,
+followed either by its end or by `&` and further parameters, OR when
+`ws->auth_state >= S_AUTH_COOKIE` (i.e. the client has already gotten past
+the camouflage gate once this session). The secret MUST be removed from the
+URL before the request is dispatched, and the parameters after it kept, so
+that a redirect back from an identity provider, which appends its own
+parameters to the registered URI, reaches its handler (REQ-AUTH-AUTH-043).
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/worker-auth.c:1044-1057, src/worker-vpn.c:819-836
+**Source:** src/worker-auth.c:1044-1057, src/worker-vpn.c
+(`check_camouflage_url` and its call site)
 **Acceptance:** [SEC] negative — with `camouflage` configured and a secret
 set, send a CONNECT request with an invalid cookie and no/incorrect
 camouflage query string; confirm the response is `405`, not `401` or
 `503`. Positive: append `?<camouflage-secret>` to the URL with an invalid
 cookie; confirm the response reverts to `401`/`503` (camouflage passed,
-real error now shown).
+real error now shown). Positive: `?<camouflage-secret>&a=b` passes, and the
+handler sees `?a=b`. Negative: the secret after another parameter
+(`?a=b&<camouflage-secret>`) or with characters appended to it does not
+pass. tests/test-camouflage covers the secret ahead of other parameters and
+with characters appended; tests/test-oidc-code-flow covers the secret after
+another parameter, and the parameters after the secret reaching the
+handler, as the browser login only completes if they do.
 **Links:** —
 
 ### REQ-WORKER-AUTH-005 — Cookie auth reply from main is strictly validated before TUN claim and config acceptance

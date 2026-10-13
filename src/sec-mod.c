@@ -378,6 +378,34 @@ static int process_worker_packet(void *pool, int cfd, pid_t pid,
 		sec_auth_cont_msg__free_unpacked(auth_cont, &pa);
 		return ret;
 	}
+	case CMD_SEC_OIDC_START: {
+		SecOidcStartMsg *tmsg;
+
+		tmsg = sec_oidc_start_msg__unpack(&pa, data.size, data.data);
+		if (tmsg == NULL) {
+			seclog(sec, LOG_INFO,
+			       "error unpacking oidc start message");
+			return -1;
+		}
+
+		ret = handle_sec_oidc_start(cfd, sec, tmsg);
+		sec_oidc_start_msg__free_unpacked(tmsg, &pa);
+		return ret;
+	}
+	case CMD_SEC_OIDC_FINISH: {
+		SecOidcFinishMsg *tmsg;
+
+		tmsg = sec_oidc_finish_msg__unpack(&pa, data.size, data.data);
+		if (tmsg == NULL) {
+			seclog(sec, LOG_INFO,
+			       "error unpacking oidc finish message");
+			return -1;
+		}
+
+		ret = handle_sec_oidc_finish(cfd, sec, tmsg);
+		sec_oidc_finish_msg__free_unpacked(tmsg, &pa);
+		return ret;
+	}
 	case RESUME_STORE_REQ: {
 		SessionResumeStoreReqMsg *smsg;
 

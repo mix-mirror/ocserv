@@ -91,6 +91,11 @@ if oidc_enabled
     dependencies: test_base_deps + [cjose_dep, jansson_dep],
     include_directories: test_inc,
   )
+  # stands in for a client of the external browser mode
+  executable('oidc-strap-client', 'oidc-strap-client.c',
+    dependencies: test_base_deps + [gnutls_dep],
+    include_directories: test_inc,
+  )
 endif
 
 # --------------------------------------------------------------------------
@@ -263,6 +268,18 @@ if oidc_enabled
   test('test-oidc', find_program('test-oidc'),
     env:          test_env,
     timeout:      180,
+    workdir:      test_workdir,
+    priority:     0,
+  )
+  test('test-oidc-code-flow', find_program('test-oidc-code-flow'),
+    env:          test_env,
+    timeout:      180,
+    workdir:      test_workdir,
+    priority:     0,
+  )
+  test('test-oidc-routes', find_program('test-oidc-routes'),
+    env:          test_env,
+    timeout:      60,
     workdir:      test_workdir,
     priority:     0,
   )

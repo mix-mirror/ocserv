@@ -53,10 +53,13 @@ struct known_urls_st {
 	unsigned int partial_match;
 	url_handler_fn get_handler;
 	url_handler_fn post_handler;
+	/* when set, the URL exists only where this returns true */
+	bool (*served)(struct worker_st *ws);
 };
 
-#define LL(x, y, z) { x, sizeof(x) - 1, 0, y, z }
-#define LL_DIR(x, y, z) { x, sizeof(x) - 1, 1, y, z }
+#define LL(x, y, z) { x, sizeof(x) - 1, 0, y, z, NULL }
+#define LL_DIR(x, y, z) { x, sizeof(x) - 1, 1, y, z, NULL }
+#define LL_IF(x, y, z, f) { x, sizeof(x) - 1, 0, y, z, f }
 static const struct known_urls_st known_urls[] = {
 	LL("/", get_auth_handler, post_auth_handler),
 	LL("/auth", get_auth_handler, post_auth_handler),
@@ -77,6 +80,12 @@ static const struct known_urls_st known_urls[] = {
 	LL("/+CSCOT+/translation-table", get_string_handler, NULL),
 	LL("/+CSCOT+/oem-customization", get_string_handler, NULL),
 	LL("/logout", get_empty_handler, NULL),
+#ifdef SUPPORT_OIDC_AUTH
+	LL_IF("/sso/callback", get_oidc_callback_handler, NULL,
+	      oidc_browser_login_enabled),
+	LL_IF("/+CSCOE+/saml_ac_login.html", get_oidc_final_handler, NULL,
+	      oidc_browser_login_enabled),
+#endif
 #endif
 	LL("/svc", get_svc_handler, post_svc_handler),
 	{ NULL, 0, 0, NULL, NULL }
@@ -362,6 +371,44 @@ static void header_value_check(struct worker_st *ws, struct http_req_st *req)
 		}
 
 		break;
+
+	case HEADER_HOST:
+		req->full_hostname[0] = 0;
+
+		if (value_length + 1 > sizeof(req->full_hostname))
+			break;
+
+		memcpy(req->full_hostname, value, value_length);
+		req->full_hostname[value_length] = 0;
+
+		/*
+		 * The value ends up in URLs handed to the client, so it is
+		 * dropped unless all of it is a valid name and port.
+		 */
+		if (!valid_hostport(req->full_hostname))
+			req->full_hostname[0] = 0;
+
+		break;
+
+	case HEADER_STRAP_DH_PUBKEY:
+		/*
+		 * Whitespace is no part of the base64 value, so it is dropped
+		 * rather than counted against the room for the key. A key
+		 * which does not fit then is ignored.
+		 */
+		nlen = 0;
+		for (i = 0; i < value_length; i++) {
+			if (isspace((unsigned char)value[i]))
+				continue;
+			if (nlen + 1 >= sizeof(req->strap_dh_pubkey)) {
+				nlen = 0;
+				break;
+			}
+			req->strap_dh_pubkey[nlen++] = value[i];
+		}
+		req->strap_dh_pubkey[nlen] = 0;
+		break;
+
 	case HEADER_DEVICE_TYPE:
 		if (value_length + 1 > sizeof(req->devtype)) {
 			req->devtype[0] = 0;
@@ -745,12 +792,25 @@ cleanup:
 	talloc_free(value);
 }
 
-url_handler_fn http_get_url_handler(const char *url)
+/*
+ * Whether a URL is served on this virtual host. The browser login URLs
+ * only exist where the browser login is configured; elsewhere they are
+ * answered like any unknown URL.
+ */
+static bool url_is_served(struct worker_st *ws, const struct known_urls_st *p)
+{
+	return p->served == NULL || p->served(ws);
+}
+
+url_handler_fn http_get_url_handler(struct worker_st *ws, const char *url)
 {
 	const struct known_urls_st *p;
 	unsigned int len = strlen(url);
 
 	for (p = known_urls; p->url != NULL; p++) {
+		if (!url_is_served(ws, p))
+			continue;
+
 		if ((len == p->url_size && strcmp(p->url, url) == 0) ||
 		    (len >= p->url_size &&
 		     strncmp(p->url, url, p->url_size) == 0 &&
@@ -770,6 +830,9 @@ url_handler_fn http_post_known_service_check(struct worker_st *ws,
 	unsigned int i;
 
 	for (p = known_urls; p->url != NULL; p++) {
+		if (!url_is_served(ws, p))
+			continue;
+
 		if ((len == p->url_size && strcmp(p->url, url) == 0) ||
 		    (len > p->url_size &&
 		     strncmp(p->url, url, p->url_size) == 0 &&

@@ -33,4 +33,9 @@ int oc_base64_decode_alloc(void *pool, const char *in, size_t inlen, char **out,
 
 void oc_base64_encode(const char *in, size_t inlen, char *out, size_t outlen);
 
+/* base64url (RFC 4648 section 5) without padding; used by OIDC/PKCE where
+ * the value is carried in URLs. */
+void oc_base64url_encode(const char *in, size_t inlen, char *out,
+			 size_t outlen);
+
 #endif

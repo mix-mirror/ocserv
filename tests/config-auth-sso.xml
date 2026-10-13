@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config-auth client="vpn" type="init" aggregate-auth-version="2">
+    <version who="vpn">v5.01</version>
+    <capabilities>
+        <auth-method>single-sign-on-v2</auth-method>
+    </capabilities>
+</config-auth>

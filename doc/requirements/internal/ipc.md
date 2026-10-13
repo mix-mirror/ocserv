@@ -13,6 +13,8 @@ sources:
   - src/main-worker-cmd.c
   - src/main-sec-mod-cmd.c
   - src/worker-auth.c
+  - src/worker-oidc.c
+  - src/auth/openidconnect.c
   - src/tlslib.c
   - doc/design.md#ipc-communication
   - doc/design.md#ipc-communication-for-sid-assignment
@@ -606,6 +608,77 @@ that even a compromised worker sending a crafted `ban_ip_msg` with
 main — `sid` is meaningful only on the sec-mod <-> main `CMD_SECM_BAN_IP` /
 `CMD_SECM_BAN_IP_REPLY` round trip.
 **Links:** REQ-SEC-*
+
+---
+
+## SEC_OIDC_START / SEC_OIDC_FINISH (worker <-> sec-mod)
+
+These carry a browser login through the authorization code flow
+(REQ-AUTH-AUTH-043). A worker sends each on behalf of a client which has not
+authenticated: `SEC_OIDC_START` when it serves the login form, and
+`SEC_OIDC_FINISH` when the provider sends the browser back. Their input is
+therefore untrusted, and each creates state in sec-mod or leads it to make an
+outbound request to the provider.
+
+### REQ-IPC-090 — Each OIDC request always elicits its reply
+
+**Requirement:** sec-mod MUST answer every `SEC_OIDC_START` and
+`SEC_OIDC_FINISH` it unpacks with the corresponding `SEC_OIDC_START_REPLY` or
+`SEC_OIDC_FINISH_REPLY`, with `ok = false` when no enabled authentication
+method supports a browser login or the method refuses the request. The worker
+MUST treat a missing reply or `ok = false` as a failure: it serves no login
+form, and hands the browser no token. A message which fails to unpack is
+rejected like any malformed message (REQ-IPC-002).
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/sec-mod.c (`process_worker_packet`), src/sec-mod-auth.c
+(`handle_sec_oidc_start`, `handle_sec_oidc_finish`), src/worker-oidc.c
+(`oidc_get_login_url`, `get_oidc_callback_handler`)
+**Acceptance:** negative, local — present a callback a second time; confirm
+the worker receives a reply with `ok = false` and the browser is given no
+token. See tests/test-oidc-code-flow.
+**Links:** REQ-IPC-002, REQ-AUTH-AUTH-043
+
+### REQ-IPC-091 — The values carried are checked by sec-mod, not trusted
+
+**Requirement:** sec-mod MUST NOT act on a value from these messages beyond
+the following. `vhost` is resolved with `find_vhost()`, and only the
+browser-login functions of a method enabled on it are called. `state` is only
+looked up among pending requests, and `token` only among completed logins;
+an unknown value is refused. `code` is only percent-encoded into the request
+to the configured token endpoint. `strap_dh_pubkey` is only used to encrypt
+the token for that client. `remote_ip` is only used to count pending requests
+per address (REQ-IPC-092).
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/auth/openidconnect.c (`oidc_sso_start`, `oidc_sso_finish`,
+`oidc_token_exchange`, `oidc_auth_init`)
+**Acceptance:** negative, local — an unknown token, and the state of a
+completed login presented as a token; confirm each is refused. See
+tests/test-oidc-code-flow.
+**Links:** REQ-AUTH-AUTH-039, REQ-AUTH-AUTH-043
+
+### REQ-IPC-092 — The state these messages create, and the requests they lead to, are bounded
+
+**Requirement:** `SEC_OIDC_START` creates a pending request; sec-mod MUST
+refuse it once `sso_max_pending` requests are pending overall, or
+`sso_max_pending_per_ip` from the client's address, and a pending request
+MUST expire after `sso_login_timeout` seconds. `SEC_OIDC_FINISH` MUST take
+the request whatever the outcome, so that each `SEC_OIDC_START` leads to at
+most one request to the token endpoint, which is bounded by
+`OIDC_CONNECT_TIMEOUT` and `OIDC_REQUEST_TIMEOUT` (5 and 10 seconds). As
+sec-mod is single threaded it is blocked for that time; the limits above
+bound how often that can happen. A completed login MUST expire after
+`OIDC_CLAIM_TIMEOUT` seconds if not claimed. Expired entries MUST be dropped
+without visiting the others.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/auth/openidconnect.c (`oidc_sso_pending_add`,
+`oidc_sso_state_expire`, `oidc_sso_state_take`, `oidc_token_exchange`)
+**Acceptance:** negative, local — forms beyond either limit are refused, and
+served again once the pending requests expire; a callback presented twice
+leads to a single request at the provider. See tests/test-oidc-code-flow.
+**Links:** REQ-AUTH-AUTH-043
 
 ---
 
