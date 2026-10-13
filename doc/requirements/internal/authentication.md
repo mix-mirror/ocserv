@@ -1216,7 +1216,7 @@ away.
 `co_call()` returns, before any early return, and that `pam_auth_deinit()`
 erases both `pctx->password` and `pctx->username` before `pam_end()`. Buffer
 erasure is not externally observable, so no runtime test is required; a test
-that inspects `struct pam_ctx_st` would violate REQ-GEN-TEST-002.
+that inspects `struct pam_st` would violate REQ-GEN-TEST-002.
 **Links:** REQ-AUTH-AUTH-018, REQ-AUTH-AUTH-019, REQ-AUTH-AUTH-020
 
 ### REQ-AUTH-AUTH-043 — OIDC can perform the authorization code flow, keeping the verifier and nonce in the security module and handing the session only to the browser which completed the login

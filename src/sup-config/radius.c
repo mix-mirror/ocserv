@@ -41,7 +41,7 @@
 static int get_sup_config(ReloadableConfig *cfg, client_entry_st *entry,
 			  SecmSessionReplyMsg *msg, void *pool)
 {
-	struct radius_ctx_st *pctx = entry->auth_ctx;
+	struct radius_st *pctx = entry->auth_ctx;
 	unsigned int dns = 0, i;
 
 	if (pctx == NULL)

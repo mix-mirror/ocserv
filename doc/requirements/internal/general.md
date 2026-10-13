@@ -392,7 +392,50 @@ review is the gate. When an MR is submitted, the reviewer MUST check every
 modified function for `#ifdef` depth and length violations and for missing
 `#endif` annotations. The `src/auth/pam.c` / `src/auth/gssapi.c` files
 illustrate compliant optional-feature structure.
-**Links:** REQ-GEN-STYLE-001
+**Links:** REQ-GEN-STYLE-001, REQ-GEN-STYLE-003
+
+---
+
+### REQ-GEN-STYLE-003 — All structs MUST use `_st`; `_ctx` is tolerated only in pre-existing names; `_ctx_st` MUST NOT be used
+
+**Requirement:** Every struct tag in source files under `src/` and `tests/`
+MUST be named `<name>_st`, and its typedef (if any) `<name>_st`, applied
+mechanically regardless of what the struct represents (context, state,
+configuration, list, etc.). `_ctx`-suffixed type names in existing code are
+tolerated as legacy and need not be renamed on sight, but `_ctx_st` MUST NOT
+appear anywhere, new or existing — such names MUST be renamed to the `_st`
+form (e.g. `pam_ctx_st` becomes `pam_st`). This requirement does not apply to
+vendored subtrees (`src/ccan/`, `src/inih/`, `src/llhttp/`, `src/pcl/`,
+`src/protobuf/`, `src/gnulib/`) or generated `*.pb-c.*` files.
+**Strength:** MUST / MUST NOT
+**Status:** DERIVED
+**Source:** MR !579 (review discussion — naming convention for struct types)
+**Acceptance:** code-review — a new struct tag or typedef not ending in `_st`
+is grounds for blocking the MR. `git grep -nwE '[A-Za-z0-9_]+_ctx_st' --
+src tests ':!src/ccan' ':!src/inih' ':!src/llhttp' ':!src/pcl'
+':!src/protobuf' ':!src/gnulib'` MUST produce no output.
+**Links:** REQ-GEN-STYLE-001, REQ-GEN-STYLE-004
+
+---
+
+### REQ-GEN-STYLE-004 — Enum typedefs MUST be named `<name>_t`
+
+**Requirement:** Every `typedef enum` in source files under `src/` and
+`tests/` MUST name its type `<name>_t`. If the enum also carries a tag, the
+tag MUST be the same `<name>_t` (e.g. `typedef enum fw_proto_t { ... }
+fw_proto_t;`). Anonymous enums that only define constants and are not
+typedef'd are not affected. This requirement does not apply to vendored
+subtrees (`src/ccan/`, `src/inih/`, `src/llhttp/`, `src/pcl/`,
+`src/protobuf/`, `src/gnulib/`), generated `*.pb-c.*` files, or enum types
+defined by external libraries.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** `src/defs.h` (`cmd_request_t`); `src/vpn.h` (`sock_type_t`,
+`comp_type_t`, `fw_proto_t`); `src/worker.h` (`udp_port_state_t`);
+`src/main-user.c` (`script_type_t`)
+**Acceptance:** code-review — a new or renamed `typedef enum` whose type name
+or tag does not end in `_t` is grounds for blocking the MR.
+**Links:** REQ-GEN-STYLE-003
 
 ---
 

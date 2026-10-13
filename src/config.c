@@ -913,7 +913,7 @@ static vhost_cfg_st *vhost_add(void *pool, struct list_head *head,
 	return vhost;
 }
 
-struct ini_ctx_st {
+struct ini_st {
 	struct list_head *head;
 	unsigned int reload;
 	unsigned int is_worker;
@@ -974,7 +974,7 @@ static char *sanitize_name(void *pool, const char *p)
 static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 			   const char *_value)
 {
-	struct ini_ctx_st *ctx = _ctx;
+	struct ini_st *ctx = _ctx;
 	vhost_cfg_st *vhost, *vtmp = NULL, *defvhost;
 	unsigned int use_dbus;
 	ReloadableConfig *config;
@@ -1630,7 +1630,7 @@ static void parse_cfg_file(void *pool, const char *file, struct list_head *head,
 {
 	int ret, silent = 0;
 	ReloadableConfig *config;
-	struct ini_ctx_st ctx;
+	struct ini_st ctx;
 	vhost_cfg_st *vhost = NULL;
 	vhost_cfg_st *defvhost;
 

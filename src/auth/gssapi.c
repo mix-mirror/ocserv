@@ -38,21 +38,21 @@
 
 #include "log.h"
 
-struct gssapi_vhost_ctx_st {
+struct gssapi_vhost_st {
 	gss_cred_id_t creds;
 	gss_OID_set oids;
 	unsigned int no_local_map;
 	time_t ticket_freshness_secs;
 };
 
-struct gssapi_ctx_st {
+struct gssapi_st {
 	char username[MAX_USERNAME_SIZE];
 	gss_ctx_id_t gssctx;
 
 	gss_cred_id_t delegated_creds;
 	gss_buffer_desc msg;
 
-	struct gssapi_vhost_ctx_st *vctx;
+	struct gssapi_vhost_st *vctx;
 };
 
 /* Taken from openconnect's gssapi */
@@ -94,9 +94,9 @@ static void gssapi_vhost_init(void **_vctx, void *pool, void *additional)
 	OM_uint32 time, minor;
 	const gss_name_t name = GSS_C_NO_NAME;
 	gssapi_cfg_st *config = additional;
-	struct gssapi_vhost_ctx_st *vctx;
+	struct gssapi_vhost_st *vctx;
 
-	vctx = talloc_zero(pool, struct gssapi_vhost_ctx_st);
+	vctx = talloc_zero(pool, struct gssapi_vhost_st);
 	if (vctx == NULL) {
 		fprintf(stderr, "auth-gssapi: memory error\n");
 		exit(EXIT_FAILURE);
@@ -145,14 +145,14 @@ static void gssapi_vhost_init(void **_vctx, void *pool, void *additional)
 
 static void gssapi_vhost_deinit(void *_vctx)
 {
-	struct gssapi_vhost_ctx_st *vctx = _vctx;
+	struct gssapi_vhost_st *vctx = _vctx;
 	OM_uint32 minor;
 
 	if (vctx->creds != NULL)
 		gss_release_cred(&minor, &vctx->creds);
 }
 
-static int get_name(struct gssapi_ctx_st *pctx, gss_name_t client,
+static int get_name(struct gssapi_st *pctx, gss_name_t client,
 		    gss_OID mech_type)
 {
 	int ret;
@@ -200,8 +200,7 @@ static int get_name(struct gssapi_ctx_st *pctx, gss_name_t client,
 		return 0;
 }
 
-static int verify_krb5_constraints(struct gssapi_ctx_st *pctx,
-				   gss_OID mech_type)
+static int verify_krb5_constraints(struct gssapi_st *pctx, gss_OID mech_type)
 {
 	int ret;
 	OM_uint32 minor;
@@ -240,7 +239,7 @@ static int verify_krb5_constraints(struct gssapi_ctx_st *pctx,
 static int gssapi_auth_init(void **ctx, void *pool, void *_vctx,
 			    const common_auth_init_st *info)
 {
-	struct gssapi_ctx_st *pctx;
+	struct gssapi_st *pctx;
 	OM_uint32 minor, flags, time;
 	gss_buffer_desc buf = GSS_C_EMPTY_BUFFER;
 	gss_name_t client = GSS_C_NO_NAME;
@@ -249,14 +248,14 @@ static int gssapi_auth_init(void **ctx, void *pool, void *_vctx,
 	size_t raw_len;
 	char *raw;
 	const char *spnego = info->username;
-	struct gssapi_vhost_ctx_st *vctx = _vctx;
+	struct gssapi_vhost_st *vctx = _vctx;
 
 	if (spnego == NULL || spnego[0] == 0) {
 		oc_syslog(LOG_ERR, "gssapi: error in spnego data %s", __func__);
 		return ERR_AUTH_FAIL;
 	}
 
-	pctx = talloc_zero(pool, struct gssapi_ctx_st);
+	pctx = talloc_zero(pool, struct gssapi_st);
 	if (pctx == NULL)
 		return ERR_AUTH_FAIL;
 
@@ -301,7 +300,7 @@ static int gssapi_auth_init(void **ctx, void *pool, void *_vctx,
 static int gssapi_auth_group(void *ctx, const char *suggested, char *groupname,
 			     int groupname_size)
 {
-	struct gssapi_ctx_st *pctx = ctx;
+	struct gssapi_st *pctx = ctx;
 
 	return get_user_auth_group(pctx->username, suggested, groupname,
 				   groupname_size);
@@ -309,7 +308,7 @@ static int gssapi_auth_group(void *ctx, const char *suggested, char *groupname,
 
 static int gssapi_auth_user(void *ctx, char *username, int username_size)
 {
-	struct gssapi_ctx_st *pctx = ctx;
+	struct gssapi_st *pctx = ctx;
 
 	strlcpy(username, pctx->username, username_size);
 	return 0;
@@ -320,7 +319,7 @@ static int gssapi_auth_user(void *ctx, char *username, int username_size)
 static int gssapi_auth_pass(void *ctx, const char *spnego,
 			    unsigned int spnego_len)
 {
-	struct gssapi_ctx_st *pctx = ctx;
+	struct gssapi_st *pctx = ctx;
 	OM_uint32 minor, flags, time;
 	gss_buffer_desc buf = GSS_C_EMPTY_BUFFER;
 	gss_name_t client = GSS_C_NO_NAME;
@@ -364,7 +363,7 @@ static int gssapi_auth_pass(void *ctx, const char *spnego,
 
 static int gssapi_auth_msg(void *ctx, void *pool, passwd_msg_st *pst)
 {
-	struct gssapi_ctx_st *pctx = ctx;
+	struct gssapi_st *pctx = ctx;
 	OM_uint32 min;
 	unsigned int length;
 
@@ -384,7 +383,7 @@ static int gssapi_auth_msg(void *ctx, void *pool, passwd_msg_st *pst)
 
 static void gssapi_auth_deinit(void *ctx)
 {
-	struct gssapi_ctx_st *pctx = ctx;
+	struct gssapi_st *pctx = ctx;
 	OM_uint32 min;
 
 	gss_delete_sec_context(&min, &pctx->gssctx, GSS_C_NO_BUFFER);

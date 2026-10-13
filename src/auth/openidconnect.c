@@ -166,19 +166,18 @@ typedef struct oidc_vctx_st {
 	const char *groups_claim;
 } oidc_vctx_st;
 
-typedef struct oidc_ctx_st {
+typedef struct oidc_st {
 	oidc_vctx_st *vctx_st;
 	char username[MAX_USERNAME_SIZE];
 	int token_verified;
 	char **groups;
 	unsigned int groups_size;
-} oidc_ctx_st;
+} oidc_st;
 
 static bool oidc_fetch_oidc_keys(oidc_vctx_st *vctx);
 static bool oidc_verify_token(oidc_vctx_st *vctx, const char *token,
 			      size_t token_length, const char *expected_nonce,
-			      char user_name[MAX_USERNAME_SIZE],
-			      oidc_ctx_st *ct);
+			      char user_name[MAX_USERNAME_SIZE], oidc_st *ct);
 static json_t *oidc_token_exchange(oidc_vctx_st *vctx, const char *code,
 				   const char *verifier);
 static int oidc_sso_start(void *vctx, void *pool, const char *remote_ip,
@@ -191,7 +190,7 @@ static char *oidc_encrypt_for_client(void *pool, const char *pubkey_b64,
 				     const char *value);
 
 static void oidc_extract_groups(json_t *token_claims, const char *claim_name,
-				oidc_ctx_st *ct);
+				oidc_st *ct);
 
 static size_t oidc_sso_state_rehash(const void *_e, void *unused)
 {
@@ -724,9 +723,9 @@ static int oidc_auth_init(void **ctx, void *pool, void *vctx,
 			  const common_auth_init_st *info)
 {
 	oidc_vctx_st *vt = (oidc_vctx_st *)vctx;
-	oidc_ctx_st *ct;
+	oidc_st *ct;
 
-	ct = talloc_zero(pool, struct oidc_ctx_st);
+	ct = talloc_zero(pool, struct oidc_st);
 	if (!ct) {
 		return ERR_AUTH_FAIL;
 	}
@@ -780,7 +779,7 @@ static int oidc_auth_init(void **ctx, void *pool, void *vctx,
 
 static int oidc_auth_user(void *ctx, char *username, int username_size)
 {
-	oidc_ctx_st *ct = (oidc_ctx_st *)ctx;
+	oidc_st *ct = (oidc_st *)ctx;
 
 	if (ct->token_verified) {
 		strlcpy(username, ct->username, username_size);
@@ -792,7 +791,7 @@ static int oidc_auth_user(void *ctx, char *username, int username_size)
 static int oidc_auth_group(void *ctx, const char *suggested, char *groupname,
 			   int groupname_size)
 {
-	oidc_ctx_st *ct = (oidc_ctx_st *)ctx;
+	oidc_st *ct = (oidc_st *)ctx;
 	unsigned int i, found = 0;
 
 	groupname[0] = 0;
@@ -1223,7 +1222,7 @@ static int oidc_sso_finish(void *vctx, void *pool, const char *code,
 {
 	oidc_vctx_st *vc = (oidc_vctx_st *)vctx;
 	oidc_sso_state_st *st;
-	oidc_ctx_st *tmp;
+	oidc_st *tmp;
 	json_t *tokens;
 	json_t *id_token;
 	bool verified;
@@ -1252,7 +1251,7 @@ static int oidc_sso_finish(void *vctx, void *pool, const char *code,
 		goto fail;
 	}
 
-	tmp = talloc_zero(st, oidc_ctx_st);
+	tmp = talloc_zero(st, oidc_st);
 	if (tmp == NULL) {
 		json_decref(tokens);
 		goto fail;
@@ -1839,7 +1838,7 @@ cleanup:
  * are stored verbatim: normalising them is the identity provider's job.
  */
 static void oidc_extract_groups(json_t *token_claims, const char *claim_name,
-				oidc_ctx_st *ct)
+				oidc_st *ct)
 {
 	json_t *value = json_object_get(token_claims, claim_name);
 	size_t index;
@@ -1986,8 +1985,7 @@ cleanup:
 // Verify that the provided token is signed
 static bool oidc_verify_token(oidc_vctx_st *vctx, const char *token,
 			      size_t token_length, const char *expected_nonce,
-			      char user_name[MAX_USERNAME_SIZE],
-			      oidc_ctx_st *ct)
+			      char user_name[MAX_USERNAME_SIZE], oidc_st *ct)
 {
 	bool result = false;
 	cjose_err err;

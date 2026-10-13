@@ -80,7 +80,7 @@
 		talloc_free(tmp_tf);                   \
 	}
 
-struct ini_ctx_st {
+struct ini_st {
 	SecmSessionReplyMsg *msg;
 	const char *file;
 	void *pool;
@@ -89,7 +89,7 @@ struct ini_ctx_st {
 static int group_cfg_ini_handler(void *_ctx, const char *section,
 				 const char *name, const char *_value)
 {
-	struct ini_ctx_st *ctx = _ctx;
+	struct ini_st *ctx = _ctx;
 	SecmSessionReplyMsg *msg = ctx->msg;
 	const char *file = ctx->file;
 	void *pool = ctx->pool;
@@ -279,7 +279,7 @@ static int parse_group_cfg_file(SecmSessionReplyMsg *msg, void *pool, FILE *f,
 				const char *file)
 {
 	int ret;
-	struct ini_ctx_st ctx;
+	struct ini_st ctx;
 
 	ctx.pool = pool;
 	ctx.msg = msg;

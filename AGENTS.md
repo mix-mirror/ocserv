@@ -349,14 +349,17 @@ defaults that change behavior. Every configurable behavior must be expressible i
 
 ### Code Style
 
-See **REQ-GEN-STYLE-001** and **REQ-GEN-STYLE-002** for the normative rules.
-In brief:
+See **REQ-GEN-STYLE-001** through **REQ-GEN-STYLE-004** for the normative
+rules. In brief:
 
 - C99 standard; Linux kernel coding style (tabs, 8-space tab width, 80-column limit)
 - `clang-format --dry-run -Werror` must pass on all files under `src/` and `tests/`
 - Header guards: `#ifndef FILENAME_H` / `#define FILENAME_H` / `#endif /* FILENAME_H */`
 - `#ifdef` in function bodies: ≤ 1 nesting level, ≤ 5 lines per branch; optional
   features use the stub pattern; `#endif` always annotated
+- Struct tags and typedefs end in `_st`; legacy `_ctx` names are tolerated, but
+  `_ctx_st` must never be used
+- Enum typedefs (and their tags, if any) are named `<name>_t`
 - **Comments:** Prefer self-documenting code. Add a comment only when the *why* is
   non-obvious: a hidden constraint, a protocol expectation, or a workaround. Do not
   comment what the code does; well-named identifiers already do that.

@@ -43,7 +43,7 @@
 #define MAX_CPASS_SIZE 128
 #define HOTP_WINDOW 20
 
-struct plain_ctx_st {
+struct plain_st {
 	char username[MAX_USERNAME_SIZE];
 	char cpass[MAX_CPASS_SIZE]; /* crypt() passwd */
 	char dummy_salt[MAX_CPASS_SIZE]; /* salt from any passwd entry, for timing
@@ -139,7 +139,7 @@ static void break_group_list(void *pool, char *text,
 
 /* Returns 0 if the user is successfully authenticated, and sets the appropriate group name.
  */
-static int read_auth_pass(struct plain_ctx_st *pctx)
+static int read_auth_pass(struct plain_st *pctx)
 {
 	FILE *fp;
 	char line[512];
@@ -219,7 +219,7 @@ exit:
 static int plain_auth_init(void **ctx, void *pool, void *vctx,
 			   const common_auth_init_st *info)
 {
-	struct plain_ctx_st *pctx;
+	struct plain_st *pctx;
 	int ret;
 
 	if (info->username == NULL || info->username[0] == 0) {
@@ -227,7 +227,7 @@ static int plain_auth_init(void **ctx, void *pool, void *vctx,
 		return ERR_AUTH_FAIL;
 	}
 
-	pctx = talloc_zero(pool, struct plain_ctx_st);
+	pctx = talloc_zero(pool, struct plain_st);
 	if (pctx == NULL)
 		return ERR_AUTH_FAIL;
 
@@ -259,7 +259,7 @@ static int plain_auth_init(void **ctx, void *pool, void *vctx,
 static int plain_auth_group(void *ctx, const char *suggested, char *groupname,
 			    int groupname_size)
 {
-	struct plain_ctx_st *pctx = ctx;
+	struct plain_st *pctx = ctx;
 	unsigned int i, found = 0;
 
 	groupname[0] = 0;
@@ -299,7 +299,7 @@ static int plain_auth_user(void *ctx, char *username, int username_size)
  */
 static int plain_auth_pass(void *ctx, const char *pass, unsigned int pass_len)
 {
-	struct plain_ctx_st *pctx = ctx;
+	struct plain_st *pctx = ctx;
 	const char *p;
 	int wrong_pass = 0;
 	/* Always call crypt() to normalize timing regardless of whether the
@@ -367,7 +367,7 @@ static int plain_auth_pass(void *ctx, const char *pass, unsigned int pass_len)
 
 static int plain_auth_msg(void *ctx, void *pool, passwd_msg_st *pst)
 {
-	struct plain_ctx_st *pctx = ctx;
+	struct plain_st *pctx = ctx;
 
 	if (pctx->pass_msg)
 		pst->msg_str = talloc_strdup(pool, pctx->pass_msg);
@@ -379,7 +379,7 @@ static int plain_auth_msg(void *ctx, void *pool, passwd_msg_st *pst)
 
 static void plain_auth_deinit(void *ctx)
 {
-	struct plain_ctx_st *pctx = ctx;
+	struct plain_st *pctx = ctx;
 
 	safe_memset(pctx->cpass, 0, sizeof(pctx->cpass));
 	safe_memset(pctx->dummy_salt, 0, sizeof(pctx->dummy_salt));

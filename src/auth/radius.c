@@ -117,7 +117,7 @@ static void radius_vhost_deinit(void *_vctx)
 static int radius_auth_init(void **ctx, void *pool, void *_vctx,
 			    const common_auth_init_st *info)
 {
-	struct radius_ctx_st *pctx;
+	struct radius_st *pctx;
 	char *default_realm;
 	struct radius_vhost_ctx *vctx = _vctx;
 
@@ -126,7 +126,7 @@ static int radius_auth_init(void **ctx, void *pool, void *_vctx,
 		return ERR_AUTH_FAIL;
 	}
 
-	pctx = talloc_zero(pool, struct radius_ctx_st);
+	pctx = talloc_zero(pool, struct radius_st);
 	if (pctx == NULL)
 		return ERR_AUTH_FAIL;
 
@@ -165,7 +165,7 @@ static int radius_auth_init(void **ctx, void *pool, void *_vctx,
 static int radius_auth_group(void *ctx, const char *suggested, char *groupname,
 			     int groupname_size)
 {
-	struct radius_ctx_st *pctx = ctx;
+	struct radius_st *pctx = ctx;
 	unsigned int i;
 
 	groupname[0] = 0;
@@ -199,7 +199,7 @@ static int radius_auth_user(void *ctx, char *username, int username_size)
 	return -1;
 }
 
-static void append_route(struct radius_ctx_st *pctx, const char *route,
+static void append_route(struct radius_st *pctx, const char *route,
 			 unsigned int len)
 {
 	unsigned int i;
@@ -232,7 +232,7 @@ static void append_route(struct radius_ctx_st *pctx, const char *route,
 }
 
 /* Parses group of format "OU=group1<sep>group2<sep>group3" */
-static void parse_groupnames(struct radius_ctx_st *pctx, char *full)
+static void parse_groupnames(struct radius_st *pctx, char *full)
 {
 	char *p, *p2;
 	const char *sep = pctx->vctx->group_separator;
@@ -282,7 +282,7 @@ static void parse_groupnames(struct radius_ctx_st *pctx, char *full)
  */
 static int radius_auth_pass(void *ctx, const char *pass, unsigned int pass_len)
 {
-	struct radius_ctx_st *pctx = ctx;
+	struct radius_st *pctx = ctx;
 	VALUE_PAIR *send = NULL, *recvd = NULL;
 	uint32_t service;
 	char route[72];
@@ -659,7 +659,7 @@ cleanup:
 
 static int radius_auth_msg(void *ctx, void *pool, passwd_msg_st *pst)
 {
-	struct radius_ctx_st *pctx = ctx;
+	struct radius_st *pctx = ctx;
 	size_t prompt_hash = 0;
 
 	if (pctx->pass_msg[0] != 0)
@@ -683,7 +683,7 @@ static int radius_auth_msg(void *ctx, void *pool, passwd_msg_st *pst)
 
 static void radius_auth_deinit(void *ctx)
 {
-	struct radius_ctx_st *pctx = ctx;
+	struct radius_st *pctx = ctx;
 
 	talloc_free(pctx);
 }

@@ -56,7 +56,7 @@ enum {
 	PAM_S_COMPLETE,
 };
 
-static void pam_clear_credentials(struct pam_ctx_st *pctx)
+static void pam_clear_credentials(struct pam_st *pctx)
 {
 	safe_memset(pctx->password, 0, sizeof(pctx->password));
 	safe_memset(pctx->username, 0, sizeof(pctx->username));
@@ -83,7 +83,7 @@ static void pam_vhost_init(void **vctx, void *pool, void *additional)
 static int ocserv_conv(int msg_size, const struct pam_message **msg,
 		       struct pam_response **resp, void *uptr)
 {
-	struct pam_ctx_st *pctx = uptr;
+	struct pam_st *pctx = uptr;
 	unsigned int i;
 	int ret;
 
@@ -177,7 +177,7 @@ static int ocserv_conv(int msg_size, const struct pam_message **msg,
 
 static void co_auth_user(void *data)
 {
-	struct pam_ctx_st *pctx = data;
+	struct pam_st *pctx = data;
 	int pret;
 
 	pctx->state = PAM_S_INIT;
@@ -223,14 +223,14 @@ static int pam_auth_init(void **ctx, void *pool, void *vctx,
 			 const common_auth_init_st *info)
 {
 	int pret;
-	struct pam_ctx_st *pctx;
+	struct pam_st *pctx;
 
 	if (info->username == NULL || info->username[0] == 0) {
 		oc_syslog(LOG_NOTICE, "pam-auth: no username present");
 		return ERR_AUTH_FAIL;
 	}
 
-	pctx = talloc_zero(pool, struct pam_ctx_st);
+	pctx = talloc_zero(pool, struct pam_st);
 	if (pctx == NULL)
 		return -1;
 
@@ -275,7 +275,7 @@ fail1:
 
 static int pam_auth_msg(void *ctx, void *pool, passwd_msg_st *pst)
 {
-	struct pam_ctx_st *pctx = ctx;
+	struct pam_st *pctx = ctx;
 	size_t prompt_hash = 0;
 
 	if (pctx->state != PAM_S_INIT && pctx->state != PAM_S_WAIT_FOR_PASS) {
@@ -324,7 +324,7 @@ static int pam_auth_msg(void *ctx, void *pool, passwd_msg_st *pst)
  */
 static int pam_auth_pass(void *ctx, const char *pass, unsigned int pass_len)
 {
-	struct pam_ctx_st *pctx = ctx;
+	struct pam_st *pctx = ctx;
 
 	if (pass == NULL || pass_len + 1 > sizeof(pctx->password))
 		return -1;
@@ -361,7 +361,7 @@ static int pam_auth_pass(void *ctx, const char *pass, unsigned int pass_len)
 static int pam_auth_group(void *ctx, const char *suggested, char *groupname,
 			  int groupname_size)
 {
-	struct pam_ctx_st *pctx = ctx;
+	struct pam_st *pctx = ctx;
 
 	return get_user_auth_group(pctx->username, suggested, groupname,
 				   groupname_size);
@@ -370,7 +370,7 @@ static int pam_auth_group(void *ctx, const char *suggested, char *groupname,
 static int pam_auth_user(void *ctx, char *username, int username_size)
 {
 	const char *user = NULL;
-	struct pam_ctx_st *pctx = ctx;
+	struct pam_st *pctx = ctx;
 	int pret;
 
 	username[0] = 0;
@@ -392,7 +392,7 @@ static int pam_auth_user(void *ctx, char *username, int username_size)
 
 static void pam_auth_deinit(void *ctx)
 {
-	struct pam_ctx_st *pctx = ctx;
+	struct pam_st *pctx = ctx;
 
 	/* if deinitializing while PAM is in use, allow it to cleanup */
 	if (pctx->cr != NULL && pctx->state == PAM_S_WAIT_FOR_PASS) {
