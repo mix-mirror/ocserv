@@ -110,10 +110,10 @@ static inline void worker_exit(int status)
 
 #define WORKER_MAINTENANCE_TIME (10.)
 
-/* Maximum packets drained from the TUN device per watcher callback before
- * yielding back to the event loop.  Bounds worst-case latency added to the
- * DTLS/TLS receive path while still avoiding one epoll_wait() per packet. */
-#define TUN_BURST_MAX 8
+/* Packets that one wakeup reads at most, from the TUN device or as CSTP or
+ * DTLS records: avoids one epoll_wait() per packet, and bounds the latency
+ * added to the other paths (REQ-WORKER-NET-004). */
+#define READ_BURST_MAX 8
 
 struct worker_st *global_ws;
 
@@ -1671,10 +1671,12 @@ static void dtls_stop(struct dtls_st *dtls)
 	}
 }
 
+/* Returns 1 if a DTLS record was read, 0 if none was, and a negative value
+ * on error. */
 static int dtls_mainloop(worker_st *ws, struct dtls_st *dtls,
 			 struct timespec *tnow)
 {
-	int ret;
+	int ret, received = 0;
 	gnutls_datum_t data;
 	void *packet = NULL;
 
@@ -1719,6 +1721,7 @@ static int dtls_mainloop(worker_st *ws, struct dtls_st *dtls,
 
 			dtls->last_dtls_rehandshake = tnow->tv_sec;
 		} else if (ret >= 1) {
+			received = 1;
 			/* where we receive any DTLS UDP packet we reset the state
 			 * to active */
 			dtls->udp_state = UP_ACTIVE;
@@ -1799,15 +1802,17 @@ hsk_restart:
 		break;
 	}
 
-	ret = 0;
+	ret = received;
 cleanup:
 	packet_deinit(packet);
 	return ret;
 }
 
+/* Returns 1 if a CSTP packet was read, 0 if none was, and a negative value
+ * on error. */
 static int tls_mainloop(struct worker_st *ws, struct timespec *tnow)
 {
-	int ret;
+	int ret, received = 0;
 	gnutls_datum_t data;
 	void *packet = NULL;
 
@@ -1825,6 +1830,7 @@ static int tls_mainloop(struct worker_st *ws, struct timespec *tnow)
 		ret = -1;
 		goto cleanup;
 	} else if (ret >= 8) {
+		received = 1;
 		oclog(ws, LOG_TRANSFER_DEBUG, "received %d byte(s) (TLS)",
 		      data.size);
 
@@ -1869,7 +1875,7 @@ static int tls_mainloop(struct worker_st *ws, struct timespec *tnow)
 		oclog(ws, LOG_INFO, "TLS rehandshake completed");
 	}
 
-	ret = 0;
+	ret = received;
 cleanup:
 	packet_deinit(packet);
 	return ret;
@@ -3131,15 +3137,25 @@ static void tls_watcher_cb(EV_P_ ev_io *w, int revents)
 {
 	struct timespec tnow;
 	struct worker_st *ws = ev_userdata(loop);
-	int ret;
+	int ret, i;
 
 	gettime(&tnow);
 
-	ret = tls_mainloop(ws, &tnow);
-	if (ret < 0) {
-		oclog(ws, LOG_DEBUG, "tls_mainloop failed %d", ret);
-		terminate_reason = REASON_ERROR;
-		cstp_send_terminate(ws);
+	/* Handle a burst of records, as tun_watcher_cb() does with packets,
+	 * so that the client's records do not wait behind TUN bursts
+	 * (REQ-WORKER-NET-004). Stop once tun_enqueue_write() has paused this
+	 * watcher: a further packet would find the TUN write slot busy and be
+	 * dropped. */
+	for (i = 0; i < READ_BURST_MAX; i++) {
+		ret = tls_mainloop(ws, &tnow);
+		if (ret < 0) {
+			oclog(ws, LOG_DEBUG, "tls_mainloop failed %d", ret);
+			terminate_reason = REASON_ERROR;
+			cstp_send_terminate(ws);
+			/* unreachable */
+		} else if (ret == 0 || ws->tun_pending != NULL) {
+			break;
+		}
 	}
 }
 
@@ -3151,7 +3167,7 @@ static void tun_watcher_cb(EV_P_ ev_io *w, int revents)
 
 	gettime(&tnow);
 
-	for (i = 0; i < TUN_BURST_MAX; i++) {
+	for (i = 0; i < READ_BURST_MAX; i++) {
 		ret = tun_mainloop(ws, &tnow);
 		if (ret < 0) {
 			oclog(ws, LOG_DEBUG, "tun_mainloop failed %d", ret);
@@ -3169,24 +3185,32 @@ static void dtls_watcher_cb(EV_P_ ev_io *w, int revents)
 	struct timespec tnow;
 	struct worker_st *ws = ev_userdata(loop);
 	struct dtls_st *dtls = (struct dtls_st *)w;
-	int ret;
+	int ret, i;
 
 	gettime(&tnow);
 
-	ret = dtls_mainloop(ws, dtls, &tnow);
-	if (ret < 0) {
-		oclog(ws, LOG_DEBUG, "dtls_mainloop failed %d", ret);
-		terminate_reason = REASON_ERROR;
-		cstp_send_terminate(ws);
-	}
+	/* A burst of datagrams, as tls_watcher_cb() reads records
+	 * (REQ-WORKER-NET-004). */
+	for (i = 0; i < READ_BURST_MAX; i++) {
+		ret = dtls_mainloop(ws, dtls, &tnow);
+		if (ret < 0) {
+			oclog(ws, LOG_DEBUG, "dtls_mainloop failed %d", ret);
+			terminate_reason = REASON_ERROR;
+			cstp_send_terminate(ws);
+			/* unreachable */
+		}
 
 #if defined(CAPTURE_LATENCY_SUPPORT)
-	if (dtls->dtls_tptr.rx_time.tv_sec != 0) {
-		capture_latency_sample(ws, &dtls->dtls_tptr.rx_time);
-		dtls->dtls_tptr.rx_time.tv_sec = 0;
-		dtls->dtls_tptr.rx_time.tv_nsec = 0;
-	}
+		if (dtls->dtls_tptr.rx_time.tv_sec != 0) {
+			capture_latency_sample(ws, &dtls->dtls_tptr.rx_time);
+			dtls->dtls_tptr.rx_time.tv_sec = 0;
+			dtls->dtls_tptr.rx_time.tv_nsec = 0;
+		}
 #endif
+
+		if (ret == 0 || ws->tun_pending != NULL)
+			break;
+	}
 }
 
 static void tun_write_watcher_cb(EV_P_ ev_io *w, int revents)

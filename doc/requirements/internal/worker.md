@@ -518,6 +518,34 @@ activates for that session even though `udp-port` is globally configured;
 (b) configure `udp-port = 0` and confirm the same.
 **Links:** REQ-WORKER-SEC-003
 
+### REQ-WORKER-NET-004 — The event loop reads bursts from the TUN device, the TLS connection and the DTLS sessions
+
+**Requirement:** For each wakeup of the event loop, `tun_watcher_cb()` MUST
+read up to `READ_BURST_MAX` packets from the TUN device, `tls_watcher_cb()`
+up to `READ_BURST_MAX` CSTP records from the TLS connection, and
+`dtls_watcher_cb()` up to `READ_BURST_MAX` records from its DTLS session, so
+that the worker does not make one `epoll_wait()` call per packet (#423) and
+the client's records do not wait behind TUN bursts (#762). Each loop MUST
+stop as soon as nothing more is ready, and the TLS and DTLS loops also once
+`tun_enqueue_write()` has paused the input watchers, as a further packet
+would find the TUN write slot busy and be dropped. The DTLS loop MUST also
+stop once its session has ended (REQ-WORKER-NET-007).
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/worker-vpn.c:113-116 (`READ_BURST_MAX`), src/worker-vpn.c:1674-1676
+and src/worker-vpn.c:1811-1813 (`dtls_mainloop()` and `tls_mainloop()` report
+whether they read a record), src/worker-vpn.c:3136-3160 (`tls_watcher_cb`),
+src/worker-vpn.c:3162-3181 (`tun_watcher_cb`), src/worker-vpn.c:3183-3214
+(`dtls_watcher_cb`); src/worker-vpn.c:2641, src/tun.c:755 and
+src/worker-misc.c:142 (non-blocking TLS socket, TUN device and UDP socket)
+**Acceptance:** positive, CI (root) — `tests/test-cstp-burst`: CSTP records
+sent back to back are all answered while the client sends nothing more, so
+a loop that waited for one more record would hold back the last reply.
+Negative, CI (root) — the same test: a malformed record within a burst still
+ends the session (REQ-PROTO-DATA-001). The TUN and DTLS loops are exercised
+by every test that sends traffic through the tunnel.
+**Links:** REQ-PROTO-DATA-001, REQ-WORKER-NET-007
+
 ### REQ-WORKER-NET-005 — GnuTLS keeps the worker's TLS session in user space, even when its configuration enables kernel TLS
 
 **Requirement:** The worker MUST give the TLS session of the client's
@@ -571,7 +599,8 @@ VPN session's connection has no `tls` ULP and the tunnel carries traffic.
   (REQ-PROTO-DATA-*), not here. `[UNDOCUMENTED: candidate
   REQ-WORKER-NET-* if a process-boundary-relevant invariant is found in
   these loops, e.g. bounds-checking of attacker-controlled length fields
-  before `tun_enqueue_write`.]`
+  before `tun_enqueue_write`.]` How many packets or records the event loop
+  reads per wakeup is REQ-WORKER-NET-004.
 - **`worker-kkdcp.c`** (GSSAPI KKDCP proxying, 334 lines): not examined in
   this pass. `[UNDOCUMENTED: candidate REQ-WORKER-AUTH-* / REQ-WORKER-NET-*
   covering how KKDCP requests are validated/forwarded — this is a
