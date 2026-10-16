@@ -1,4 +1,4 @@
-* Version 1.5.1 (unreleased)
+* Version 1.6.0 (released 2026-10-16)
 - Send the RADIUS session ID as Acct-Session-Id in the Access-Request (#751)
 - Hardened per-user/group configuration file lookup against path-traversal;
   a malformed per-user/group or default configuration file now causes the
