@@ -542,6 +542,24 @@ configuration, `gnutls-cli` gets kTLS on its connection to the server
 VPN session's connection has no `tls` ULP and the tunnel carries traffic.
 **Links:** REQ-WORKER-INIT-005
 
+### REQ-WORKER-NET-006: The DTLS handshake starts only after setup completes, and processes the buffered ClientHello without a new socket event
+
+**Requirement:** DTLS setup, including MTU initialization, MUST complete before the first handshake step executes. The buffered ClientHello MUST be processed without requiring another socket-readiness notification. Note: Because the initial ClientHello packet is already read into the internal buffer, a new I/O event will never trigger and DTLS session will fail to establish if the code waits for it.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/worker-vpn.c:dtls_mainloop()
+**Acceptance:** local — (a) Confirm by call graph inspection that all execution logic within `case UP_SETUP:` in `dtls_mainloop()` fully completes before proceeding to `case UP_HANDSHAKE:`. (b) Connect a client to the server and check that DTLS session is established.
+**Links:** —
+
+### REQ-WORKER-NET-007: Ended, failed or replaced DTLS sessions leave no watcher or open socket behind
+
+**Requirement:** When a DTLS session reaches EOF, fails its handshake, or is replaced, the worker MUST stop its watcher and close associated socket.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/worker-vpn.c:dtls_mainloop()
+**Acceptance:** local — (a) Confirm by code inspection that the watcher is stopped and its associated socket is closed when `gnutls_record_recv_packet()` returns `0` (EOF) and when the DTLS handshake fails. (b) Connect a client to the server and verify the DTLS session is successfully established. Force a DTLS disconnection while preserving the TCP session (e.g., by blocking the UDP port on the firewall). Wait for the client to establish a new DTLS session. Confirm with `lsof -p <ocserv-worker-pid>` that the worker holds only one open UDP file descriptor.
+**Links:** —
+
 ## Completeness notes
 
 - **`worker-vpn.c` main loops** (`tls_mainloop`, `dtls_mainloop`,

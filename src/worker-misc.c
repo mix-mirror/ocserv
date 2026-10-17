@@ -119,7 +119,7 @@ int handle_commands_from_main(struct worker_st *ws)
 		unsigned int has_hello = 1;
 
 		if (DTLS_ACTIVE(ws)->udp_state != UP_WAIT_FD) {
-			oclog(ws, LOG_DEBUG, "received another a UDP fd!");
+			oclog(ws, LOG_DEBUG, "received another UDP fd!");
 		}
 
 		tmsg = udp_fd_msg__unpack(NULL, length, ws->buffer);

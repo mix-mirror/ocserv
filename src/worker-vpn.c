@@ -469,7 +469,8 @@ static int setup_dtls_connection(struct worker_st *ws, struct dtls_st *dtls)
 	ev_io_stop(worker_loop, &dtls->io);
 	ev_io_set(&dtls->io, dtls->dtls_tptr.fd, EV_READ);
 	ev_io_start(worker_loop, &dtls->io);
-	ev_invoke(worker_loop, &dtls->io, EV_READ);
+	/* ClientHello packet already buffered. Proceed to UP_HANDSHAKE. */
+	ev_feed_event(worker_loop, &dtls->io, EV_READ);
 
 	return 0;
 fail:
@@ -1649,6 +1650,27 @@ static void set_net_priority(worker_st *ws, int fd, int priority)
 			goto send_error; \
 	}
 
+static void dtls_stop(struct dtls_st *dtls)
+{
+	dtls->udp_state = UP_DISABLED;
+	ev_io_stop(worker_loop, &dtls->io);
+
+	if (dtls->dtls_session != NULL) {
+		gnutls_deinit(dtls->dtls_session);
+		dtls->dtls_session = NULL;
+	}
+
+	if (dtls->dtls_tptr.fd != -1) {
+		close(dtls->dtls_tptr.fd);
+		dtls->dtls_tptr.fd = -1;
+	}
+
+	if (dtls->dtls_tptr.msg != NULL) {
+		udp_fd_msg__free_unpacked(dtls->dtls_tptr.msg, NULL);
+		dtls->dtls_tptr.msg = NULL;
+	}
+}
+
 static int dtls_mainloop(worker_st *ws, struct dtls_st *dtls,
 			 struct timespec *tnow)
 {
@@ -1665,7 +1687,11 @@ static int dtls_mainloop(worker_st *ws, struct dtls_st *dtls,
 
 		DTLS_FATAL_ERR_CMD(ret, exit_worker_reason(ws, REASON_ERROR));
 
-		if (ret == GNUTLS_E_REHANDSHAKE) {
+		if (ret == 0) {
+			oclog(ws, LOG_INFO,
+			      "Client closed DTLS session gracefully");
+			dtls_stop(dtls);
+		} else if (ret == GNUTLS_E_REHANDSHAKE) {
 			if (dtls->last_dtls_rehandshake > 0 &&
 			    tnow->tv_sec - dtls->last_dtls_rehandshake <
 				    WSRCONFIG(ws)->rekey_time / 2) {
@@ -1740,8 +1766,7 @@ hsk_restart:
 				oclog(ws, LOG_ERR,
 				      "error in DTLS handshake: %s",
 				      gnutls_strerror(ret));
-			dtls->udp_state = UP_DISABLED;
-			ev_io_stop(worker_loop, &dtls->io);
+			dtls_stop(dtls);
 			break;
 		}
 
@@ -1766,6 +1791,7 @@ hsk_restart:
 			      "Main DTLS session %" PRIu8 " active",
 			      ws->dtls_active_session);
 			session_info_send(ws);
+			dtls_stop(DTLS_INACTIVE(ws));
 		}
 
 		break;
