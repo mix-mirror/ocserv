@@ -439,6 +439,49 @@ or tag does not end in `_t` is grounds for blocking the MR.
 
 ---
 
+### REQ-GEN-STYLE-005 — Every piece of knowledge MUST have a single, authoritative implementation
+
+**Requirement:** Every piece of knowledge in ocserv — a rule, a format, or a
+decision the code encodes — MUST have a single, unambiguous, authoritative
+implementation under `src/` and `tests/`. Two pieces of code encode the same
+knowledge when a bug fix to one would have to be applied to the other. A patch
+that needs such knowledge MUST call its existing implementation (generalizing
+it, or moving it to a shared module with a header declaration, if necessary)
+and MUST NOT re-implement it, at any size and whether or not the text differs.
+
+The following are always knowledge and MUST be implemented once:
+
+  (a) encoding and decoding of protocol and IPC messages (CSTP/DTLS headers,
+      HTTP exchanges, protobuf messages, RADIUS attributes);
+  (b) parsing and validation of untrusted input (network, IPC, configuration,
+      files);
+  (c) authentication and authorization checks, including cookie and SID
+      handling.
+
+Code that merely looks alike but would not change together is not duplicated
+knowledge and SHOULD NOT be merged, in particular when merging would require a
+mode or boolean parameter to tell the callers apart.
+
+A second implementation is permitted only when sharing would violate another
+requirement (e.g. REQ-GEN-SEC-002), and the MR states that reason. Duplicates
+already in the tree are tolerated as legacy, but a patch that modifies one copy
+MUST consolidate it with the others. This requirement does not apply to vendored
+subtrees (`src/ccan/`, `src/inih/`, `src/llhttp/`, `src/pcl/`, `src/protobuf/`,
+`src/gnulib/`) or generated `*.pb-c.*` files.
+**Strength:** MUST / MUST NOT
+**Status:** DERIVED
+**Source:** maintainer policy; "every piece of knowledge must have a single,
+unambiguous, authoritative representation" (Hunt & Thomas, *The Pragmatic
+Programmer*)
+**Acceptance:** code-review — for every new function, and all new code in
+categories (a)–(c), the reviewer MUST search the tree for an existing
+implementation of the same knowledge and cite either its location (file:line)
+and how the patch reuses it, or the searches performed that found none. An
+unjustified second implementation is grounds for blocking the MR.
+**Links:** REQ-GEN-TECH-005, REQ-GEN-SEC-002
+
+---
+
 ## COMPAT — platform portability policy
 
 ### REQ-GEN-COMPAT-001 — Linux is the primary target; BSD compatibility is best-effort; Linux-specific code MUST be guarded with `#ifdef __linux__`

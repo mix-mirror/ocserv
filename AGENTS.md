@@ -349,7 +349,7 @@ defaults that change behavior. Every configurable behavior must be expressible i
 
 ### Code Style
 
-See **REQ-GEN-STYLE-001** through **REQ-GEN-STYLE-004** for the normative
+See **REQ-GEN-STYLE-001** through **REQ-GEN-STYLE-005** for the normative
 rules. In brief:
 
 - C99 standard; Linux kernel coding style (tabs, 8-space tab width, 80-column limit)
@@ -360,6 +360,10 @@ rules. In brief:
 - Struct tags and typedefs end in `_st`; legacy `_ctx` names are tolerated, but
   `_ctx_st` must never be used
 - Enum typedefs (and their tags, if any) are named `<name>_t`
+- Every piece of knowledge has a single, authoritative implementation: protocol
+  and IPC encoding/decoding, untrusted-input parsing/validation, and auth checks
+  are never re-implemented, at any size — call, generalize, or share the existing
+  code
 - **Comments:** Prefer self-documenting code. Add a comment only when the *why* is
   non-obvious: a hidden constraint, a protocol expectation, or a workaround. Do not
   comment what the code does; well-named identifiers already do that.

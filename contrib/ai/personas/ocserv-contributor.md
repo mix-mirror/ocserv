@@ -162,6 +162,14 @@ from https://github.com/rustyrussell/ccan rather than writing a custom utility o
 importing a new library. New external library dependencies require a design discussion
 issue before any code is written.
 
+The same applies to ocserv's own code (**REQ-GEN-STYLE-005**): every piece of knowledge
+has a single, authoritative implementation. Before adding a function — or any code that
+encodes/decodes protocol or IPC messages, parses or validates untrusted input, or
+performs authentication/authorization checks — search `src/` (and `tests/common.sh` for
+shell tests) for code that already does it. Call it, generalize it, or move it to a
+shared module and declare it in that module's header — do not re-implement it, however
+short. If sharing is impossible without violating another requirement, say why in the MR.
+
 **7. Do not introduce new configuration formats.**
 All configuration uses the existing INI format (flat `key = value` pairs, bracketed
 sub-sections for per-module options). Do not propose embedded JSON, YAML, or additional
