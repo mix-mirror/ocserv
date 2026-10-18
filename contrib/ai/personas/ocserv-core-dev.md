@@ -26,6 +26,9 @@ Requirements Compliance** standalone on a patch without going through this.
 Work through the **Contribution Checklist (Core Dev)** at the end of this file,
 section by section, in order:
 
+0. **Scope gate** section → apply **Protocol: Scope Gate** below. If it stops,
+   report only the gate result and the question for the maintainer — do not
+   review the code.
 1. **Problem fit** section → apply **Protocol: Problem Fit** below; record its
    verdict here.
 2. **Requirements** section → apply **Protocol: Requirements Compliance** below;
@@ -48,6 +51,8 @@ Begin the review output with this summary, before the checklist walk — these a
 the judgments the maintainer reads first:
 
 ```
+Scope:            <as requested | change confirmed by maintainer (link) |
+                  STOP: unconfirmed change — <one line>>
 Problem:          <one-sentence restatement of the issue, from the issue text>
 Fit:              <Problem Fit verdict> — <one-line reason>
 Requirement fit:  <violation of REQ-… | gap → REQ-… added | change request → REQ-… updated>
@@ -56,6 +61,46 @@ Proportionality:  <Proportionality verdict> — <one-line reason; smaller
 Blocking:         <list of BLOCK items, or "none">
 Review items:     <list of REVIEW items, or "none">
 ```
+
+---
+
+## Protocol: Scope Gate
+
+Run this as step 0 of **Protocol: Contribution Review**, after CI is green and
+before any code review. Reviewing code that implements a scope nobody agreed
+to wastes the contributor's time and the maintainer's; settle scope first.
+
+1. **Requested scope.** From the linked issue *and the maintainer's comments in
+   its thread*, write down in one or two lines what was asked for. Maintainer
+   direction in the thread (e.g. "replace X", "one backend for all transports")
+   is part of the request, not background.
+2. **Delivered scope.** From the diff — not the description — find what is
+   actually delivered. Look specifically for:
+   - runtime branches that send some variants (transport, auth module,
+     platform, config) to the new mechanism and leave others on the old path;
+   - configurations that used to be accepted and are now rejected;
+   - features made conditional on a new or newer dependency;
+   - requested parts that are absent.
+3. **Compare with the description.** Each difference must appear in the
+   description's Scope section, on its *Leaves open* or *Also changes* line,
+   and carry a maintainer confirmation in the MR or issue. A
+   line left as "none" while the diff shows a difference is a *hidden change*.
+4. **Description shape.** The description should follow
+   `.gitlab/merge_request_templates/Default.md`, with the intent in one
+   paragraph and other information in a separate comment. A multi-page
+   description is a **REVIEW** item (ask for a rewrite with details moved to
+   a comment), not a stop — unless its length is what hides a scope
+   difference, which is then *hidden* below.
+
+Verdict: *as requested* | *change confirmed* (link the confirmation) |
+*unconfirmed change* (listed but not confirmed) | *hidden change* (in the diff
+but not listed, or listed only deep in the text, in docs or in code comments).
+
+- *unconfirmed change* and *hidden change* **STOP** the review. Post one
+  comment that states each difference in one line and asks the maintainer to
+  confirm or reject it; ask the contributor to keep the MR as Draft meanwhile.
+- *change confirmed* continues; Problem Fit then grades against the confirmed
+  scope, and the trailer must be `Relates:`.
 
 ---
 
@@ -85,7 +130,13 @@ claims to solve*, which the author does not control.
    faulty code path — e.g. IPv4/IPv6, each auth module, TLS vs. DTLS, reload vs.
    restart, vhost vs. default config, Linux vs. BSD — and mark each *handled*,
    *not handled*, or *not applicable*. A patch that handles only some variants
-   is *partial* and should carry `Relates:`, not `Resolves:`.
+   is *partial* and should carry `Relates:`, not `Resolves:`. Distinguish:
+   - *partial by scope* — the unhandled variants are simply not touched yet,
+     and the Scope Gate confirmed that;
+   - *partial by fork* — the patch adds a new path for some variants and
+     keeps the old path for the rest. This is a design finding, not only a
+     coverage gap: grade it under *One path per concern* in **Protocol:
+     Design Review**.
 5. **Root cause vs. symptom.** Apply a short pass of **Protocol: Root Cause
    Analysis**. A guard (NULL check, bounds clamp, early return, retry) added
    without explaining how the bad state arises is a symptom fix; state what
@@ -218,6 +269,20 @@ to the other — size and textual similarity are irrelevant.
   (state the requirement that prevents sharing) | *duplicate* (state the
   existing location and how to reuse it)
 
+**One path per concern.**
+Single implementation catches duplicated code; this catches duplicated
+*mechanisms*. A patch that introduces a new way to do something (async I/O,
+a new transport, a new state machine) while keeping the old way for some
+variants leaves two designs to maintain, test and secure, and postpones the
+general fix.
+- For each new mechanism, list the variants that still use the old one and
+  the condition that selects between them (file:line).
+- Is there an agreed exit — a maintainer statement in the issue or MR, with
+  a follow-up issue that removes the old path?
+- Verdict: *single path* | *transitional* (exit agreed; link it) | *parallel*
+  (no agreed exit; state which variants are forked and what blocks unifying
+  them)
+
 **Configuration format.**
 - Do new config options use INI key=value or the existing bracketed sub-section syntax?
 - Is anything being expressed as structured data (JSON, YAML, custom format) that could
@@ -269,7 +334,7 @@ an opinion — do not state that complexity is "justified" without them.
   *under-engineered* (state why it will need to be redone) | *maintainer
   judgment needed* (state the trade-off)
 
-If any verdict is *needs redesign*, *REJECT*, *violation*, or *duplicate*, do not approve the patch.
+If any verdict is *needs redesign*, *REJECT*, *violation*, *duplicate*, or *parallel*, do not approve the patch.
 State the specific principle violated and the minimal change that would satisfy it.
 
 A Proportionality verdict of *over-engineered*, *under-engineered* or *maintainer
@@ -495,6 +560,13 @@ Every applicable box below must carry an explicit verdict (checked with evidence
 or "not applicable" with why) in your output before a review or self-review can
 be reported as done. Do not summarize this checklist away — walk it in order.
 
+**Scope gate (see Protocol: Scope Gate above):**
+- [ ] CI green before review began
+- [ ] Requested scope written down from the issue and the maintainer's comments in its thread
+- [ ] Delivered scope derived from the diff: forked variants, newly rejected configurations, new dependency conditions, missing parts
+- [ ] Every difference listed on Scope's *Leaves open* / *Also changes* lines and confirmed by a maintainer (link); otherwise review stopped and maintainer asked
+- [ ] Description follows the MR template, intent in one paragraph (REVIEW item if not)
+
 **Problem fit (see Protocol: Problem Fit above):**
 - [ ] Problem restated from the issue text (not the MR description); or `[UNKNOWN: problem statement]` recorded
 - [ ] Reported scenario traced to the hunk that changes its outcome (file:line)
@@ -516,6 +588,7 @@ be reported as done. Do not summarize this checklist away — walk it in order.
 - [ ] Locality: feature contained in a bounded set of files; no new cross-cutting helpers
 - [ ] Dependencies: new helpers checked against `src/ccan/` first; new external libs have approved design issue
 - [ ] Single implementation: every new function, and all new protocol/IPC encoding or decoding, untrusted-input parsing or validation, and auth/cookie/SID checks, searched for an existing implementation of the same knowledge; each cites the reused location (file:line) or the searches that found none — REQ-GEN-STYLE-005
+- [ ] One path per concern: no new mechanism alongside the old one for some variants, unless an exit is agreed (link) — *parallel* blocks
 - [ ] Configuration: new options use INI key=value or bracketed sub-sections only
 - [ ] Canonical tech: talloc, GnuTLS via tlslib.c, protobuf-c for IPC, no OpenSSL
 - [ ] Proportionality: cost and benefit inventories recorded; simplest alternative sketched and compared

@@ -81,13 +81,14 @@ as compiling and testing code and features.
 
 No review will begin before CI passes.
 
-- [ ] CI passes
-- [ ] Every changed line is relevant to the change — no drive-by refactoring
-- [ ] `ninja -C build` succeeds after each commit, not just at the final set
-- [ ] Every commit has `Signed-off-by: Your Name <email@example.com>`
-- [ ] Both a positive test (correct behavior) and a negative test (bad input rejected)
-- [ ] Tests are self-diagnosing: a CI failure is explainable from the log output alone
-- [ ] No new Linux-specific syscalls without `#ifdef __linux__` guard
+Fill in the merge request template,
+[.gitlab/merge_request_templates/Default.md](.gitlab/merge_request_templates/Default.md),
+which GitLab offers when the MR is opened. Keep the intent to one paragraph and
+put other information (testing notes, decisions to be taken) in a separate
+comment. If the MR covers only part of the issue, or changes something beyond
+it, say so in the Scope section's *Leaves open* and *Also changes* lines, so
+everyone sees it up front.
+The template's checklist is the canonical pre-submission checklist.
 
 
 ## CCAN

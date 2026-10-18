@@ -203,7 +203,7 @@ If your change touches a subsystem with dedicated documentation, read it first:
 3. Implement in the correct process (see Step 1).
 4. Add configuration if needed: global options go in `src/config.c`; per-module
    options go in a struct in `src/common-config.h` and a parser in `src/subconfig.c`.
-5. Write tests (see checklist below).
+5. Write tests (see the *Checklist* in `.gitlab/merge_request_templates/Default.md`).
 6. Update relevant documentation (`doc/sample.config`, man pages if applicable).
 
 ### Submitting a Bug Fix
@@ -246,7 +246,7 @@ What requires root and will only run fully in CI:
 - Any test that starts the server (TUN device, process forking, IPC sockets)
 - Authentication flow and TLS/DTLS session tests
 
-In your MR description, state which tests you ran locally and which were deferred
+In a separate MR comment, state which tests you ran locally and which were deferred
 to CI. Do not claim full test coverage if root-requiring tests were skipped.
 
 ### Submitting a Security Fix
@@ -292,12 +292,48 @@ safe to review.
 
 ---
 
+## Protocol: Merge Request Description
+
+The description is what the maintainer reads to decide whether the MR solves
+the agreed problem. It is not a design document or a log of the work. Fill in
+`.gitlab/merge_request_templates/Default.md` (GitLab offers it when the MR is
+opened):
+
+1. **Intent is one paragraph.** 2–3 sentences: the problem (link the issue)
+   and the approach. Everything else — testing notes, decisions to be taken,
+   investigation history, design alternatives, benchmark runs — goes in a
+   separate MR comment, not the description. A limitation buried in page
+   three is hidden, not disclosed.
+2. **Scope is measured against the issue, not the patch.** Before writing
+   it, restate what the issue *and the discussion in its thread* asked for.
+   Then fill in the template's two lines: *Leaves open* (parts of the issue
+   this MR does not address, and why) and *Also changes* (anything beyond the
+   issue: new options, dependencies, rejected configurations, behavior
+   changes). Leave "none" only when that is true.
+3. **Any scope change is a question, not a footnote.** If either line is not
+   "none", keep the MR as Draft until a maintainer confirms the scope in the
+   MR. Common hidden forms:
+   - the new mechanism covers only some variants and the rest stay on the
+     old path (e.g. by transport, auth module, or platform);
+   - a configuration that used to work is now rejected at startup;
+   - a feature becomes conditional on a new or newer dependency.
+4. **The separate comment** lists each decision for the maintainer on one
+   line, including every human-judgment item from the checklist below, and
+   states what ran locally, what is deferred to CI and what was skipped.
+   Link the pipeline; do not paste results.
+
+A partial delivery — even an agreed one — uses `Relates:`, not `Resolves:`.
+
+---
+
 ## Contribution Checklist
 
-The canonical checklist is in `CONTRIBUTING.md` → *Before opening a merge request*.
-The following expands it with agent-specific verification steps.
+The canonical checklist is the *Checklist* section of
+`.gitlab/merge_request_templates/Default.md`. Read it before opening the MR and
+satisfy every item; tick them in the MR description. The items below are
+agent-specific additions, not a replacement.
 
-**Agent-runnable — you must verify these:**
+**Before opening the MR — you must verify these:**
 - [ ] Relevant `REQ-*`/`AC-*` entry found or added in `doc/requirements/`
   *before* the code change (Step 2)
 - [ ] If an existing requirement's described behavior changed: the requirement
@@ -306,20 +342,21 @@ The following expands it with agent-specific verification steps.
   no open D8/D10 findings against `doc/requirements/`
 - [ ] Every changed line is independently justifiable — no drive-by refactoring
 - [ ] Original types preserved; no unrelated reformatting
-- [ ] `clang-format --dry-run -Werror` passes on every modified file under `src/` and `tests/`
 - [ ] `ninja -C build` succeeds after each logical fix, not just at the end
-- [ ] Local tests run; output checked for `OK` vs `SKIP` — skipped tests listed in MR description
-- [ ] Every commit has `Signed-off-by: Your Name <email@example.com>`
-- [ ] New test case added and registered in `tests/meson.build`
-- [ ] Both a **positive** test (correct behavior) and a **negative** test (bad input rejected)
-- [ ] No new Linux-specific syscalls without `#ifdef __linux__` guard
-- [ ] MR description states which tests were run locally and which are deferred to CI
+- [ ] Local test output checked for `OK` vs `SKIP`; a run with skips is partial
 
-**Human-judgment — flag these in your MR description:**
+**In the MR (see Protocol: Merge Request Description):**
+- [ ] Scope's *Leaves open* and *Also changes* lines filled in; if either is
+  not "none", the MR stays Draft until a maintainer confirms the scope
+- [ ] A separate MR comment states the tests run locally, those deferred to
+  CI and those skipped, and lists the human-judgment items below as decisions
+
+**Human-judgment — flag these as decisions in that comment:**
 - Any change that crosses a process privilege boundary
 - New syscalls added to the worker path (maintainer must review seccomp filter)
 - New auth or accounting method (requires design sign-off before merge)
 - TLS/DTLS behavior changes
+- Changes to cookie or SID handling
 
 ---
 

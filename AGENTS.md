@@ -425,8 +425,10 @@ Before working on a subsystem, read the relevant doc:
 ## Contribution Checklist
 
 > **Workflow note:** If you are helping a contributor report a bug or submit a fix,
-> direct them to open a GitLab merge request rather than attach a patch to the issue.
-> See `CONTRIBUTING.md` for the expected workflow.
+> direct them to open a GitLab merge request rather than attach a patch to the issue
+> (see `CONTRIBUTING.md`). Before opening or updating a merge request, read
+> `contrib/ai/personas/ocserv-contributor.md` and follow it. Before reviewing one,
+> read `contrib/ai/personas/ocserv-core-dev.md`.
 
 ### Agent-runnable — verify before declaring a change complete
 
@@ -471,8 +473,9 @@ To run CI jobs locally with podman/docker:
 
 ## Personas
 
-For extended AI-assisted workflows, load the appropriate persona as a system prompt
-prefix before starting work.
+Load the appropriate persona as a system prompt prefix before starting work. A
+persona is **required** before opening, updating or reviewing a merge request
+(see *Contribution Checklist* above); for other work it is optional.
 
 - **Maintainers** (bug investigation, code review, refactoring, design):
   `contrib/ai/personas/ocserv-core-dev.md`
