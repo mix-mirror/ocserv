@@ -63,7 +63,7 @@ the key used to validate `SEC_AUTH_INIT` HMACs.
 inspection in a test harness, or a debug build assertion). A worker that
 recovered `hmac_key` could forge `SEC_AUTH_INIT` HMACs for sec-mod
 (REQ-IPC-010).
-**Links:** REQ-IPC-010, REQ-IPC-040, REQ-MAIN-SEC-001
+**Links:** REQ-IPC-010, REQ-IPC-040, REQ-MAIN-SEC-001, REQ-GEN-SEC-003
 
 ### REQ-MAIN-INIT-003 — sec-mod instance for a session is selected by client IP hash, fixed at fork time
 

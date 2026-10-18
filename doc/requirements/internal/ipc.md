@@ -83,7 +83,8 @@ or mismatched `hmac` field and confirm sec-mod logs `hmac is the wrong
 size` / `hmac presented by client doesn't match parameters provided` and
 does not create a `client_entry_st`.
 **Links:** REQ-IPC-011, REQ-WORKER-AUTH-* (worker side: HMAC is computed by
-main at `WORKER_STARTUP` time, see REQ-IPC-040)
+main at `WORKER_STARTUP` time, see REQ-IPC-040), REQ-GEN-SEC-003 (MAC
+algorithm and key)
 
 ### REQ-IPC-011 — SEC_AUTH_INIT replay window
 
@@ -387,7 +388,8 @@ verbatim in `SEC_AUTH_INIT`)
 has length `HMAC_DIGEST_SIZE`; confirm worker rejects/truncates a
 `WORKER_STARTUP` message whose `sec_auth_init_hmac` exceeds
 `sizeof(ws->sec_auth_init_hmac)` (src/worker.c:289-290).
-**Links:** REQ-IPC-010, REQ-SEC-001 (worker has no access to `sec->hmac_key`)
+**Links:** REQ-IPC-010, REQ-SEC-001 (worker has no access to `sec->hmac_key`),
+REQ-GEN-SEC-003
 
 ### REQ-IPC-041 — WORKER_STARTUP transfers pre-opened fds, not raw keys
 
