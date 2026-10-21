@@ -207,10 +207,17 @@ since a `/31` point-to-point network has no reserved network or broadcast
 address (RFC 3021); only (a) and the TUN-address check of REQ-MAIN-NET-004
 apply. `get_ipv6_lease()` MUST additionally reject a candidate `/prefix`
 subnet if it equals the TUN device's own subnet (`ip_cmp(subnet, tun) == 0`)
-or if that subnet is already leased.
+or if that subnet is already leased. When `ping-leases` is enabled,
+dynamically selected IPv4 addresses and IPv6 `/128` addresses MUST consult
+the lease probe before assignment and reject candidates it reports as in use;
+probe-error handling MUST remain unchanged. When disabled, no probe is sent.
+IPv6 subnet leases shorter than `/128` and explicit-address leases retain
+their existing bypass behaviour.
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/ip-lease.c:150-196 (`is_ipv6_ok`, `is_ipv4_p2p_mask`, `is_ipv4_ok`)
+**Source:** src/ip-lease.c (`get_ipv4_lease()`, `get_ipv6_lease()`,
+`is_ipv4_ok()`, `is_ipv6_ok()`, `is_ipv4_p2p_mask()`); src/icmp-ping.c
+(`icmp_ping4()`, `icmp_ping6()`); doc/sample.config (`ping-leases`)
 **Acceptance:** unit, local — exhaust the configured IPv4 pool to 2 free
 addresses: the network and broadcast addresses of the subnet; confirm
 `get_ipv4_lease` does not return either and instead fails with no lease
@@ -219,7 +226,11 @@ client is leased `N+1` (the address that equals the computed broadcast
 address) rather than failing with no lease available. With `/30` or wider,
 confirm the network/broadcast rejection still applies. For IPv6, configure
 a lease subnet equal to the TUN device's subnet and confirm
-`get_ipv6_lease` rejects it.
+`get_ipv6_lease` rejects it. With `ping-leases` enabled, occupy a candidate
+address and confirm a dynamically selected IPv4 address and an IPv6 `/128`
+address are not assigned while the probe reports them in use, and that an
+IPv6 prefix shorter than `/128` or an explicit IPv6 address bypasses the
+probe; with `ping-leases` disabled, confirm no probe is sent.
 **Links:** REQ-MAIN-NET-004
 
 ### REQ-MAIN-NET-002 — IP lease allocation gives up after MAX_IP_TRIES random attempts

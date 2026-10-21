@@ -558,7 +558,7 @@ static int get_ipv6_lease(main_server_st *s, struct proc_st *proc)
 		      human_addr((void *)&proc->ipv6->rip, proc->ipv6->rip_len,
 				 buf, sizeof(buf)));
 
-		if (proc->ipv6->prefix != 128 ||
+		if (subnet_prefix != 128 ||
 		    icmp_ping6(s, (void *)&proc->ipv6->rip) == 0)
 			break;
 	} while (1);
