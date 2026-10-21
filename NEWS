@@ -1,3 +1,10 @@
+* Version 1.6.1 (unreleased)
+- The worker keeps GnuTLS from handing its TLS connection to the kernel
+  (kTLS), which "ktls = true" in the GnuTLS configuration turns on. With
+  kTLS, VPN sessions failed, or, with isolate-workers, kept a tls ULP
+  without keys on the socket (#766)
+
+
 * Version 1.6.0 (released 2026-10-16)
 - Send the RADIUS session ID as Acct-Session-Id in the Access-Request (#751)
 - Hardened per-user/group configuration file lookup against path-traversal;

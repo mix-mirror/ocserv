@@ -518,6 +518,30 @@ activates for that session even though `udp-port` is globally configured;
 (b) configure `udp-port = 0` and confirm the same.
 **Links:** REQ-WORKER-SEC-003
 
+### REQ-WORKER-NET-005 — GnuTLS keeps the worker's TLS session in user space, even when its configuration enables kernel TLS
+
+**Requirement:** The worker MUST give the TLS session of the client's
+connection its own pull function, which reads as GnuTLS's default one does
+(`recv()` on the connection), so that GnuTLS never hands the session to the
+kernel (kTLS). The worker does not work on kTLS sessions (#766); among
+other problems, with GnuTLS 3.8.13 `gnutls_record_recv_packet()`, which reads
+the tunnel's packets, has no kTLS path
+(https://gitlab.com/gnutls/gnutls/-/work_items/1968). A GnuTLS built with
+kTLS enables it when its system-wide configuration has `ktls = true`, offers
+applications no documented way to keep it off, and does not enable it on a
+session that has its own pull or push function (lib/handshake.c:2881-2889 in
+GnuTLS 3.8.13). This requirement MUST be re-validated when GnuTLS fixes that
+issue or documents such a way.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/worker-vpn.c:863-873 (`tls_pull`), src/worker-vpn.c:981
+**Acceptance:** local, manual (root, a GnuTLS built with kTLS, the `tls`
+kernel module) — with `ktls = true` in the `[global]` section of the GnuTLS
+configuration, `gnutls-cli` gets kTLS on its connection to the server
+(`ss -ti` lists `tcp-ulp-tls` on its socket), while the server's end of a
+VPN session's connection has no `tls` ULP and the tunnel carries traffic.
+**Links:** REQ-WORKER-INIT-005
+
 ## Completeness notes
 
 - **`worker-vpn.c` main loops** (`tls_mainloop`, `dtls_mainloop`,

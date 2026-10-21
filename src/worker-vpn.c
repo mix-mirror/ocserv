@@ -860,6 +860,18 @@ static void check_camouflage_url(struct worker_st *ws)
 	ws->camouflage_check_passed = 1;
 }
 
+/* Reads as GnuTLS's default pull function does, so that GnuTLS keeps the
+ * session in user space: it does not hand a session that has its own pull
+ * function to the kernel (kTLS, lib/handshake.c:2881-2889 in GnuTLS 3.8.13),
+ * and has no documented way to keep kTLS off. The worker does not support
+ * kTLS (REQ-WORKER-NET-005). */
+static ssize_t tls_pull(gnutls_transport_ptr_t ptr, void *data, size_t size)
+{
+	int fd = (long)ptr;
+
+	return recv(fd, data, size, 0);
+}
+
 /* vpn_server:
  * @ws: an initialized worker structure
  *
@@ -966,6 +978,7 @@ void vpn_server(struct worker_st *ws)
 
 	gnutls_transport_set_ptr(session,
 				 (gnutls_transport_ptr_t)(long)ws->conn_fd);
+	gnutls_transport_set_pull_function(session, tls_pull);
 
 	set_resume_db_funcs(session);
 	gnutls_db_set_ptr(session, ws);
