@@ -100,13 +100,13 @@ set +e; eval "${GETPORT}"; set -e
 
 ${CMDNS2} iperf3 -s -D -1 -p ${PORT}
 
-${CMDNS1} iperf3 -t 6 -R -c ${VPNADDR} -p ${PORT}
-
 echo " * ping ipv6 address"
 
 # IPv6
 
 ${CMDNS1} ping -6 -c 3 ${VPNADDR6}
+
+${CMDNS1} iperf3 -t 6 -R -c ${VPNADDR} -p ${PORT}
 
 set +e
 
