@@ -43,6 +43,7 @@ the file.
 | `internal/authentication.md` | `REQ-AUTH-` | sec-mod (primary), worker, main | `src/sec-mod-auth.{c,h}`, `src/auth/*`, `src/acct/*`, `src/config.c`, `src/subconfig.c`, `src/worker-auth.c`, `doc/sample.config` |
 | `internal/main.md` | `REQ-MAIN-` | main | `src/main.c`, `src/main-*.c` |
 | `internal/worker.md` | `REQ-WORKER-` | worker | `src/worker.c`, `src/worker-*.c` |
+| `internal/occtl.md` | `REQ-OCCTL-` | occtl (control tool) | `src/occtl/json.{c,h}`, `src/occtl/print.c`, `doc/occtl.8.md` |
 | `protocol/sources/openconnect.md` | `OC-PROTO-` | n/a (external spec) | `~/projects/openconnect/protocol/draft-openconnect.xml` |
 | `protocol/sources/anyconnect.md` | `AC-CLIENT-` | n/a (observed client behavior) | `doc/README-cisco-svc.md`, worker CSTP/HTTSP handling |
 | `protocol/unified.md` | `REQ-PROTO-` | worker (mostly) | reconciles `OC-PROTO-*`, `AC-CLIENT-*`, RFC-TLS/RFC-DTLS, `OCSERV` (= `internal/worker.md` + code) |

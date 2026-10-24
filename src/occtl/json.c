@@ -37,7 +37,7 @@ char *json_escape_val(char *tmp, unsigned int tmp_size, const char *val)
 		if (val[i] == '"' || val[i] == '\\') {
 			snprintf(&tmp[j], 3, "\\%c", val[i]);
 			j += 2;
-		} else if (val[i] <= 0x1F) {
+		} else if ((unsigned char)val[i] <= 0x1F) {
 			snprintf(&tmp[j], 7, "\\u00%02x", (unsigned int)val[i]);
 			j += 6;
 		} else

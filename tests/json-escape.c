@@ -34,7 +34,12 @@ static char *strings[] = {
 	"small ascii\x10\x01\x03\x04\x18\x20\x21\x1f end",
 	"try to escape \"quotes",
 	"try to escape \\escapes",
-	"\tbig pile  \b\b of stuff\r\n"
+	"\tbig pile  \b\b of stuff\r\n",
+	"",
+	"\xc3\xa9",
+	"\xe4\xb8\xad",
+	"\xf0\x9f\x98\x80",
+	"\xc3\xa9\n"
 };
 
 static char *encoded_strings[] = {
@@ -44,12 +49,18 @@ static char *encoded_strings[] = {
 	"small ascii\\u0010\\u0001\\u0003\\u0004\\u0018 !\\u001f end",
 	"try to escape \\\"quotes",
 	"try to escape \\\\escapes",
-	"\\u0009big pile  \\u0008\\u0008 of stuff\\u000d\\u000a"
+	"\\u0009big pile  \\u0008\\u0008 of stuff\\u000d\\u000a",
+	"",
+	"\xc3\xa9",
+	"\xe4\xb8\xad",
+	"\xf0\x9f\x98\x80",
+	"\xc3\xa9\\u000a"
 };
 
 int main(void)
 {
 	char tmp[512];
+	char guarded[10];
 	char *p;
 	unsigned int i;
 
@@ -58,10 +69,27 @@ int main(void)
 		p = json_escape_val(tmp, sizeof(tmp), strings[i]);
 		if (strcmp(p, encoded_strings[i]) != 0) {
 			fprintf(stderr,
-				"string %d, fails encoding:\n\tinput: '%s'\n\toutput: '%s'\n",
-				i, strings[i], p);
+				"string %u, fails encoding:\n\tinput: '%s'\n\texpected: '%s'\n\toutput: '%s'\n",
+				i, strings[i], encoded_strings[i], p);
 			exit(1);
 		}
+	}
+	memset(guarded, 'Z', sizeof(guarded));
+	p = json_escape_val(guarded + 1, 7, "A");
+	if (strcmp(p, "(invalid)") != 0 || guarded[0] != 'Z' ||
+	    guarded[8] != 'Z') {
+		fprintf(stderr,
+			"FAIL: capacity 7: expected '(invalid)' and guards Z/Z, got '%s' and %c/%c\n",
+			p, guarded[0], guarded[8]);
+		return 1;
+	}
+	memset(guarded, 'Z', sizeof(guarded));
+	p = json_escape_val(guarded + 1, 8, "A");
+	if (strcmp(p, "A") != 0 || guarded[0] != 'Z' || guarded[9] != 'Z') {
+		fprintf(stderr,
+			"FAIL: capacity 8: expected 'A' and guards Z/Z, got '%s' and %c/%c\n",
+			p, guarded[0], guarded[9]);
+		return 1;
 	}
 	return 0;
 }
