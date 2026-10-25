@@ -1194,6 +1194,14 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 			if (error_on_vhost(vhost->name, "sec-mod-scale"))
 				return 0;
 			READ_NUMERIC(vhost->static_config.sec_mod_scale);
+			if (vhost->static_config.sec_mod_scale >
+			    MAX_SEC_MOD_INSTANCES) {
+				fprintf(stderr,
+					ERRSTR
+					"'sec-mod-scale' must not exceed %d\n",
+					MAX_SEC_MOD_INSTANCES);
+				return 0;
+			}
 		} else if (strcmp(name, "log-level") == 0) {
 			READ_NUMERIC(vhost->static_config.log_level);
 			global_log_prio = vhost->static_config.log_level;

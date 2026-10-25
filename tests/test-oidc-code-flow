@@ -569,6 +569,113 @@ case "$(final_page_for android)" in
 esac
 echo "OK"
 
+# With several sec-mod instances each holds its own logins, and a worker
+# talks to the one its client's address is assigned to. The browser may
+# reach the server from another address than the client, as through a
+# proxy or over the other IP version, and the client may claim the session
+# on another connection; the state and the token name the instance which
+# holds the login, so that each step reaches it.
+kill $PID
+wait $PID
+write_oidc_config ""
+update_config test-oidc-code-auth.config
+# the template does not end with a newline
+printf '\nsec-mod-scale = 4\n' >>${CONFIG}
+launch_simple_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG}
+PID=$!
+wait_server $PID
+
+echo "Checking logins whose steps come from different addresses"
+for iface in 5 6 7 8 9 10; do
+	LOGIN_URL=$(get_login_url Developers)
+	if test -z "${LOGIN_URL}"; then
+		fail $PID "The form carried no login URL"
+	fi
+
+	rm -f ${COOKIEJAR}
+	touch ${COOKIEJAR}
+	eval SOCKET_WRAPPER_DEFAULT_IFACE=${iface} ${CURL} --location \
+		--cookie ${COOKIEJAR} --cookie-jar ${COOKIEJAR} \
+		"'${LOGIN_URL}'" --output /dev/null
+	TOKEN=$(grep acSamlv2Token ${COOKIEJAR} | awk '{print $7}')
+	if test -z "${TOKEN}"; then
+		fail $PID "The callback from 127.0.0.${iface} handed back no token"
+	fi
+
+	RESULT=$(eval SOCKET_WRAPPER_DEFAULT_IFACE=$((iface + 10)) ${CURL} \
+		"https://${ADDRESS}:${PORT}/Developers" --request POST \
+		--data "sso-token=${TOKEN}")
+	if ! echo "${RESULT}" | grep -q 'id="success"'; then
+		fail $PID "The session claimed from 127.0.0.$((iface + 10)) was refused: ${RESULT}"
+	fi
+done
+echo "OK"
+
+echo "Checking that a sec-mod-scale above 255 is rejected"
+cp ${CONFIG} ${CONFIG}.scale
+printf '\nsec-mod-scale = 300\n' >>${CONFIG}.scale
+if ${SERV} -t -c ${CONFIG}.scale >${CONFIG}.scale.out 2>&1; then
+	fail $PID "A sec-mod-scale above 255 was accepted"
+fi
+if ! grep -q "'sec-mod-scale' must not exceed 255" ${CONFIG}.scale.out; then
+	fail $PID "A sec-mod-scale above 255 was rejected for another reason"
+fi
+rm -f ${CONFIG}.scale.out
+rm -f ${CONFIG}.scale
+echo "OK"
+
+echo "Checking that a token which was not issued by the instance is refused"
+LOGIN_URL=$(get_login_url Developers)
+rm -f ${COOKIEJAR}
+touch ${COOKIEJAR}
+eval SOCKET_WRAPPER_DEFAULT_IFACE=7 ${CURL} --location \
+	--cookie ${COOKIEJAR} --cookie-jar ${COOKIEJAR} \
+	"'${LOGIN_URL}'" --output /dev/null
+TOKEN=$(grep acSamlv2Token ${COOKIEJAR} | awk '{print $7}')
+if test -z "${TOKEN}"; then
+	fail $PID "The callback handed back no token"
+fi
+
+# the tag at the end altered
+LAST=$(echo "${TOKEN}" | tail -c 2)
+if test "${LAST}" = "0"; then ALT=1; else ALT=0; fi
+RESULT=$(claim_session Developers "${TOKEN%?}${ALT}")
+if echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "A token with an altered tag was accepted"
+fi
+
+# the instance altered, to another one which exists
+FIRST=$(echo "${TOKEN}" | cut -c1-2)
+if test "${FIRST}" = "00"; then OTHER=01; else OTHER=00; fi
+RESULT=$(claim_session Developers "${OTHER}${TOKEN#??}")
+if echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "A token with an altered instance was accepted"
+fi
+
+# an instance which does not exist
+RESULT=$(claim_session Developers "ff${TOKEN#??}")
+if echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "A token naming no instance was accepted"
+fi
+
+# a value which only looks like a token
+RESULT=$(claim_session Developers "ff$(printf '%064d' 0)")
+if echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "A forged token was accepted"
+fi
+
+# refusing the forgeries has not used up the genuine token
+RESULT=$(eval SOCKET_WRAPPER_DEFAULT_IFACE=17 ${CURL} \
+	"https://${ADDRESS}:${PORT}/Developers" --request POST \
+	--data "sso-token=${TOKEN}")
+if ! echo "${RESULT}" | grep -q 'id="success"'; then
+	fail $PID "The genuine token was refused after the forgeries: ${RESULT}"
+fi
+if test -z "$(get_login_url Developers)"; then
+	fail $PID "The server stopped serving logins"
+fi
+echo "OK"
+
 if ! test -f ${PIDFILE}; then
 	fail $PID "Could not find pid file ${PIDFILE}"
 fi

@@ -32,6 +32,7 @@
 #include <tlslib.h>
 #include "common-config.h"
 #include "html.h"
+#include <ccan/str/hex/hex.h>
 
 /*
  * The port Cisco's external browser protocol uses for the client's local
@@ -59,6 +60,24 @@ bool oidc_browser_login_enabled(worker_st *ws)
 	}
 
 	return false;
+}
+
+/*
+ * The index of the sec-mod instance which a state or a token of a browser
+ * login names: its first byte, in hex, as in the session ID. The browser and
+ * the client may reach the server from different addresses, and so be served
+ * by workers assigned to different instances. The sec-mod instance
+ * authenticates the value, which is all that this is for.
+ */
+bool oidc_value_instance(const char *value, unsigned int *instance)
+{
+	uint8_t idx;
+
+	if (value == NULL || !hex_decode(value, 2, &idx, sizeof(idx)))
+		return false;
+
+	*instance = idx;
+	return true;
 }
 
 /*
@@ -201,6 +220,7 @@ int get_oidc_callback_handler(worker_st *ws, unsigned int http_ver)
 	char *token_cookie = NULL;
 	char *code = NULL;
 	char *state = NULL;
+	unsigned int instance;
 	int ret, sd = -1;
 
 	PROTOBUF_ALLOCATOR(pa, ws);
@@ -217,7 +237,12 @@ int get_oidc_callback_handler(worker_st *ws, unsigned int http_ver)
 	req.state = state;
 	req.code = code;
 
-	sd = connect_to_secmod(ws);
+	if (!oidc_value_instance(state, &instance)) {
+		oclog(ws, LOG_INFO, "the presented state names no instance");
+		goto fail;
+	}
+
+	sd = connect_to_specific_secmod(ws, instance);
 	if (sd == -1) {
 		oclog(ws, LOG_ERR, "failed connecting to sec mod");
 		goto fail;

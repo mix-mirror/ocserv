@@ -73,7 +73,9 @@ at fork time, as `hash(remote_addr) % sec_mod_instance_count`, and copied
 into `ws->secmod_addr`/`secmod_addr_len`. This selection MUST NOT change for
 the lifetime of the worker, because "each cookie is valid for its IP address
 and when resuming it must reach the same sec-mod process that contains the
-corresponding session information under the SID."
+corresponding session information under the SID." The worker only moves to
+another instance when its request names that instance: a resumed cookie
+(REQ-IPC-021), or the state or the token of a browser login (REQ-IPC-093).
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/main.c:1217-1234 (comment explains rationale)
@@ -83,7 +85,7 @@ connections from the same client IP always select the same
 to the same instance that issued it (`AUTH_COOKIE_REQ` ->
 `secmod_addr`/`secmod_addr_len` from `worker_startup_msg`, not
 recomputed).
-**Links:** REQ-IPC-017, REQ-IPC-021
+**Links:** REQ-IPC-017, REQ-IPC-021, REQ-IPC-093
 
 ### REQ-MAIN-INIT-004 — Connection limit and TCP-wrapper/ban checks precede fork
 

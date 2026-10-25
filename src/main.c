@@ -1264,9 +1264,11 @@ static void listen_watcher_cb(EV_P_ ev_io *w, int revents)
 				      hmac_components,
 				      (uint8_t *)ws->sec_auth_init_hmac);
 
-			// Clear the HMAC key
+			// Clear the keys, the worker must not have them
 			safe_memset((uint8_t *)s->hmac_key, 0,
 				    sizeof(s->hmac_key));
+			safe_memset((uint8_t *)s->sso_key, 0,
+				    sizeof(s->sso_key));
 
 			if (!set_env_from_ws(s))
 				exit(EXIT_FAILURE);
@@ -1523,6 +1525,11 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	if (!hmac_init_key(sizeof(s->sso_key), (uint8_t *)(s->sso_key))) {
+		fprintf(stderr, "unable to generate sso key\n");
+		exit(EXIT_FAILURE);
+	}
+
 	// getopt processing mutates argv. Save a copy to pass to the child.
 	worker_argc = argc;
 	worker_argv = talloc_zero_array(main_pool, char *, worker_argc + 1);
@@ -1645,6 +1652,9 @@ int main(int argc, char *argv[])
 			// If it's unlimited, the use processor count.
 			s->sec_mod_instance_count = processor_count;
 		}
+
+		if (s->sec_mod_instance_count > MAX_SEC_MOD_INSTANCES)
+			s->sec_mod_instance_count = MAX_SEC_MOD_INSTANCES;
 	}
 
 	s->sec_mod_instances = talloc_zero_array(s, sec_mod_instance_st,
@@ -1845,12 +1855,27 @@ static bool set_env_from_ws(main_server_st *s)
 
 	SnapshotEntryMsg **entries = NULL;
 	SnapshotEntryMsg entry_template = SNAPSHOT_ENTRY_MSG__INIT;
+	ProtobufCBinaryData *secmod_addrs = NULL;
+	unsigned int i;
 	size_t entry_count;
 	size_t index = 0;
 	struct htable_iter iter;
 
 	msg.secmod_addr.data = (uint8_t *)&ws->secmod_addr;
 	msg.secmod_addr.len = ws->secmod_addr_len;
+
+	secmod_addrs = talloc_zero_array(s, ProtobufCBinaryData,
+					 s->sec_mod_instance_count);
+	if (!secmod_addrs)
+		goto cleanup;
+	for (i = 0; i < s->sec_mod_instance_count; i++) {
+		secmod_addrs[i].data =
+			(uint8_t *)&s->sec_mod_instances[i].secmod_addr;
+		secmod_addrs[i].len = s->sec_mod_instances[i].secmod_addr_len;
+	}
+	msg.n_secmod_addrs = s->sec_mod_instance_count;
+	msg.secmod_addrs = secmod_addrs;
+
 	msg.cmd_fd = ws->cmd_fd;
 	msg.conn_fd = ws->conn_fd;
 	msg.conn_type = (WorkerStartupMsg__CONNTYPE)ws->conn_type;
@@ -1943,6 +1968,9 @@ static bool set_env_from_ws(main_server_st *s)
 cleanup:
 	if (entries)
 		talloc_free(entries);
+
+	if (secmod_addrs)
+		talloc_free(secmod_addrs);
 
 	if (msg_buffer)
 		talloc_free(msg_buffer);

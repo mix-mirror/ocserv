@@ -294,6 +294,31 @@ static int set_ws_from_env(worker_st *ws)
 	ws->secmod_addr_len = msg->secmod_addr.len;
 	memcpy(&ws->secmod_addr, msg->secmod_addr.data, msg->secmod_addr.len);
 
+	if (msg->n_secmod_addrs > 0) {
+		ws->secmod_addrs = talloc_array(ws, struct sockaddr_un,
+						msg->n_secmod_addrs);
+		ws->secmod_addr_lens =
+			talloc_array(ws, socklen_t, msg->n_secmod_addrs);
+		if (ws->secmod_addrs == NULL || ws->secmod_addr_lens == NULL)
+			goto cleanup;
+
+		for (index = 0; index < msg->n_secmod_addrs; index++) {
+			if (msg->secmod_addrs[index].len >
+			    sizeof(ws->secmod_addrs[index])) {
+				fprintf(stderr,
+					"msg->secmod_addrs[%u].len too large\n",
+					(unsigned int)index);
+				goto cleanup;
+			}
+			memcpy(&ws->secmod_addrs[index],
+			       msg->secmod_addrs[index].data,
+			       msg->secmod_addrs[index].len);
+			ws->secmod_addr_lens[index] =
+				msg->secmod_addrs[index].len;
+		}
+		ws->secmod_addrs_size = msg->n_secmod_addrs;
+	}
+
 	ws->cmd_fd = msg->cmd_fd;
 	ws->conn_fd = msg->conn_fd;
 	ws->conn_type = (sock_type_t)msg->conn_type;

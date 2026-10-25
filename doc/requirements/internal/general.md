@@ -126,10 +126,11 @@ REQ-GEN-TECH-003
 ocserv process computes with a secret key, hands to a less trusted party
 (a worker, a client, or another process), and that an ocserv process later
 verifies to establish that ocserv produced it and that the authenticated
-data has not been altered. The only current instance is the
-`SEC_AUTH_INIT` anti-replay HMAC (`sec_auth_init_hmac`, REQ-IPC-010,
-REQ-IPC-040, REQ-MAIN-INIT-002); the rules below apply to it and to every
-token of this kind added later.
+data has not been altered. The current instances are the `SEC_AUTH_INIT`
+anti-replay HMAC (`sec_auth_init_hmac`, REQ-IPC-010, REQ-IPC-040,
+REQ-MAIN-INIT-002) and the state and the token of the browser login
+(REQ-IPC-093); the rules below apply to them and to every token of this
+kind added later.
 
   (a) **Algorithm.** Every internal authentication token MUST be HMAC-SHA256
       (RFC 2104 with SHA-256) with the full 32-byte (`HMAC_DIGEST_SIZE`)
@@ -153,7 +154,11 @@ token of this kind added later.
       REQ-GEN-SEC-002), and the key MUST NOT be logged, written to a file,
       or sent in an IPC message. A token type MUST NOT share its key with
       another token type, so that a tag issued for one type can never
-      verify as the other.
+      verify as the other. Token types that serve one purpose within a
+      module (such as the state and the token of the browser login,
+      REQ-IPC-093) MAY share a key if the type of the token is part of the
+      authenticated data, as a distinct label, so that a tag issued for
+      one of them can never verify as the other.
 
 Out of scope: MACs whose algorithm ocserv does not control, because an
 external protocol fixes it or it is negotiated with a peer (TLS, DTLS,
@@ -164,16 +169,21 @@ OIDC).
 `src/common/hmac.c:34-60` (`hmac_init_key()`, `generate_hmac()` with
 nettle `hmac_sha256_*`); `src/main.c:1521` (key generated at startup),
 `src/main.c:1254-1269` (token issued, key zeroized in the worker child);
+`src/main.c` (`sso_key` generated at startup and zeroized in the worker
+child), `src/auth/openidconnect.c` (`oidc_sealed_token`,
+`oidc_sealed_token_check`: the state and the token of the browser login,
+REQ-IPC-093);
 `src/sec-mod-auth.c:982-1010` (length checked against
 `HMAC_DIGEST_SIZE`, token recomputed with `generate_hmac()`)
 **Acceptance:** [SEC] code-review — `grep -rnE 'hmac_(sha|md5|ripemd|gosthash|streebog|sm3)|gnutls_hmac|GNUTLS_MAC_' src/`
 outside `src/common/hmac.c` and vendored code finds only out-of-scope uses;
 an MR that adds an internal authentication token computes and verifies it
 with `generate_hmac()`, using a key from `hmac_init_key()` that no other
-token type uses, and adds a requirement for that token whose acceptance
+token type uses (except as (c) allows), and adds a requirement for that token whose acceptance
 tests cover its issuing and rejection. Runtime verification is carried by
-the requirements that apply this one (REQ-IPC-010 for `sec_auth_init_hmac`).
-**Links:** REQ-IPC-010, REQ-IPC-040, REQ-MAIN-INIT-002,
+the requirements that apply this one (REQ-IPC-010 for `sec_auth_init_hmac`,
+REQ-IPC-093 for the state and the token of the browser login).
+**Links:** REQ-IPC-010, REQ-IPC-040, REQ-MAIN-INIT-002, REQ-IPC-093,
 REQ-GEN-SEC-002, REQ-GEN-STYLE-005, REQ-GEN-TECH-002
 
 ---
