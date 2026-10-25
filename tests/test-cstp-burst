@@ -1,0 +1,84 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Pierre-Yves Le Borgne
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# The worker reads the client's CSTP records in bursts. cstp-burst-client.py
+# opens a TLS-only tunnel with a raw CONNECT and sends records back to back,
+# each in its own TLS record:
+#   1. One ICMP echo request to the server's tunnel address, then 20 back
+#      to back: every reply must come back while the client sends nothing
+#      more, so the worker must not wait for a further record.
+#   2. Three echo requests followed by a record with a malformed CSTP
+#      header: the server must close the connection (REQ-PROTO-DATA-001).
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+OCCTL_SOCKET=./occtl-cstp-burst-$$.socket
+SERVERCERT="pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8="
+
+. "$(dirname "$0")"/common.sh
+. "$(dirname "$0")"/random-vpnnet.sh
+
+eval "${GETPORT}"
+
+if ! test -x "$(command -v python3)"; then
+	echo "python3 is needed to run this test"
+	exit 77
+fi
+
+function finish {
+	echo " * Cleaning up..."
+	test -n "${PID}" && kill "${PID}" >/dev/null 2>&1
+	test -n "${CONFIG}" && rm -f "${CONFIG}" >/dev/null 2>&1
+}
+trap finish EXIT
+
+echo "Testing CSTP records sent back to back over TLS..."
+
+# TLS only (no-udp), as in test-cstp-send-hang
+update_config cstp-send-hang.config
+launch_simple_server -d 1 -f -c "${CONFIG}"
+PID=$!
+wait_server $PID
+
+# run_client MODE: opens a new session and runs cstp-burst-client.py in it
+run_client() {
+	cookie=$(echo "test" | ${OPENCONNECT} -q localhost:"${PORT}" -u test \
+		--servercert="${SERVERCERT}" --cookieonly 2>/dev/null)
+	# openconnect >= 9 prints "openconnect_strapkey=...; webvpn=VALUE"
+	case "${cookie}" in
+	*webvpn=*) cookie=$(echo "${cookie}" | sed 's/.*webvpn=\([^;]*\).*/\1/');;
+	esac
+	if test -z "${cookie}"; then
+		fail "${PID}" "Could not obtain a session cookie"
+	fi
+	python3 "${srcdir}/cstp-burst-client.py" "$1" --host localhost \
+		--port "${PORT}" --cookie="${cookie}" --target "${VPNADDR}"
+}
+
+echo " * Echo requests, alone and back to back..."
+run_client echo ||
+	fail "${PID}" "Echo requests sent back to back were not all answered"
+
+echo " * Echo requests followed by a malformed record..."
+run_client bad ||
+	fail "${PID}" "The server kept the connection after a malformed CSTP record"
+
+echo "CSTP burst tests passed"
+exit 0

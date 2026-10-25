@@ -324,7 +324,7 @@ if get_option('root-tests')
     'multiple-routes', 'json', 'test-udp-listen-host',
     'test-max-same-1', 'test-vhost-udp-port-inheritance',
     'apple-ios', 'ipv6-iface', 'test-no-udp',
-    'test-cstp-send-hang', 'test-mtu-connect',
+    'test-cstp-send-hang', 'test-cstp-burst', 'test-mtu-connect',
     'disconnect-user', 'disconnect-user2', 'terminate-commands',
     'ping-leases', 'test-ban-local', 'test-client-bypass-protocol',
     'ipv6-small-net', 'test-camouflage', 'test-camouflage-norealm',
