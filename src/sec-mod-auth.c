@@ -510,6 +510,13 @@ int handle_secm_session_open_cmd(sec_mod_st *sec, int fd,
 		return send_failed_session_open_reply(sec, fd);
 	}
 
+	if (sec_mod_instance_index_get(req->sid.data) !=
+	    sec->sec_mod_instance_index) {
+		seclog(sec, LOG_INFO,
+		       "session open but with SID of another instance!");
+		return send_failed_session_open_reply(sec, fd);
+	}
+
 	e = find_client_entry(sec, req->sid.data);
 	if (e == NULL) {
 		seclog(sec, LOG_INFO,

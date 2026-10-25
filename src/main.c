@@ -1466,7 +1466,6 @@ int main(int argc, char *argv[])
 	int e;
 	struct listener_st *ltmp = NULL;
 	int ret, flags;
-	char *p;
 	void *worker_pool;
 	void *main_pool, *config_pool;
 	main_server_st *s;
@@ -1653,8 +1652,12 @@ int main(int argc, char *argv[])
 			s->sec_mod_instance_count = processor_count;
 		}
 
-		if (s->sec_mod_instance_count > MAX_SEC_MOD_INSTANCES)
+		if (s->sec_mod_instance_count > MAX_SEC_MOD_INSTANCES) {
+			mslog(s, NULL, LOG_NOTICE,
+			      "limiting the sec-mod instances to %u, from %u",
+			      MAX_SEC_MOD_INSTANCES, s->sec_mod_instance_count);
 			s->sec_mod_instance_count = MAX_SEC_MOD_INSTANCES;
+		}
 	}
 
 	s->sec_mod_instances = talloc_zero_array(s, sec_mod_instance_st,
@@ -1695,17 +1698,22 @@ int main(int argc, char *argv[])
 	}
 	ms_sleep(100); /* give some time for sec-mod to initialize */
 
+	/* if we are on chroot make the socket file path relative */
+	s->secmod_socket_base = secmod_socket_file_name(GETSCONFIG(s));
+	if (GETSCONFIG(s)->chroot_dir)
+		while (*s->secmod_socket_base == '/')
+			s->secmod_socket_base++;
+
 	for (i = 0; i < s->sec_mod_instance_count; i++) {
-		s->sec_mod_instances[i].secmod_addr.sun_family = AF_UNIX;
-		p = s->sec_mod_instances[i].socket_file;
-		if (GETSCONFIG(s)
-			    ->chroot_dir) /* if we are on chroot make the socket file path relative */
-			while (*p == '/')
-				p++;
-		strlcpy(s->sec_mod_instances[i].secmod_addr.sun_path, p,
-			sizeof(s->sec_mod_instances[i].secmod_addr.sun_path));
-		s->sec_mod_instances[i].secmod_addr_len =
-			SUN_LEN(&s->sec_mod_instances[i].secmod_addr);
+		if (sec_mod_instance_addr(
+			    s->secmod_socket_base, i,
+			    &s->sec_mod_instances[i].secmod_addr,
+			    &s->sec_mod_instances[i].secmod_addr_len) < 0) {
+			mslog(s, NULL, LOG_ERR,
+			      "too long socket-file; cannot use it: %s",
+			      s->secmod_socket_base);
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	/* initialize memory for worker process */
@@ -1855,26 +1863,14 @@ static bool set_env_from_ws(main_server_st *s)
 
 	SnapshotEntryMsg **entries = NULL;
 	SnapshotEntryMsg entry_template = SNAPSHOT_ENTRY_MSG__INIT;
-	ProtobufCBinaryData *secmod_addrs = NULL;
-	unsigned int i;
 	size_t entry_count;
 	size_t index = 0;
 	struct htable_iter iter;
 
 	msg.secmod_addr.data = (uint8_t *)&ws->secmod_addr;
 	msg.secmod_addr.len = ws->secmod_addr_len;
-
-	secmod_addrs = talloc_zero_array(s, ProtobufCBinaryData,
-					 s->sec_mod_instance_count);
-	if (!secmod_addrs)
-		goto cleanup;
-	for (i = 0; i < s->sec_mod_instance_count; i++) {
-		secmod_addrs[i].data =
-			(uint8_t *)&s->sec_mod_instances[i].secmod_addr;
-		secmod_addrs[i].len = s->sec_mod_instances[i].secmod_addr_len;
-	}
-	msg.n_secmod_addrs = s->sec_mod_instance_count;
-	msg.secmod_addrs = secmod_addrs;
+	msg.secmod_socket_base = (char *)s->secmod_socket_base;
+	msg.secmod_count = s->sec_mod_instance_count;
 
 	msg.cmd_fd = ws->cmd_fd;
 	msg.conn_fd = ws->conn_fd;
@@ -1968,9 +1964,6 @@ static bool set_env_from_ws(main_server_st *s)
 cleanup:
 	if (entries)
 		talloc_free(entries);
-
-	if (secmod_addrs)
-		talloc_free(secmod_addrs);
 
 	if (msg_buffer)
 		talloc_free(msg_buffer);

@@ -40,7 +40,7 @@
  * key which authenticates the data of the workers.
  */
 typedef struct sso_key_data_st {
-	uint8_t instance;
+	unsigned int sec_mod_instance_index;
 	uint8_t key[HMAC_DIGEST_SIZE];
 } sso_key_data_st;
 
@@ -60,7 +60,7 @@ typedef struct sec_mod_st {
 	uint32_t total_authentications; /* successful authentications: to calculate the average above */
 	time_t last_stats_reset;
 	const uint8_t hmac_key[HMAC_DIGEST_SIZE];
-	uint32_t sec_mod_instance_id;
+	unsigned int sec_mod_instance_index;
 	sso_key_data_st sso_key;
 } sec_mod_st;
 
@@ -191,6 +191,6 @@ void sec_mod_server(void *main_pool, void *config_pool,
 		    struct list_head *vconfig, const char *socket_file,
 		    int cmd_fd, int cmd_fd_sync, size_t hmac_key_length,
 		    const uint8_t *hmac_key, const uint8_t *sso_key,
-		    const uint8_t instance_id);
+		    unsigned int sec_mod_instance_index);
 
 #endif

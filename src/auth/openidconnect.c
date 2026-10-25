@@ -60,7 +60,8 @@
  * of the kind of value, the index and the random value. The label keeps a
  * state from being presented as a token.
  */
-#define OIDC_TOKEN_SIZE (1 + OIDC_RANDOM_SIZE + HMAC_DIGEST_SIZE)
+#define OIDC_ID_SIZE (SEC_MOD_INSTANCE_INDEX_SIZE + OIDC_RANDOM_SIZE)
+#define OIDC_TOKEN_SIZE (OIDC_ID_SIZE + HMAC_DIGEST_SIZE)
 #define SEAL_LABEL_NEW_STATE "oidc-state"
 #define SEAL_LABEL_TOKEN "oidc-token"
 /* How long a completed login waits for the client to claim it. The client
@@ -441,7 +442,7 @@ static void oidc_sso_state_expire(oidc_vctx_st *vctx)
 
 /* The tag over the index and the random value at the start of the token. */
 static void oidc_sealed_token_tag(const sso_key_data_st *kd, const char *label,
-				  const uint8_t id[1 + OIDC_RANDOM_SIZE],
+				  const uint8_t id[OIDC_ID_SIZE],
 				  uint8_t tag[HMAC_DIGEST_SIZE])
 {
 	hmac_component_st comp[2];
@@ -449,7 +450,7 @@ static void oidc_sealed_token_tag(const sso_key_data_st *kd, const char *label,
 	comp[0].data = (void *)label;
 	comp[0].length = strlen(label);
 	comp[1].data = (void *)id;
-	comp[1].length = 1 + OIDC_RANDOM_SIZE;
+	comp[1].length = OIDC_ID_SIZE;
 
 	generate_hmac(sizeof(kd->key), kd->key, ARRAY_SIZE(comp), comp, tag);
 }
@@ -465,11 +466,12 @@ static int oidc_sealed_token(const sso_key_data_st *kd, const char *label,
 	gnutls_datum_t d = { id, sizeof(id) };
 	size_t len = OIDC_HEX_SIZE(OIDC_TOKEN_SIZE);
 
-	id[0] = kd->instance;
-	if (gnutls_rnd(GNUTLS_RND_RANDOM, id + 1, OIDC_RANDOM_SIZE) < 0)
+	sec_mod_instance_index_put(id, kd->sec_mod_instance_index);
+	if (gnutls_rnd(GNUTLS_RND_RANDOM, id + SEC_MOD_INSTANCE_INDEX_SIZE,
+		       OIDC_RANDOM_SIZE) < 0)
 		return -1;
 
-	oidc_sealed_token_tag(kd, label, id, id + 1 + OIDC_RANDOM_SIZE);
+	oidc_sealed_token_tag(kd, label, id, id + OIDC_ID_SIZE);
 
 	if (gnutls_hex_encode(&d, out, &len) < 0)
 		return -1;
@@ -497,11 +499,11 @@ static bool oidc_sealed_token_check(const sso_key_data_st *kd,
 
 	/* authenticate first: the index is not used before the tag is valid */
 	oidc_sealed_token_tag(kd, label, id, tag);
-	if (gnutls_memcmp(tag, id + 1 + OIDC_RANDOM_SIZE, sizeof(tag)) != 0)
+	if (gnutls_memcmp(tag, id + OIDC_ID_SIZE, sizeof(tag)) != 0)
 		return false;
 
 	/* a value of another instance is authentic, but not held here */
-	if (id[0] != kd->instance)
+	if (sec_mod_instance_index_get(id) != kd->sec_mod_instance_index)
 		return false;
 
 	return true;

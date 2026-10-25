@@ -233,6 +233,7 @@ int handle_worker_commands(main_server_st *s, struct proc_st *proc)
 {
 	uint8_t cmd;
 	AuthCookieRequestMsg *auth_cookie_req;
+	unsigned int sec_mod_instance_index;
 	size_t length;
 	uint8_t *raw;
 	int ret, raw_len, e;
@@ -447,12 +448,21 @@ int handle_worker_commands(main_server_st *s, struct proc_st *proc)
 			goto cleanup;
 		}
 
-		proc->sec_mod_instance_index = auth_cookie_req->cookie.data[0] %
-					       s->sec_mod_instance_count;
-
-		ret = handle_auth_cookie_req(
-			&s->sec_mod_instances[proc->sec_mod_instance_index],
-			proc, auth_cookie_req);
+		/* the index comes from the client: one which names no
+		 * instance is refused, not wrapped onto another */
+		sec_mod_instance_index = sec_mod_instance_index_get(
+			auth_cookie_req->cookie.data);
+		if (sec_mod_instance_index >= s->sec_mod_instance_count) {
+			mslog(s, proc, LOG_INFO,
+			      "cookie names no sec-mod instance (%u)",
+			      sec_mod_instance_index);
+			ret = -1;
+		} else {
+			proc->sec_mod_instance_index = sec_mod_instance_index;
+			ret = handle_auth_cookie_req(
+				&s->sec_mod_instances[sec_mod_instance_index],
+				proc, auth_cookie_req);
+		}
 
 		safe_memset(raw, 0, raw_len);
 		safe_memset(auth_cookie_req->cookie.data, 0,

@@ -1140,18 +1140,24 @@ int connect_to_secmod(worker_st *ws)
 /*
  * Connect to the sec-mod instance with the given index, and use it for the
  * rest of the session: that is the one which holds the state of the session.
- * The index must be the one of an instance, see 'secmod_addrs'.
+ * The index must be the one of an instance, below 'secmod_count'.
  */
-int connect_to_specific_secmod(worker_st *ws, unsigned int index)
+int connect_to_specific_secmod(worker_st *ws,
+			       unsigned int sec_mod_instance_index)
 {
-	if (index >= ws->secmod_addrs_size) {
-		oclog(ws, LOG_ERR, "there is no sec-mod instance %u", index);
+	if (sec_mod_instance_index >= ws->secmod_count) {
+		oclog(ws, LOG_ERR, "there is no sec-mod instance %u",
+		      sec_mod_instance_index);
 		return -1;
 	}
 
-	memcpy(&ws->secmod_addr, &ws->secmod_addrs[index],
-	       ws->secmod_addr_lens[index]);
-	ws->secmod_addr_len = ws->secmod_addr_lens[index];
+	if (sec_mod_instance_addr(ws->secmod_socket_base,
+				  sec_mod_instance_index, &ws->secmod_addr,
+				  &ws->secmod_addr_len) < 0) {
+		oclog(ws, LOG_ERR, "cannot address sec-mod instance %u",
+		      sec_mod_instance_index);
+		return -1;
+	}
 
 	return connect_to_secmod(ws);
 }
@@ -1836,7 +1842,7 @@ int oidc_complete_auth(worker_st *ws, unsigned int http_ver, const char *token)
 	const char *reason = "Authentication failed";
 	char *msg = NULL;
 	unsigned int pcounter = 0;
-	unsigned int instance;
+	unsigned int sec_mod_instance_index;
 	int ret, sd = -1;
 
 	ireq.auth_type = AUTH_TYPE_OIDC;
@@ -1862,12 +1868,13 @@ int oidc_complete_auth(worker_st *ws, unsigned int http_ver, const char *token)
 		ireq.device_platform = ws->req.devplatform;
 
 	/* the session is created on the instance which holds the login */
-	if (!oidc_value_instance(token, &instance)) {
+	if (!oidc_value_sec_mod_instance_index(token,
+					       &sec_mod_instance_index)) {
 		oclog(ws, LOG_INFO, "the presented token names no instance");
 		goto fail;
 	}
 
-	sd = connect_to_specific_secmod(ws, instance);
+	sd = connect_to_specific_secmod(ws, sec_mod_instance_index);
 	if (sd == -1) {
 		reason = MSG_INTERNAL_ERROR;
 		oclog(ws, LOG_ERR, "failed connecting to sec mod");

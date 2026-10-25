@@ -238,18 +238,26 @@ second `AUTH_COOKIE_REQ` on the same connection and confirm main returns
 ### REQ-IPC-021 — SECM_SESSION_OPEN requires SID of a completed, unexpired session
 
 **Requirement:** sec-mod MUST reply `FAILED` to `SECM_SESSION_OPEN` if
-`sid.len != SID_SIZE`, if no `client_entry_st` exists for that SID, if the
-entry's status is not `PS_AUTH_COMPLETED`, or if the entry is expired
-(`IS_CLIENT_ENTRY_EXPIRED`).
+`sid.len != SID_SIZE`, if the SID does not carry the instance's own
+`sec_mod_instance_index` (REQ-SECMOD-SEC-001) — checked before any lookup —,
+if no `client_entry_st` exists for that SID, if the entry's status is not
+`PS_AUTH_COMPLETED`, or if the entry is expired (`IS_CLIENT_ENTRY_EXPIRED`).
+The SID comes back from the client, through the worker and main, so its
+index is not trusted; it is not authenticated by a MAC, but it is part of
+the random value looked up, and an instance only issues SIDs with its own
+index, so a SID with an altered index MUST NOT match any entry.
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/sec-mod-auth.c:508-536
+**Source:** src/sec-mod-auth.c (`handle_secm_session_open_cmd`)
 **Acceptance:** negative, local — (a) send `SECM_SESSION_OPEN` with a
 wrong-length or unknown SID; (b) send it for a SID still in
 `PS_AUTH_INIT`/`PS_AUTH_CONT`; (c) send it after the cookie's expiry time
-has passed. Each MUST yield `secm_session_reply_msg.reply = FAILED` (via
-`send_failed_session_open_reply`).
-**Links:** REQ-IPC-015, REQ-IPC-022
+has passed; (d) resume a valid cookie whose instance index bytes were
+altered. Each MUST yield `secm_session_reply_msg.reply = FAILED` (via
+`send_failed_session_open_reply`), and in (d) the unaltered cookie MUST
+still be accepted afterwards.
+**Links:** REQ-IPC-015, REQ-IPC-022, REQ-SECMOD-SEC-001,
+REQ-MAIN-SESSION-001
 
 ### REQ-IPC-022 — SECM_SESSION_OPEN refreshes cookie expiry
 
@@ -395,7 +403,8 @@ REQ-GEN-SEC-003
 
 **Requirement:** `worker_startup_msg` MUST transfer only file descriptors
 (`cmd_fd`, `conn_fd`, `snapshot_entries[].file_descriptor`) and
-non-cryptographic identifiers (`secmod_addr`, IPs, group lists); it MUST NOT
+non-cryptographic identifiers (`secmod_addr`, `secmod_socket_base`,
+`secmod_count`, IPs, group lists); it MUST NOT
 contain private key material or HMAC secrets.
 **Strength:** MUST NOT
 **Status:** DERIVED
@@ -695,32 +704,58 @@ login MUST name itself in the values it hands to the client, and MUST
 authenticate them (REQ-GEN-SEC-003) with a key that only main and the sec-mod
 instances have, which MUST be different from the key which authenticates the
 data of the workers: the values come back from the client through a worker,
-which is not trusted. `worker_startup_msg` MUST carry the addresses of all
-the instances in order of their index; and the worker MUST send
+which is not trusted. `worker_startup_msg` MUST carry the base name of the
+sec-mod sockets and the number of instances, from which the worker builds
+the address of an instance with the function main uses
+(`sec_mod_instance_addr()`), so that the size of the message does not grow
+with the number of instances; and the worker MUST send
 `SEC_OIDC_FINISH`, and the `SEC_AUTH_INIT` claiming a token, to the instance
 the value names, and keep using it for the session. A value which names an
 instance that does not exist MUST be refused by the worker. A sec-mod
 instance MUST validate the authentication of a value before acting on it or
 looking anything up, and MUST refuse a value which it did not issue, leaving
-the pending and the completed logins it holds as they were. The number of
-instances MUST NOT exceed 255, as the instance is a single byte in the
-session ID (REQ-IPC-017); a configured `sec-mod-scale` above it MUST be
-rejected at startup.
+the pending and the completed logins it holds as they were. The value
+names the instance by its `sec_mod_instance_index`, encoded as REQ-IPC-094
+requires, and the tag covers it.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/auth/openidconnect.c (`oidc_sealed_token`,
 `oidc_sealed_token_check`), src/sec-mod.c (`sso_key`), src/main.c (`sso_key`,
 `set_env_from_ws`), src/worker.c (`set_ws_from_env`), src/worker-auth.c
-(`connect_to_specific_secmod`), src/worker-oidc.c (`oidc_value_instance`),
-src/config.c (`sec-mod-scale`)
+(`connect_to_specific_secmod`), src/worker-oidc.c
+(`oidc_value_sec_mod_instance_index`), src/common/common.c
+(`sec_mod_instance_addr`)
 **Acceptance:** positive, local — with `sec-mod-scale = 4`, logins whose
 browser and claiming connection come from other addresses than the form's
 complete; negative — a token with an altered tag, an altered or non-existent
-instance, or forged outright is refused, the genuine token is still accepted
-afterwards, and the server keeps serving logins; a `sec-mod-scale` above 255
-is rejected. See tests/test-oidc-code-flow.
-**Links:** REQ-IPC-017, REQ-IPC-091, REQ-MAIN-INIT-003, REQ-AUTH-AUTH-043,
-REQ-GEN-SEC-002, REQ-GEN-SEC-003
+instance (including one above 255), or forged outright is refused, the
+genuine token is still accepted afterwards, and the server keeps serving
+logins. See tests/test-oidc-code-flow.
+**Links:** REQ-IPC-017, REQ-IPC-091, REQ-IPC-094, REQ-MAIN-INIT-003,
+REQ-AUTH-AUTH-043, REQ-GEN-SEC-002, REQ-GEN-SEC-003
+
+---
+
+## sec-mod instance index (sec-mod -> client -> worker/main -> sec-mod)
+
+### REQ-IPC-094 — The sec-mod instance index is carried in two bytes wherever it leaves sec-mod
+
+**Requirement:** A value which leaves sec-mod and names a sec-mod instance
+MUST carry its `sec_mod_instance_index` in its first
+`SEC_MOD_INSTANCE_INDEX_SIZE` (2) bytes, big-endian, written by
+`sec_mod_instance_index_put()` and read by `sec_mod_instance_index_get()`.
+The users are the session ID (REQ-SECMOD-SEC-001, REQ-MAIN-SESSION-001) and
+the state and the token of a browser login (REQ-IPC-093); a new user MUST
+follow this requirement and be linked here.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/common/common.h (`sec_mod_instance_index_put`,
+`sec_mod_instance_index_get`)
+**Acceptance:** unit, local — `sec_mod_instance_index_put()` writes exactly
+two bytes and `sec_mod_instance_index_get()` returns 0, 255, 256 and 65535
+unchanged (tests/sec-mod-instance.c).
+**Links:** REQ-SECMOD-SEC-001, REQ-MAIN-SESSION-001, REQ-IPC-093,
+REQ-MAIN-INIT-006
 
 ---
 
