@@ -124,7 +124,7 @@ the worker calls `parse_proxy_proto_header()` (src/worker-vpn.c:895) to
 populate `ws->remote_addr` with the real client address *before* the TLS
 handshake, then calls `session_info_send()` (src/worker-vpn.c:968, right
 after the handshake completes) which, when `listen_proxy_proto` is set,
-includes `remote_addr`/`our_addr` in `SessionInfoMsg` (src/worker-vpn.c:1146-1153).
+includes `remote_addr`/`our_addr` in `SessionInfoMsg` (src/worker-vpn.c:1159-1166).
 Main's `CMD_SESSION_INFO` handler, when `GETRCONFIG(s)->listen_proxy_proto`
 and `tmsg->has_remote_addr`, updates `proc->remote_addr` via
 `proc_table_update_ip()` and calls `check_if_banned(s, &proc->remote_addr,
