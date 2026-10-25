@@ -131,10 +131,9 @@ client_entry_st *new_client_entry(sec_mod_st *sec, struct vhost_cfg_st *vhost,
 			goto fail;
 		}
 
-		e->sid[0] = sec->sec_mod_instance_id;
-		seclog(sec, LOG_INFO,
-		       "sec-mod instance %" PRIu32 " issue cookie",
-		       sec->sec_mod_instance_id);
+		sec_mod_instance_index_put(e->sid, sec->sec_mod_instance_index);
+		seclog(sec, LOG_INFO, "sec-mod instance %u issue cookie",
+		       sec->sec_mod_instance_index);
 
 		/* check if in use */
 		te = find_client_entry(sec, e->sid);

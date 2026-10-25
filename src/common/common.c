@@ -78,6 +78,31 @@ char *calc_safe_id(const uint8_t *data, unsigned int size, char *output,
 	return output;
 }
 
+/*
+ * Fill 'addr' with the address of the socket of the sec-mod instance with
+ * the given index, under 'socket_base'. main and the workers both derive it
+ * here, so that the workers need only the base and the number of instances
+ * (REQ-IPC-093). 'addr' is left untouched if the name does not fit.
+ */
+int sec_mod_instance_addr(const char *socket_base,
+			  unsigned int sec_mod_instance_index,
+			  struct sockaddr_un *addr, socklen_t *addr_len)
+{
+	struct sockaddr_un tmp;
+	int ret;
+
+	memset(&tmp, 0, sizeof(tmp));
+	tmp.sun_family = AF_UNIX;
+	ret = snprintf(tmp.sun_path, sizeof(tmp.sun_path), "%s.%u", socket_base,
+		       sec_mod_instance_index);
+	if (ret < 0 || (size_t)ret >= sizeof(tmp.sun_path))
+		return -1;
+
+	*addr = tmp;
+	*addr_len = SUN_LEN(&tmp);
+	return 0;
+}
+
 /* Note that meaning slightly changes depending on whether we are
  * referring to the cookie or the session itself.
  */

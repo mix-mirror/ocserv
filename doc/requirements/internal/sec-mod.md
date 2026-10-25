@@ -68,19 +68,24 @@ old IDs are kept reserved (not reused) for citation stability:
 
 **Requirement:** `new_client_entry()` MUST generate `e->sid` using
 `gnutls_rnd(GNUTLS_RND_RANDOM, ...)` (a cryptographically secure RNG), and
-MUST overwrite `sid[0]` with `sec->sec_mod_instance_id` so that SIDs from
-different sec-mod instances (in multi-instance deployments) are
-distinguishable. If after 3 retries a collision still exists in
-`client_db`, entry creation MUST fail rather than reuse a SID.
+MUST overwrite its first bytes with the instance's
+`sec_mod_instance_index`, encoded as REQ-IPC-094 requires, so that SIDs
+from different sec-mod
+instances (in multi-instance deployments) are distinguishable and main can
+route a cookie to the instance which holds it (REQ-MAIN-SESSION-001). If
+after 3 retries a collision still exists in `client_db`, entry creation MUST
+fail rather than reuse a SID.
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/sec-mod-db.c:98-156
+**Source:** src/sec-mod-db.c (`new_client_entry`), src/common/common.h
+(`sec_mod_instance_index_put`)
 **Acceptance:** [SEC] unit, local — generate many client entries and
-confirm no two share a `sid`; confirm `sid[0]` always equals the
-configured `sec_mod_instance_id`. Negative: simulate `find_client_entry`
-always returning non-NULL (collision) and confirm `new_client_entry`
-returns NULL after 3 retries rather than looping forever or reusing.
-**Links:** REQ-IPC-017
+confirm no two share a `sid`; confirm `sec_mod_instance_index_get(sid)`
+always equals the instance's `sec_mod_instance_index`, including for
+indexes above 255. Negative: simulate `find_client_entry` always returning
+non-NULL (collision) and confirm `new_client_entry` returns NULL after 3
+retries rather than looping forever or reusing.
+**Links:** REQ-IPC-017, REQ-IPC-094, REQ-MAIN-SESSION-001
 
 ### REQ-SECMOD-SEC-002 — safe_id is derived from SID, not independently random
 

@@ -49,6 +49,7 @@ unit_tests = {
   'proxyproto-v1':  {'src': ['proxyproto-v1.c'], 'args': [], 'timeout': 30},
   'proxyproto-v2':  {'src': ['proxyproto-v2.c'], 'args': [], 'timeout': 30},
   'route-sanity-check': {'src': ['route-sanity-check.c'], 'args': ['-DUNDER_TEST'], 'timeout': 30},
+  'sec-mod-instance': {'src': ['sec-mod-instance.c'], 'args': [], 'timeout': 30},
 }
 
 foreach name, cfg : unit_tests
@@ -318,6 +319,7 @@ if get_option('root-tests')
     'haproxy-connect', 'test-iroute', 'test-multi-cookie',
     'test-pass-script', 'idle-timeout', 'idle-timeout-icmpv6', 'test-year-2038',
     'test-cookie-timeout', 'test-cookie-timeout-2',
+    'test-cookie-sec-mod-instance',
     'test-explicit-ip', 'test-ipv4-p2p', 'test-ipv6-p2p',
     'test-cookie-invalidation',
     'test-user-config', 'test-append-routes', 'test-ban',

@@ -64,19 +64,21 @@ bool oidc_browser_login_enabled(worker_st *ws)
 
 /*
  * The index of the sec-mod instance which a state or a token of a browser
- * login names: its first byte, in hex, as in the session ID. The browser and
- * the client may reach the server from different addresses, and so be served
- * by workers assigned to different instances. The sec-mod instance
+ * login names: its first bytes, in hex, as in the session ID. The browser
+ * and the client may reach the server from different addresses, and so be
+ * served by workers assigned to different instances. The sec-mod instance
  * authenticates the value, which is all that this is for.
  */
-bool oidc_value_instance(const char *value, unsigned int *instance)
+bool oidc_value_sec_mod_instance_index(const char *value,
+				       unsigned int *sec_mod_instance_index)
 {
-	uint8_t idx;
+	uint8_t idx[SEC_MOD_INSTANCE_INDEX_SIZE];
 
-	if (value == NULL || !hex_decode(value, 2, &idx, sizeof(idx)))
+	if (value == NULL ||
+	    !hex_decode(value, 2 * sizeof(idx), idx, sizeof(idx)))
 		return false;
 
-	*instance = idx;
+	*sec_mod_instance_index = sec_mod_instance_index_get(idx);
 	return true;
 }
 
@@ -220,7 +222,7 @@ int get_oidc_callback_handler(worker_st *ws, unsigned int http_ver)
 	char *token_cookie = NULL;
 	char *code = NULL;
 	char *state = NULL;
-	unsigned int instance;
+	unsigned int sec_mod_instance_index;
 	int ret, sd = -1;
 
 	PROTOBUF_ALLOCATOR(pa, ws);
@@ -237,12 +239,13 @@ int get_oidc_callback_handler(worker_st *ws, unsigned int http_ver)
 	req.state = state;
 	req.code = code;
 
-	if (!oidc_value_instance(state, &instance)) {
+	if (!oidc_value_sec_mod_instance_index(state,
+					       &sec_mod_instance_index)) {
 		oclog(ws, LOG_INFO, "the presented state names no instance");
 		goto fail;
 	}
 
-	sd = connect_to_specific_secmod(ws, instance);
+	sd = connect_to_specific_secmod(ws, sec_mod_instance_index);
 	if (sd == -1) {
 		oclog(ws, LOG_ERR, "failed connecting to sec mod");
 		goto fail;

@@ -1,0 +1,134 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with ocserv; if not, write to the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+# The session ID starts with the index of the sec-mod instance which holds
+# the session, in two bytes, and main routes a resumed cookie by it
+# (REQ-MAIN-SESSION-001, REQ-IPC-021). The cookie comes from the client: one
+# whose index was altered, to an instance which exists or to one which does
+# not, must be refused, and the genuine cookie must still be accepted.
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+
+. $(dirname $0)/common.sh
+. $(dirname $0)/random-vpnnet.sh
+
+eval "${GETPORT}"
+
+PIDFILE="csi$$.pid.tmp"
+rm -f "${PIDFILE}"
+
+function finish {
+	set +e
+	echo " * Cleaning up..."
+	test -f "${PIDFILE}" && kill $(cat ${PIDFILE}) >/dev/null 2>&1
+	sleep 2
+	test -n "${PID}" && kill ${PID} >/dev/null 2>&1
+	test -n "${CONFIG}" && rm -f ${CONFIG} >/dev/null 2>&1
+	rm -f "${PIDFILE}" 2>&1
+}
+trap finish EXIT
+
+# the SID, base64 encoded: openconnect 9 returns it as the webvpn cookie
+# among others ("openconnect_strapkey=...; webvpn=..."), older versions
+# return it alone
+webvpn_of() {
+	local v="${1##*webvpn=}"
+	echo "${v%%;*}"
+}
+
+# the cookies with the first two bytes of the SID replaced by the given hex
+alter_index() {
+	local sid hex new
+	sid=$(webvpn_of "$1")
+	hex=$(echo "${sid}" | base64 -d | od -An -v -tx1 | tr -d ' \n')
+	hex="$2${hex:4}"
+	new=$(printf "$(echo "${hex}" | sed 's/../\\x&/g')" | base64 | tr -d '\n')
+	echo "${1/"${sid}"/"${new}"}"
+}
+
+# connect with a cookie; succeeds if a session was established
+connect_with_cookie() {
+	rm -f "${PIDFILE}"
+	echo "test" | $OPENCONNECT -q -b localhost:$PORT -u test -C "$1" \
+		--servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8= \
+		--script=/bin/true --pid-file "${PIDFILE}" --background
+	sleep 4
+	if test -f "${PIDFILE}"; then
+		kill $(cat "${PIDFILE}")
+		sleep 2
+		rm -f "${PIDFILE}"
+		return 0
+	fi
+	return 1
+}
+
+update_config test-multi-cookie.config
+# the template ends with a newline
+echo "sec-mod-scale = 4" >>${CONFIG}
+launch_simple_server -d 1 -f -c "${CONFIG}"
+PID=$!
+wait_server $PID
+
+echo "Connecting to obtain cookie... "
+eval $(echo "test" | $OPENCONNECT -q localhost:$PORT -u test --authenticate --servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8=)
+
+if [ -z "$COOKIE" ]; then
+	fail $PID "Could not obtain cookie"
+fi
+
+INDEX=$(webvpn_of "$COOKIE" | base64 -d | od -An -v -tx1 -N2 | tr -d ' \n')
+if test "${INDEX}" != "0000" && test "${INDEX}" != "0001" &&
+	test "${INDEX}" != "0002" && test "${INDEX}" != "0003"; then
+	fail $PID "FAIL: expected an instance index below 4 in the SID, got ${INDEX} (cookie: ${COOKIE})"
+fi
+
+if test "${INDEX}" = "0000"; then OTHER=0001; else OTHER=0000; fi
+
+# the cookies with the index replaced, checking that it was
+altered_cookie() {
+	local alt
+	alt=$(alter_index "$COOKIE" $1)
+	if test "${alt}" = "${COOKIE}"; then
+		fail $PID "FAIL: expected the cookie with index $1 to differ, got it unchanged (cookie: ${COOKIE})"
+	fi
+	echo "${alt}"
+}
+
+echo "Connecting with a cookie naming another instance which exists... "
+ALT=$(altered_cookie ${OTHER}) || exit 1
+if connect_with_cookie "${ALT}"; then
+	fail $PID "FAIL: expected a cookie naming instance ${OTHER} to be refused, got a session"
+fi
+
+echo "Connecting with a cookie naming an instance which does not exist... "
+for idx in 0004 0100 ffff; do
+	ALT=$(altered_cookie ${idx}) || exit 1
+	if connect_with_cookie "${ALT}"; then
+		fail $PID "FAIL: expected a cookie naming instance ${idx} to be refused, got a session"
+	fi
+done
+
+echo "Connecting with the genuine cookie... "
+if ! connect_with_cookie "$COOKIE"; then
+	fail $PID "FAIL: expected the genuine cookie to be accepted after the altered ones, got no session"
+fi
+
+exit 0

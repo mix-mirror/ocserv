@@ -78,7 +78,7 @@ another instance when its request names that instance: a resumed cookie
 (REQ-IPC-021), or the state or the token of a browser login (REQ-IPC-093).
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/main.c:1217-1234 (comment explains rationale)
+**Source:** src/main.c (`listen_watcher_cb`, comment explains rationale)
 **Acceptance:** unit, local — for `sec_mod_instance_count > 1`, confirm two
 connections from the same client IP always select the same
 `sec_mod_instance_index`, and that a resumed cookie (REQ-IPC-021) is routed
@@ -144,6 +144,53 @@ consumes one TLS handshake's worth of work before being killed — a minor
 resource-amplification difference, not a bypass. Not flagged as
 `[SEC-RISK]`; informational only.]`
 **Links:** REQ-MAIN-SEC-002, REQ-MAIN-SEC-005, doc/design.md#load-balancer-integration
+
+### REQ-MAIN-INIT-006 — The number of sec-mod instances is bounded by MAX_SEC_MOD_INSTANCES
+
+**Requirement:** The number of sec-mod instances MUST NOT exceed
+`MAX_SEC_MOD_INSTANCES` (65535), the largest number the encoding of the
+instance index (REQ-IPC-094) can hold. A configured `sec-mod-scale` above it
+MUST be rejected when the configuration is read; when `sec-mod-scale` is not
+set and the computed number exceeds it, main MUST cap the number at
+`MAX_SEC_MOD_INSTANCES` and log that it did. The size of
+`worker_startup_msg` MUST NOT grow with the number of instances
+(REQ-IPC-093).
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/config.c (`cfg_ini_handler`, `sec-mod-scale`), src/main.c
+(`main`, computation of `sec_mod_instance_count`), src/common/common.h
+(`MAX_SEC_MOD_INSTANCES`), src/common/common.c (`sec_mod_instance_addr`)
+**Acceptance:** positive, local — `ocserv -t` accepts `sec-mod-scale = 300`
+(above the former one-byte limit) and `sec-mod-scale = 65535`; negative —
+`ocserv -t` rejects `sec-mod-scale = 65536` with an error naming the
+option. See tests/test-oidc-code-flow.
+**Links:** REQ-IPC-094, REQ-IPC-093
+
+---
+
+## SESSION — Cookie resumption
+
+### REQ-MAIN-SESSION-001 — A resumed cookie is routed to the instance its SID names, which must exist
+
+**Requirement:** On `AUTH_COOKIE_REQ`, main MUST select the sec-mod instance
+to send `SECM_SESSION_OPEN` to by the `sec_mod_instance_index` the SID
+carries (REQ-IPC-094, REQ-SECMOD-SEC-001), and MUST
+refuse the request, without contacting any instance and without changing
+the instance the worker is assigned to, if that index is not below
+`sec_mod_instance_count`. The index MUST NOT be reduced into range (e.g. by
+`%`): the cookie comes from the client, and a value which names no instance
+is invalid, not a reference to another instance.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/main-worker-cmd.c (`handle_worker_commands`,
+`AUTH_COOKIE_REQ`)
+**Acceptance:** negative, local — resume a valid cookie whose instance
+index bytes were changed to an index which no instance has; confirm the
+resumption fails and the unaltered cookie is still accepted afterwards.
+Positive — a cookie issued by an instance other than the one the
+connection's address maps to is resumed (REQ-MAIN-INIT-003).
+**Links:** REQ-IPC-021, REQ-IPC-094, REQ-SECMOD-SEC-001,
+REQ-MAIN-INIT-003
 
 ---
 

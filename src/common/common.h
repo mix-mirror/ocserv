@@ -23,7 +23,9 @@
 #define OC_COMMON_COMMON_H
 
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <netinet/in.h>
+#include <stdint.h>
 #include "ipc.pb-c.h"
 #include <talloc.h>
 #include <time.h>
@@ -146,6 +148,32 @@ size_t oc_strlcpy(char *dst, char const *src, size_t siz);
 #define SAFE_ID_SIZE (BASE64_ENCODE_RAW_LENGTH(20) + 1)
 char *calc_safe_id(const uint8_t *data, unsigned int size, char *output,
 		   unsigned int output_size);
+
+/* The sec_mod_instance_index of a sec-mod instance is carried, big-endian,
+ * in this many bytes at the start of the session ID of every session, by
+ * which main routes a resumed cookie, and of the values of an OpenID Connect
+ * browser login. The number of instances is limited so that it also fits in
+ * them (REQ-IPC-094, REQ-MAIN-INIT-006). */
+#define SEC_MOD_INSTANCE_INDEX_SIZE 2
+#define MAX_SEC_MOD_INSTANCES ((unsigned int)UINT16_MAX)
+
+inline static void
+sec_mod_instance_index_put(uint8_t out[SEC_MOD_INSTANCE_INDEX_SIZE],
+			   unsigned int sec_mod_instance_index)
+{
+	out[0] = (sec_mod_instance_index >> 8) & 0xff;
+	out[1] = sec_mod_instance_index & 0xff;
+}
+
+inline static unsigned int
+sec_mod_instance_index_get(const uint8_t in[SEC_MOD_INSTANCE_INDEX_SIZE])
+{
+	return ((unsigned int)in[0] << 8) | in[1];
+}
+
+int sec_mod_instance_addr(const char *socket_base,
+			  unsigned int sec_mod_instance_index,
+			  struct sockaddr_un *addr, socklen_t *addr_len);
 
 extern int saved_argc;
 extern char **saved_argv;

@@ -1198,7 +1198,7 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 			    MAX_SEC_MOD_INSTANCES) {
 				fprintf(stderr,
 					ERRSTR
-					"'sec-mod-scale' must not exceed %d\n",
+					"'sec-mod-scale' must not exceed %u\n",
 					MAX_SEC_MOD_INSTANCES);
 				return 0;
 			}
