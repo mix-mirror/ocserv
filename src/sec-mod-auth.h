@@ -50,15 +50,19 @@ typedef struct auth_mod_st {
 			   unsigned int *groupname_size);
 	/* optional: begin a browser-based login for the client at remote_ip;
 	 * return the authorization URL to open and the state which identifies
-	 * the request */
-	int (*sso_start)(void *vctx, void *pool, const char *remote_ip,
-			 const char *strap_dh_pubkey, char **url, char **state);
+	 * the request. The state and the token returned by sso_finish name the
+	 * sec-mod instance and are authenticated with 'kd', see
+	 * REQ-IPC-093 */
+	int (*sso_start)(void *vctx, void *pool, const sso_key_data_st *kd,
+			 const char *remote_ip, const char *strap_dh_pubkey,
+			 char **url, char **state);
 	/* optional: exchange the code returned by the provider and remember
 	 * the identity under a fresh token, which is returned in the clear
 	 * for an embedded browser, or only encrypted when the client asked
 	 * for an external one */
-	int (*sso_finish)(void *vctx, void *pool, const char *code,
-			  const char *state, char **token, char **sso_token);
+	int (*sso_finish)(void *vctx, void *pool, const sso_key_data_st *kd,
+			  const char *code, const char *state, char **token,
+			  char **sso_token);
 } auth_mod_st;
 
 void main_auth_init(main_server_st *s);

@@ -49,6 +49,14 @@
 #endif
 
 #define MAX_MSG_SIZE 16 * 1024
+
+/* The index of a sec-mod instance is encoded as a single byte: it is the first
+ * byte of the session ID of every session, which main uses to route a cookie
+ * to the instance that holds the session, and the OpenID Connect browser
+ * login carries it in the same form to reach the instance that holds the
+ * login. The number of instances is therefore limited to what a byte can
+ * index. */
+#define MAX_SEC_MOD_INSTANCES 255
 #define DTLS_PROTO_INDICATOR "PSK-NEGOTIATE"
 
 typedef enum { SOCK_TYPE_TCP, SOCK_TYPE_UDP, SOCK_TYPE_UNIX } sock_type_t;

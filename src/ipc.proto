@@ -182,6 +182,10 @@ message worker_startup_msg
 	repeated string pam_auth_group_list = 12;
 	repeated string gssapi_auth_group_list = 13;
 	repeated string plain_auth_group_list = 14;
+	/* the addresses of all the sec-mod instances, in order of their
+	 * index; a browser login is routed to the instance which started
+	 * it, rather than to the one secmod_addr names */
+	repeated bytes secmod_addrs = 15;
 }
 
 /* SESSION_INFO */

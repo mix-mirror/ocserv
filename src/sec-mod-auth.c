@@ -909,8 +909,9 @@ int handle_sec_oidc_start(int cfd, sec_mod_st *sec, const SecOidcStartMsg *req)
 	if (amod == NULL) {
 		seclog(sec, LOG_NOTICE,
 		       "no authentication method supports a browser login");
-	} else if (amod->sso_start(auth_ctx, lpool, req->remote_ip,
-				   req->strap_dh_pubkey, &url, &state) == 0) {
+	} else if (amod->sso_start(auth_ctx, lpool, &sec->sso_key,
+				   req->remote_ip, req->strap_dh_pubkey, &url,
+				   &state) == 0) {
 		rep.ok = 1;
 		rep.authorization_url = url;
 		rep.state = state;
@@ -947,8 +948,8 @@ int handle_sec_oidc_finish(int cfd, sec_mod_st *sec,
 	if (amod == NULL) {
 		seclog(sec, LOG_NOTICE,
 		       "no authentication method supports a browser login");
-	} else if (amod->sso_finish(auth_ctx, lpool, req->code, req->state,
-				    &token, &sso_token) == 0) {
+	} else if (amod->sso_finish(auth_ctx, lpool, &sec->sso_key, req->code,
+				    req->state, &token, &sso_token) == 0) {
 		rep.ok = 1;
 		rep.token = token;
 		rep.sso_token = sso_token;
@@ -1064,6 +1065,7 @@ int handle_sec_auth_init(int cfd, sec_mod_st *sec, const SecAuthInitMsg *req,
 	if (e->module) {
 		common_auth_init_st st;
 
+		st.sso_key = &sec->sso_key;
 		st.username = req->user_name;
 		st.ip = req->remote_ip;
 		st.our_ip = req->our_ip;

@@ -672,7 +672,8 @@ most one request to the token endpoint, which is bounded by
 sec-mod is single threaded it is blocked for that time; the limits above
 bound how often that can happen. A completed login MUST expire after
 `OIDC_CLAIM_TIMEOUT` seconds if not claimed. Expired entries MUST be dropped
-without visiting the others.
+without visiting the others. Each sec-mod instance keeps its own requests
+(REQ-IPC-093), so the limits apply per instance.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/auth/openidconnect.c (`oidc_sso_pending_add`,
@@ -681,6 +682,45 @@ without visiting the others.
 served again once the pending requests expire; a callback presented twice
 leads to a single request at the provider. See tests/test-oidc-code-flow.
 **Links:** REQ-AUTH-AUTH-043
+
+### REQ-IPC-093 — A browser login is routed to the sec-mod instance which holds it, by an authenticated value
+
+**Requirement:** Each sec-mod instance holds its own pending and completed
+browser logins, while a worker is assigned an instance by its client's
+address (REQ-MAIN-INIT-003). The browser completing a login, and the
+connection claiming its session, may come from other addresses than the one
+the form was served to, so a login MUST be routed to the instance which
+holds it, whatever the address of the request. The instance which creates a
+login MUST name itself in the values it hands to the client, and MUST
+authenticate them (REQ-GEN-SEC-003) with a key that only main and the sec-mod
+instances have, which MUST be different from the key which authenticates the
+data of the workers: the values come back from the client through a worker,
+which is not trusted. `worker_startup_msg` MUST carry the addresses of all
+the instances in order of their index; and the worker MUST send
+`SEC_OIDC_FINISH`, and the `SEC_AUTH_INIT` claiming a token, to the instance
+the value names, and keep using it for the session. A value which names an
+instance that does not exist MUST be refused by the worker. A sec-mod
+instance MUST validate the authentication of a value before acting on it or
+looking anything up, and MUST refuse a value which it did not issue, leaving
+the pending and the completed logins it holds as they were. The number of
+instances MUST NOT exceed 255, as the instance is a single byte in the
+session ID (REQ-IPC-017); a configured `sec-mod-scale` above it MUST be
+rejected at startup.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/auth/openidconnect.c (`oidc_sealed_token`,
+`oidc_sealed_token_check`), src/sec-mod.c (`sso_key`), src/main.c (`sso_key`,
+`set_env_from_ws`), src/worker.c (`set_ws_from_env`), src/worker-auth.c
+(`connect_to_specific_secmod`), src/worker-oidc.c (`oidc_value_instance`),
+src/config.c (`sec-mod-scale`)
+**Acceptance:** positive, local — with `sec-mod-scale = 4`, logins whose
+browser and claiming connection come from other addresses than the form's
+complete; negative — a token with an altered tag, an altered or non-existent
+instance, or forged outright is refused, the genuine token is still accepted
+afterwards, and the server keeps serving logins; a `sec-mod-scale` above 255
+is rejected. See tests/test-oidc-code-flow.
+**Links:** REQ-IPC-017, REQ-IPC-091, REQ-MAIN-INIT-003, REQ-AUTH-AUTH-043,
+REQ-GEN-SEC-002, REQ-GEN-SEC-003
 
 ---
 

@@ -250,6 +250,11 @@ typedef struct worker_st {
 
 	struct sockaddr_un secmod_addr; /* sec-mod unix address */
 	socklen_t secmod_addr_len;
+	/* the addresses of all the sec-mod instances, in order of their
+	 * index */
+	struct sockaddr_un *secmod_addrs;
+	socklen_t *secmod_addr_lens;
+	unsigned int secmod_addrs_size;
 
 	struct sockaddr_storage our_addr; /* our address */
 	socklen_t our_addr_len;
@@ -387,6 +392,7 @@ int get_auth_handler(worker_st *server, unsigned int http_ver);
 int post_auth_handler(worker_st *server, unsigned int http_ver);
 #ifdef SUPPORT_OIDC_AUTH
 bool oidc_browser_login_enabled(worker_st *server);
+bool oidc_value_instance(const char *value, unsigned int *instance);
 char *oidc_get_login_url(worker_st *server, unsigned int external_browser);
 int get_oidc_callback_handler(worker_st *server, unsigned int http_ver);
 int oidc_complete_auth(worker_st *server, unsigned int http_ver,
@@ -446,6 +452,7 @@ void ws_add_score_to_ip(worker_st *ws, unsigned int points, unsigned int final,
 			unsigned int discon_reason);
 
 int connect_to_secmod(worker_st *ws);
+int connect_to_specific_secmod(worker_st *ws, unsigned int index);
 inline static int send_msg_to_secmod(worker_st *ws, int sd, uint8_t cmd,
 				     const void *msg, pack_size_func get_size,
 				     pack_func pack)

@@ -905,7 +905,7 @@ void run_sec_mod(sec_mod_instance_st *sec_mod_instance,
 		clear_unneeded_mem(s->vconfig);
 		sec_mod_server(s->main_pool, s->config_pool, s->vconfig, p,
 			       fd[0], sfd[0], sizeof(s->hmac_key), s->hmac_key,
-			       instance_index);
+			       s->sso_key, instance_index);
 		exit(EXIT_SUCCESS);
 	} else if (pid > 0) { /* parent */
 		close(fd[0]);

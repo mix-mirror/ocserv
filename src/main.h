@@ -304,7 +304,11 @@ typedef struct main_server_st {
 	void *main_pool; /* talloc main pool */
 	void *config_pool; /* talloc config pool */
 
+	/* authenticates the data of a worker to sec-mod */
 	const uint8_t hmac_key[HMAC_DIGEST_SIZE];
+	/* authenticates the values sec-mod hands to clients (the browser
+	 * login), which come back to it through a worker */
+	const uint8_t sso_key[HMAC_DIGEST_SIZE];
 
 	/* used as temporary buffer (currently by forward_udp_to_owner) */
 	uint8_t msg_buffer[MAX_MSG_SIZE];

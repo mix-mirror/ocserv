@@ -1137,6 +1137,25 @@ int connect_to_secmod(worker_st *ws)
 	return sd;
 }
 
+/*
+ * Connect to the sec-mod instance with the given index, and use it for the
+ * rest of the session: that is the one which holds the state of the session.
+ * The index must be the one of an instance, see 'secmod_addrs'.
+ */
+int connect_to_specific_secmod(worker_st *ws, unsigned int index)
+{
+	if (index >= ws->secmod_addrs_size) {
+		oclog(ws, LOG_ERR, "there is no sec-mod instance %u", index);
+		return -1;
+	}
+
+	memcpy(&ws->secmod_addr, &ws->secmod_addrs[index],
+	       ws->secmod_addr_lens[index]);
+	ws->secmod_addr_len = ws->secmod_addr_lens[index];
+
+	return connect_to_secmod(ws);
+}
+
 int recv_auth_reply(worker_st *ws, int sd, char **txt, unsigned int *pcounter)
 {
 	int ret;
@@ -1817,6 +1836,7 @@ int oidc_complete_auth(worker_st *ws, unsigned int http_ver, const char *token)
 	const char *reason = "Authentication failed";
 	char *msg = NULL;
 	unsigned int pcounter = 0;
+	unsigned int instance;
 	int ret, sd = -1;
 
 	ireq.auth_type = AUTH_TYPE_OIDC;
@@ -1841,7 +1861,13 @@ int oidc_complete_auth(worker_st *ws, unsigned int http_ver, const char *token)
 	if (ws->req.devplatform[0] != 0)
 		ireq.device_platform = ws->req.devplatform;
 
-	sd = connect_to_secmod(ws);
+	/* the session is created on the instance which holds the login */
+	if (!oidc_value_instance(token, &instance)) {
+		oclog(ws, LOG_INFO, "the presented token names no instance");
+		goto fail;
+	}
+
+	sd = connect_to_specific_secmod(ws, instance);
 	if (sd == -1) {
 		reason = MSG_INTERNAL_ERROR;
 		oclog(ws, LOG_ERR, "failed connecting to sec mod");

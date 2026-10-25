@@ -34,6 +34,16 @@
 #define SESSION_STR "(session: %.6s)"
 #define MAX_GROUPS 512
 
+/*
+ * The key which authenticates the values handed to clients in a browser
+ * login, and the index of the instance which hands them out. It is not the
+ * key which authenticates the data of the workers.
+ */
+typedef struct sso_key_data_st {
+	uint8_t instance;
+	uint8_t key[HMAC_DIGEST_SIZE];
+} sso_key_data_st;
+
 typedef struct sec_mod_st {
 	struct list_head *vconfig;
 	void *config_pool;
@@ -51,6 +61,7 @@ typedef struct sec_mod_st {
 	time_t last_stats_reset;
 	const uint8_t hmac_key[HMAC_DIGEST_SIZE];
 	uint32_t sec_mod_instance_id;
+	sso_key_data_st sso_key;
 } sec_mod_st;
 
 typedef struct stats_st {
@@ -65,6 +76,7 @@ typedef struct common_auth_init_st {
 	const char *user_agent;
 	const char *sid; /* printable session id (== acct_info.safe_id) */
 	const char *oidc_token;
+	const sso_key_data_st *sso_key;
 	unsigned int id;
 } common_auth_init_st;
 
@@ -178,6 +190,7 @@ void sec_auth_user_deinit(sec_mod_st *sec, client_entry_st *e,
 void sec_mod_server(void *main_pool, void *config_pool,
 		    struct list_head *vconfig, const char *socket_file,
 		    int cmd_fd, int cmd_fd_sync, size_t hmac_key_length,
-		    const uint8_t *hmac_key, const uint8_t instance_id);
+		    const uint8_t *hmac_key, const uint8_t *sso_key,
+		    const uint8_t instance_id);
 
 #endif

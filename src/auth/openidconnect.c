@@ -36,6 +36,8 @@
 #include <ccan/list/list.h>
 #include <base64-helper.h>
 #include <gnutls/abstract.h>
+#include <ccan/str/hex/hex.h>
+#include "common/hmac.h"
 
 #include "log.h"
 
@@ -47,6 +49,20 @@
 /* the random values bound to a request: the state, the value set in the
  * browser, and the token which claims the session */
 #define OIDC_RANDOM_SIZE (32)
+/*
+ * The state and the token are the index of the sec-mod instance which holds
+ * the request, the random value and a tag, hex encoded. The browser and the
+ * client may reach the server from different addresses, and so be served by
+ * workers talking to different instances, which use the index to reach the
+ * right one. The value comes back from the client through a worker which is
+ * not trusted, so the tag authenticates it, with a key which only main and
+ * the sec-mod instances have (REQ-GEN-SEC-003): it is the HMAC of the label
+ * of the kind of value, the index and the random value. The label keeps a
+ * state from being presented as a token.
+ */
+#define OIDC_TOKEN_SIZE (1 + OIDC_RANDOM_SIZE + HMAC_DIGEST_SIZE)
+#define SEAL_LABEL_NEW_STATE "oidc-state"
+#define SEAL_LABEL_TOKEN "oidc-token"
 /* How long a completed login waits for the client to claim it. The client
  * does so as soon as the browser leg is over, so it can be short. */
 #define OIDC_CLAIM_TIMEOUT (60)
@@ -129,8 +145,8 @@ typedef struct oidc_sso_state_st {
 	 * which accept only alphanumeric characters, so they are hex rather
 	 * than base64url.
 	 */
-	char state[OIDC_HEX_SIZE(OIDC_RANDOM_SIZE)];
-	char token[OIDC_HEX_SIZE(OIDC_RANDOM_SIZE)];
+	char state[OIDC_HEX_SIZE(OIDC_TOKEN_SIZE)];
+	char token[OIDC_HEX_SIZE(OIDC_TOKEN_SIZE)];
 	char verifier[OIDC_B64_SIZE(OIDC_VERIFIER_SIZE)];
 	char nonce[OIDC_B64_SIZE(OIDC_NONCE_SIZE)];
 	time_t expires;
@@ -180,11 +196,12 @@ static bool oidc_verify_token(oidc_vctx_st *vctx, const char *token,
 			      char user_name[MAX_USERNAME_SIZE], oidc_st *ct);
 static json_t *oidc_token_exchange(oidc_vctx_st *vctx, const char *code,
 				   const char *verifier);
-static int oidc_sso_start(void *vctx, void *pool, const char *remote_ip,
-			  const char *strap_dh_pubkey, char **url,
-			  char **state);
-static int oidc_sso_finish(void *vctx, void *pool, const char *code,
-			   const char *state, char **token, char **sso_token);
+static int oidc_sso_start(void *vctx, void *pool, const sso_key_data_st *kd,
+			  const char *remote_ip, const char *strap_dh_pubkey,
+			  char **url, char **state);
+static int oidc_sso_finish(void *vctx, void *pool, const sso_key_data_st *kd,
+			   const char *code, const char *state, char **token,
+			   char **sso_token);
 
 static char *oidc_encrypt_for_client(void *pool, const char *pubkey_b64,
 				     const char *value);
@@ -422,15 +439,37 @@ static void oidc_sso_state_expire(oidc_vctx_st *vctx)
 	}
 }
 
-/* Fill 'out' with OIDC_RANDOM_SIZE random bytes, hex encoded. */
-static int oidc_random_hex(char out[OIDC_HEX_SIZE(OIDC_RANDOM_SIZE)])
+/* The tag over the index and the random value at the start of the token. */
+static void oidc_sealed_token_tag(const sso_key_data_st *kd, const char *label,
+				  const uint8_t id[1 + OIDC_RANDOM_SIZE],
+				  uint8_t tag[HMAC_DIGEST_SIZE])
 {
-	uint8_t rnd[OIDC_RANDOM_SIZE];
-	gnutls_datum_t d = { rnd, sizeof(rnd) };
-	size_t len = OIDC_HEX_SIZE(OIDC_RANDOM_SIZE);
+	hmac_component_st comp[2];
 
-	if (gnutls_rnd(GNUTLS_RND_RANDOM, rnd, sizeof(rnd)) < 0)
+	comp[0].data = (void *)label;
+	comp[0].length = strlen(label);
+	comp[1].data = (void *)id;
+	comp[1].length = 1 + OIDC_RANDOM_SIZE;
+
+	generate_hmac(sizeof(kd->key), kd->key, ARRAY_SIZE(comp), comp, tag);
+}
+
+/*
+ * Fill 'out' with the index of the sec-mod instance, OIDC_RANDOM_SIZE random
+ * bytes and the tag over both, hex encoded.
+ */
+static int oidc_sealed_token(const sso_key_data_st *kd, const char *label,
+			     char out[OIDC_HEX_SIZE(OIDC_TOKEN_SIZE)])
+{
+	uint8_t id[OIDC_TOKEN_SIZE];
+	gnutls_datum_t d = { id, sizeof(id) };
+	size_t len = OIDC_HEX_SIZE(OIDC_TOKEN_SIZE);
+
+	id[0] = kd->instance;
+	if (gnutls_rnd(GNUTLS_RND_RANDOM, id + 1, OIDC_RANDOM_SIZE) < 0)
 		return -1;
+
+	oidc_sealed_token_tag(kd, label, id, id + 1 + OIDC_RANDOM_SIZE);
 
 	if (gnutls_hex_encode(&d, out, &len) < 0)
 		return -1;
@@ -439,10 +478,41 @@ static int oidc_random_hex(char out[OIDC_HEX_SIZE(OIDC_RANDOM_SIZE)])
 }
 
 /*
+ * Check that 'str' is a value which this instance issued for this kind of
+ * value. Nothing is acted on, or looked up, for one which is not.
+ */
+static bool oidc_sealed_token_check(const sso_key_data_st *kd,
+				    const char *label, const char *str)
+{
+	uint8_t id[OIDC_TOKEN_SIZE];
+	uint8_t tag[HMAC_DIGEST_SIZE];
+
+	if (kd == NULL || str == NULL ||
+	    strlen(str) != OIDC_HEX_SIZE(OIDC_TOKEN_SIZE) - 1)
+		return false;
+
+	if (!hex_decode(str, OIDC_HEX_SIZE(OIDC_TOKEN_SIZE) - 1, id,
+			sizeof(id)))
+		return false;
+
+	/* authenticate first: the index is not used before the tag is valid */
+	oidc_sealed_token_tag(kd, label, id, tag);
+	if (gnutls_memcmp(tag, id + 1 + OIDC_RANDOM_SIZE, sizeof(tag)) != 0)
+		return false;
+
+	/* a value of another instance is authentic, but not held here */
+	if (id[0] != kd->instance)
+		return false;
+
+	return true;
+}
+
+/*
  * Create a pending authorization request. The returned entry stays owned
  * by the state DB. Returns NULL on failure.
  */
 static oidc_sso_state_st *oidc_sso_state_new(oidc_vctx_st *vctx,
+					     const sso_key_data_st *kd,
 					     const char *remote_ip)
 {
 	oidc_sso_state_st *e;
@@ -454,7 +524,7 @@ static oidc_sso_state_st *oidc_sso_state_new(oidc_vctx_st *vctx,
 	if (e == NULL)
 		return NULL;
 
-	if (oidc_random_hex(e->state) < 0)
+	if (oidc_sealed_token(kd, SEAL_LABEL_NEW_STATE, e->state) < 0)
 		goto fail;
 
 	if (gnutls_rnd(GNUTLS_RND_RANDOM, rnd, OIDC_VERIFIER_SIZE) < 0)
@@ -739,6 +809,14 @@ static int oidc_auth_init(void **ctx, void *pool, void *vctx,
 		 * exchanged.
 		 */
 		oidc_sso_state_st *st;
+
+		if (!oidc_sealed_token_check(info->sso_key, SEAL_LABEL_TOKEN,
+					     info->oidc_token)) {
+			oc_syslog(
+				LOG_NOTICE,
+				"ocserv-oidc: the presented token was not issued by this instance");
+			return ERR_AUTH_FAIL;
+		}
 
 		st = oidc_sso_claim_take(vt, info->oidc_token);
 		if (st == NULL) {
@@ -1123,8 +1201,9 @@ cleanup:
  * the URL the user's browser should be sent to. The caller owns the
  * returned strings.
  */
-static int oidc_sso_start(void *vctx, void *pool, const char *remote_ip,
-			  const char *strap_dh_pubkey, char **url, char **state)
+static int oidc_sso_start(void *vctx, void *pool, const sso_key_data_st *kd,
+			  const char *remote_ip, const char *strap_dh_pubkey,
+			  char **url, char **state)
 {
 	oidc_vctx_st *vc = (oidc_vctx_st *)vctx;
 	oidc_sso_state_st *st;
@@ -1153,7 +1232,7 @@ static int oidc_sso_start(void *vctx, void *pool, const char *remote_ip,
 		return -1;
 	}
 
-	st = oidc_sso_state_new(vc, remote_ip);
+	st = oidc_sso_state_new(vc, kd, remote_ip);
 	if (st == NULL) {
 		oc_syslog(LOG_ERR,
 			  "ocserv-oidc: cannot create authorization request");
@@ -1217,8 +1296,9 @@ cleanup:
  * receives. The request is taken whatever the outcome, so a state serves
  * one callback at most.
  */
-static int oidc_sso_finish(void *vctx, void *pool, const char *code,
-			   const char *state, char **token, char **sso_token)
+static int oidc_sso_finish(void *vctx, void *pool, const sso_key_data_st *kd,
+			   const char *code, const char *state, char **token,
+			   char **sso_token)
 {
 	oidc_vctx_st *vc = (oidc_vctx_st *)vctx;
 	oidc_sso_state_st *st;
@@ -1229,6 +1309,13 @@ static int oidc_sso_finish(void *vctx, void *pool, const char *code,
 
 	*token = NULL;
 	*sso_token = NULL;
+
+	if (!oidc_sealed_token_check(kd, SEAL_LABEL_NEW_STATE, state)) {
+		oc_syslog(
+			LOG_NOTICE,
+			"ocserv-oidc: the presented state was not issued by this instance");
+		return -1;
+	}
 
 	st = oidc_sso_state_take(vc, state);
 	if (st == NULL) {
@@ -1273,7 +1360,7 @@ static int oidc_sso_finish(void *vctx, void *pool, const char *code,
 	}
 	talloc_free(tmp);
 
-	if (oidc_random_hex(st->token) < 0)
+	if (oidc_sealed_token(kd, SEAL_LABEL_TOKEN, st->token) < 0)
 		goto fail;
 
 	/*

@@ -249,7 +249,7 @@ The remaining fields are only used with `mode=browser`; 'client_id' and
 |redirect_uri|Where the provider sends the user back. It must point at `/sso/callback` on this server and match the value registered with the provider. With 'camouflage' enabled it must also carry the secret as its first query parameter.|
 |groups_claim|The claim carrying the user's groups. When absent, group membership is not used.|
 |sso_login_timeout|How long the user has to complete the browser login, in seconds. Defaults to 600.|
-|sso_max_pending|How many browser logins can be in progress at once. Every login form served starts one, so the number is bounded; further forms are refused until some complete or expire. Defaults to 1024.|
+|sso_max_pending|How many browser logins can be in progress at once. Every login form served starts one, so the number is bounded; further forms are refused until some complete or expire. Defaults to 1024. With several sec-mod instances (sec-mod-scale) each one counts its own logins.|
 |sso_max_pending_per_ip|How many of those can come from one client address, so that a single client cannot take them all. Many users behind one NAT address share this limit. Defaults to 32.|
 
 The authorization, token and JWKS endpoints are read from the provider's
