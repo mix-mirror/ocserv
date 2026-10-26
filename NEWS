@@ -8,6 +8,7 @@
   from DTLS, as it already did for packets from the TUN device. Under load,
   this lowers latency and raises upload throughput over TLS, and over DTLS
   keeps the worker from dropping the client's packets.
+- The bundled llhttp was updated to 9.4.3.
 
 * Version 1.6.0 (released 2026-10-16)
 - Send the RADIUS session ID as Acct-Session-Id in the Access-Request (#751)
