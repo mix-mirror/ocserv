@@ -104,6 +104,7 @@ void print_iface_stats(const char *iface, time_t since, FILE *out,
 
 	rx = rtnl_link_get_stat(rlink, RTNL_LINK_RX_BYTES);
 	tx = rtnl_link_get_stat(rlink, RTNL_LINK_TX_BYTES);
+	rtnl_link_put(rlink);
 
 	bytes2human(rx, buf1, sizeof(buf1), NULL);
 	bytes2human(tx, buf2, sizeof(buf2), NULL);
