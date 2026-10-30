@@ -86,6 +86,14 @@ if pam_dep.found()
     env: test_env, workdir: test_workdir, timeout: 30)
 endif
 
+if libnl_dep.found() and host_machine.system() == 'linux'
+  occtl_link_exe = executable('occtl-link-lifecycle',
+    ['occtl-link-lifecycle.c', '../src/occtl/nl.c'],
+    link_args: ['-Wl,--wrap=rtnl_link_get_kernel', '-Wl,--wrap=rtnl_link_put'],
+    dependencies: test_base_deps + [libnl_dep, readline_dep], include_directories: test_inc)
+  test('test-occtl-link-lifecycle', occtl_link_exe, timeout: 30)
+endif
+
 # gen_oidc_test_data (only when OIDC enabled)
 if oidc_enabled
   gen_oidc_exe = executable('gen_oidc_test_data', 'generate_oidc_test_data.c',

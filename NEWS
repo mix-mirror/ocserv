@@ -1,4 +1,5 @@
 * Version 1.6.1 (unreleased)
+- Release libnl interface references after printing occtl statistics.
 - The worker keeps GnuTLS from handing its TLS connection to the kernel
   (kTLS), which "ktls = true" in the GnuTLS configuration turns on. With
   kTLS, VPN sessions failed, or, with isolate-workers, kept a tls ULP
