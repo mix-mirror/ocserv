@@ -430,6 +430,84 @@ static void check_many_values(vhost_cfg_st *defvhost, vhost_cfg_st *named)
 	}
 }
 
+static void check_group(const char *what, const ReloadableConfig *c,
+			unsigned int i, const char *name, const char *label)
+{
+	const SelectGroup *group = c->select_groups[i];
+
+	CHECK_STR(what, group->name, name);
+	if (label != NULL) {
+		CHECK_STR(what, group->label, label);
+	} else if (group->label != NULL) {
+		fprintf(stderr,
+			"FAIL %s: expected no label for %s, got \"%s\"\n", what,
+			name, group->label);
+		exit(1);
+	}
+}
+
+static void check_groups_default(const ReloadableConfig *d)
+{
+	CHECK_EQ_U("default groups", d->n_select_groups, 2);
+	check_group("default groups", d, 0, "group1", "Label One");
+	check_group("default groups", d, 1, "group2", NULL);
+}
+
+static void check_groups_inherited(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+{
+	check_groups_default(defvhost->config);
+	CHECK_EQ_U("inherited groups", named->config->n_select_groups, 2);
+	check_group("inherited groups", named->config, 0, "group1",
+		    "Label One");
+	check_group("inherited groups", named->config, 1, "group2", NULL);
+}
+
+static void check_groups_replaced(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+{
+	check_groups_default(defvhost->config);
+	CHECK_EQ_U("replaced groups", named->config->n_select_groups, 2);
+	check_group("replaced groups", named->config, 0, "group3",
+		    "Label Three");
+	check_group("replaced groups", named->config, 1, "group4", NULL);
+}
+
+static void check_groups_empty_label(vhost_cfg_st *defvhost,
+				     vhost_cfg_st *named)
+{
+	CHECK_EQ_U("empty label", named->config->n_select_groups, 2);
+	check_group("empty label", named->config, 0, "group1", NULL);
+	check_group("empty label", named->config, 1, "group2", "Label Two");
+	check_group("empty label", defvhost->config, 0, "group1", NULL);
+}
+
+static void check_many_groups(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+{
+	char want[32];
+	unsigned int i;
+
+	CHECK_EQ_U("default group count", defvhost->config->n_select_groups,
+		   MANY_VALUES);
+	CHECK_EQ_U("named group count", named->config->n_select_groups,
+		   MANY_VALUES);
+	for (i = 0; i < MANY_VALUES; i++) {
+		snprintf(want, sizeof(want), "g%u", i);
+		check_group("default groups", defvhost->config, i, want, NULL);
+		snprintf(want, sizeof(want), "g%u", MANY_VALUES + i);
+		check_group("named groups", named->config, i, want, NULL);
+	}
+}
+
+static void check_groups_auto_selected(vhost_cfg_st *defvhost,
+				       vhost_cfg_st *named)
+{
+	CHECK_EQ_U("default auto groups", defvhost->config->n_select_groups, 2);
+	check_group("default auto groups", defvhost->config, 0, "auto1", NULL);
+	check_group("default auto groups", defvhost->config, 1, "auto2", NULL);
+	CHECK_EQ_U("named auto groups", named->config->n_select_groups, 2);
+	check_group("named auto groups", named->config, 0, "auto1", NULL);
+	check_group("named auto groups", named->config, 1, "auto2", NULL);
+}
+
 int main(void)
 {
 	void *pool;
@@ -437,6 +515,8 @@ int main(void)
 	vhost_cfg_st *named;
 	char tmpfile[256];
 	const char *srcdir;
+	static char auto1[] = "auto1", auto2[] = "auto2";
+	static char *auto_groups[] = { auto1, auto2 };
 
 	srcdir = getenv("srcdir");
 	if (srcdir == NULL)
@@ -626,6 +706,44 @@ int main(void)
 		      many_options(pool, "custom-header", "X-H", 0),
 		      many_options(pool, "custom-header", "X-H", MANY_VALUES),
 		      check_many_values);
+
+	/* ----------------------------------------------------------------
+	 * Phase 6: select-group is inherited with its labels, unless the
+	 * named vhost sets its own, which replaces the inherited list.
+	 * ---------------------------------------------------------------- */
+	check_options(pool, tmpfile, srcdir,
+		      "select-group = group1[Label One]\n"
+		      "select-group = group2\n",
+		      "", check_groups_inherited);
+
+	check_options(pool, tmpfile, srcdir,
+		      "select-group = group1[Label One]\n"
+		      "select-group = group2\n",
+		      "select-group = group3[Label Three]\n"
+		      "select-group = group4\n",
+		      check_groups_replaced);
+
+	check_options(pool, tmpfile, srcdir,
+		      "select-group = group1[]\n"
+		      "select-group = group2[Label Two]\n",
+		      "", check_groups_empty_label);
+
+	check_options(pool, tmpfile, srcdir,
+		      many_options(pool, "select-group", "g", 0),
+		      many_options(pool, "select-group", "g", MANY_VALUES),
+		      check_many_groups);
+
+	/* auto-select-group discovers the groups, and labels of a previous
+	 * select-group list do not apply to them. */
+	plain_auth_group_list = auto_groups;
+	plain_auth_group_list_size = 2;
+	check_options(pool, tmpfile, srcdir,
+		      "select-group = group1[Label One]\n"
+		      "auto-select-group = true\n",
+		      talloc_asprintf(
+			      pool, "auth = \"plain[%s/data/test1.passwd]\"\n",
+			      srcdir),
+		      check_groups_auto_selected);
 
 	unlink(tmpfile);
 	talloc_free(pool);

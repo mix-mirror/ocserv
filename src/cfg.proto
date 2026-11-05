@@ -61,6 +61,12 @@ message KkdcpConfig {
   repeated KkdcpRealmConfig realms = 2;
 }
 
+/* An entry of the select-group option */
+message SelectGroup {
+  required string name  = 1;
+  optional string label = 2; /* absent: clients are shown the name */
+}
+
 message ReloadableConfig {
   /* ------------------------------------------------------------------ */
   /* Scalars — optional generates has_X boolean for presence tracking    */
@@ -157,12 +163,12 @@ message ReloadableConfig {
   /* String arrays                                                        */
   /* ------------------------------------------------------------------ */
 
-  repeated string group_list            = 200; /* [scope: vhost] select_group */
-  repeated string friendly_group_list   = 201; /* [scope: vhost] parallel to group_list */
+  /* fields 200, 201 retired — do not reuse */
   repeated string custom_header         = 202; /* [scope: vhost] */
   repeated string split_dns             = 203; /* [scope: vhost user] */
   repeated string included_http_headers = 204; /* [scope: vhost] */
   repeated string known_iroutes         = 205; /* [scope: vhost] */
+  repeated SelectGroup select_groups    = 206; /* [scope: vhost] select_group */
 
   /* ------------------------------------------------------------------ */
   /* Nested messages and special repeated fields                          */

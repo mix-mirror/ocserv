@@ -113,6 +113,7 @@ always_scripts = [
   'test-cookie-sid-overflow',
   'test-select-group-length-warning',
   'test-vhost-name-length',
+  'test-vhost-select-group',
 ]
 
 foreach s : always_scripts

@@ -157,21 +157,18 @@ int ws_switch_auth_to_next(struct worker_st *ws)
 	return 0;
 }
 
+static const char *group_display_name(const SelectGroup *group)
+{
+	return group->label != NULL ? group->label : group->name;
+}
+
 static int append_group_idx(worker_st *ws, str_st *str, unsigned int i)
 {
 	char temp[128];
-	const char *name;
-	const char *value;
-
-	value = WSRCONFIG(ws)->group_list[i];
-	if (WSRCONFIG(ws)->friendly_group_list != NULL &&
-	    WSRCONFIG(ws)->friendly_group_list[i] != NULL)
-		name = WSRCONFIG(ws)->friendly_group_list[i];
-	else
-		name = WSRCONFIG(ws)->group_list[i];
+	const SelectGroup *group = WSRCONFIG(ws)->select_groups[i];
 
 	snprintf(temp, sizeof(temp), "<option value=\"%s\">%s</option>\n",
-		 value, name);
+		 group->name, group_display_name(group));
 	if (str_append_str(str, temp) < 0)
 		return -1;
 
@@ -182,25 +179,20 @@ static int append_group_str(worker_st *ws, str_st *str, const char *group)
 {
 	char temp[256];
 	const char *name;
-	const char *value;
 	unsigned int i;
 
-	value = name = group;
+	name = group;
 
-	if (WSRCONFIG(ws)->friendly_group_list) {
-		for (i = 0; i < WSRCONFIG(ws)->n_group_list; i++) {
-			if (strcmp(WSRCONFIG(ws)->group_list[i], group) == 0) {
-				if (WSRCONFIG(ws)->friendly_group_list[i] !=
-				    NULL)
-					name = WSRCONFIG(ws)
-						       ->friendly_group_list[i];
-				break;
-			}
+	for (i = 0; i < WSRCONFIG(ws)->n_select_groups; i++) {
+		if (strcmp(WSRCONFIG(ws)->select_groups[i]->name, group) == 0) {
+			name = group_display_name(
+				WSRCONFIG(ws)->select_groups[i]);
+			break;
 		}
 	}
 
 	snprintf(temp, sizeof(temp), "<option value=\"%s\">%s</option>\n",
-		 value, name);
+		 group, name);
 	if (str_append_str(str, temp) < 0)
 		return -1;
 
@@ -215,23 +207,18 @@ static int resolve_selected_group(worker_st *ws, const char *group,
 	if (group == NULL || group[0] == 0)
 		return 0;
 
-	if (WSRCONFIG(ws)->n_group_list == 0) {
+	if (WSRCONFIG(ws)->n_select_groups == 0) {
 		strlcpy(resolved, group, resolved_size);
 		return 1;
 	}
 
-	for (i = 0; i < WSRCONFIG(ws)->n_group_list; i++) {
-		if (strcmp(WSRCONFIG(ws)->group_list[i], group) == 0) {
-			strlcpy(resolved, WSRCONFIG(ws)->group_list[i],
-				resolved_size);
-			return 1;
-		}
+	for (i = 0; i < WSRCONFIG(ws)->n_select_groups; i++) {
+		const SelectGroup *entry = WSRCONFIG(ws)->select_groups[i];
 
-		if (WSRCONFIG(ws)->friendly_group_list != NULL &&
-		    WSRCONFIG(ws)->friendly_group_list[i] != NULL &&
-		    strcmp(WSRCONFIG(ws)->friendly_group_list[i], group) == 0) {
-			strlcpy(resolved, WSRCONFIG(ws)->group_list[i],
-				resolved_size);
+		if (strcmp(entry->name, group) == 0 ||
+		    (entry->label != NULL &&
+		     strcmp(entry->label, group) == 0)) {
+			strlcpy(resolved, entry->name, resolved_size);
 			return 1;
 		}
 	}
@@ -254,12 +241,14 @@ static int auto_select_cert_group(worker_st *ws)
 	const char *candidate = NULL;
 
 	for (i = 0; i < ws->cert_groups_size; i++) {
-		if (WSRCONFIG(ws)->n_group_list > 0) {
+		if (WSRCONFIG(ws)->n_select_groups > 0) {
 			unsigned int found = 0;
 
-			for (j = 0; j < WSRCONFIG(ws)->n_group_list; j++) {
+			for (j = 0; j < WSRCONFIG(ws)->n_select_groups; j++) {
 				if (strcmp(ws->cert_groups[i],
-					   WSRCONFIG(ws)->group_list[j]) == 0) {
+					   WSRCONFIG(ws)
+						   ->select_groups[j]
+						   ->name) == 0) {
 					found = 1;
 					break;
 				}
@@ -646,7 +635,7 @@ int get_auth_handler2(worker_st *ws, unsigned int http_ver, const char *pmsg,
 		}
 
 		/* send groups */
-		if (WSRCONFIG(ws)->n_group_list > 0 ||
+		if (WSRCONFIG(ws)->n_select_groups > 0 ||
 		    ws->cert_groups_size > 0) {
 			ret = str_append_str(
 				&str,
@@ -690,11 +679,14 @@ int get_auth_handler2(worker_st *ws, unsigned int http_ver, const char *pmsg,
 				for (i = 0; i < ws->cert_groups_size; i++) {
 					dup = 0;
 					for (j = 0;
-					     j < WSRCONFIG(ws)->n_group_list;
+					     j < WSRCONFIG(ws)->n_select_groups;
 					     j++) {
 						if (strcmp(ws->cert_groups[i],
-							   WSRCONFIG(ws)->group_list
-								   [j]) == 0) {
+							   WSRCONFIG(ws)
+								   ->select_groups
+									   [j]
+								   ->name) ==
+						    0) {
 							dup = 1;
 							break;
 						}
@@ -720,13 +712,13 @@ int get_auth_handler2(worker_st *ws, unsigned int http_ver, const char *pmsg,
 
 			/* we send a list of possible groups only if user is not forcing group e.g. by url to disable dialog on client side */
 			if (ws->groupname_url_forced == 0) {
-				for (i = 0; i < WSRCONFIG(ws)->n_group_list;
+				for (i = 0; i < WSRCONFIG(ws)->n_select_groups;
 				     i++) {
 					if (ws->groupname[0] != 0 &&
 					    strcmp(ws->groupname,
 						   WSRCONFIG(ws)
-							   ->group_list[i]) ==
-						    0)
+							   ->select_groups[i]
+							   ->name) == 0)
 						continue;
 
 					ret = append_group_idx(ws, &str, i);

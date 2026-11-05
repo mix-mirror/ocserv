@@ -301,8 +301,6 @@ struct dtls_st;
 #define LATENCY_WORKER_AGGREGATION_TIME 60
 #endif
 
-#define DEFAULT_CONFIG_ENTRIES 96
-
 #include "tun.h"
 
 unsigned int extract_prefix(char *network);

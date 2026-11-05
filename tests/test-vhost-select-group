@@ -1,0 +1,113 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+NO_NEED_ROOT=1
+
+. `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
+
+if ! test -x "$(command -v python3)"; then
+	echo "python3 is needed to run this test"
+	exit 77
+fi
+
+eval "${GETPORT}"
+
+echo "Testing the select-group list offered by named vhosts... "
+
+function finish {
+  set +e
+  echo " * Cleaning up..."
+  test -n "${CONFIG}" && rm -f ${CONFIG} >/dev/null 2>&1
+  rm -f ${CLIENT_OUT} ${CLIENT_LOG} ${SERVER_LOG}
+  cleanup
+}
+trap finish EXIT
+
+CLIENT_OUT=$(mktemp)
+CLIENT_LOG=$(mktemp)
+SERVER_LOG=$(mktemp)
+
+update_config test-vhost-select-group.config
+# VERBOSE keeps the server's log, which a failure prints
+VERBOSE=1 launch_simple_sr_server -d 1 -f -c ${CONFIG} >${SERVER_LOG} 2>&1
+PID=$!
+wait_server $PID
+
+# client HOST COMMAND [ARGS]: runs an oc-client.py command against HOST; what
+# it observed goes to CLIENT_OUT, its exchange with the server to CLIENT_LOG
+client() {
+	host=$1
+	shift
+	LD_PRELOAD=libsocket_wrapper.so python3 "${srcdir}/oc-client.py" \
+		--address $ADDRESS --port $PORT --host $host \
+		--output ${CLIENT_OUT} --log ${CLIENT_LOG} "$@"
+}
+
+# failure WHAT: prints the client's output and exchange and the server's log,
+# then fails the test with WHAT
+failure() {
+	echo "--- client output:"
+	cat ${CLIENT_OUT}
+	echo "--- client exchange:"
+	cat ${CLIENT_LOG}
+	echo "--- server log:"
+	cat ${SERVER_LOG}
+	fail $PID "$1"
+}
+
+# expect_groups HOST PROPOSED EXPECTED WHAT: the groups HOST offers to a
+# client proposing PROPOSED are exactly EXPECTED, in that order. A group the
+# server resolves is offered first.
+expect_groups() {
+	client $1 groups --group "$2" || failure "$4: listing the groups failed"
+	got=$(cat ${CLIENT_OUT})
+	if test "$got" != "$3"; then
+		failure "$4: expected groups '$3', got '$got'"
+	fi
+}
+
+# expect_login HOST GROUP RESULT WHAT: logging in as test to HOST proposing
+# GROUP exits with RESULT (0 accepted, 1 rejected; 2 is a broken exchange)
+expect_login() {
+	client $1 login --group "$2" --user test --password test
+	ret=$?
+	if test $ret != $3; then
+		failure "$4: expected exit $3, got $ret"
+	fi
+}
+
+expect_groups inherits.example.com "group1" $'group1\tgroup1\ngroup2\tLabel Two' \
+	"inherited groups with their labels"
+expect_groups inherits.example.com "Label Two" $'group2\tLabel Two\ngroup1\tgroup1' \
+	"inherited label resolved"
+expect_groups replaces.example.com "group3" $'group3\tLabel Three' \
+	"vhost's own groups replace the inherited ones"
+
+# user test is a member of group1 and group3, not group4. The vhost's list
+# only decides what is offered: a hidden group is left to the backend (#742).
+expect_login replaces.example.com group3 0 "vhost's own group"
+expect_login replaces.example.com group1 0 "hidden group of which the user is a member"
+expect_login replaces.example.com group4 1 "group of which the user is not a member"
+
+kill $PID
+wait
+exit 0

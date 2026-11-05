@@ -429,8 +429,8 @@ however it was allocated, including an array that holds exactly its elements
 because it came from the protobuf inheritance copy (REQ-CONFIG-CFG-002). It
 MUST NOT write outside the array's allocation. The number of values is given
 only by the corresponding count field; the arrays carry no NULL terminator and
-no code may rely on one. A multi-line option other than `select-group` set in
-a `[vhost:NAME]` section MUST append to the values inherited from the default
+no code may rely on one. A multi-line option other than `select-group`
+(REQ-CONFIG-CFG-009) set in a `[vhost:NAME]` section MUST append to the values inherited from the default
 vhost, and there is no limit on the number of values other than available
 memory.
 **Strength:** MUST
@@ -446,7 +446,47 @@ value first, and the default vhost with only its own. 200 values in each
 section MUST leave the named vhost with 400 and the default vhost with 200, all
 with the expected values, and running the test under ASAN MUST report no
 out-of-bounds access.
-**Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-006
+**Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-006, REQ-CONFIG-CFG-009
+
+### REQ-CONFIG-CFG-009 — `select-group` entries carry their label, and a named vhost's list replaces the inherited one
+
+**Requirement:** Each `select-group` value MUST be stored as one `SelectGroup`
+entry of `ReloadableConfig.select_groups`, holding the group's `name` and, when
+the value has a non-empty bracketed label, its `label`; an empty or missing
+label MUST leave `label` absent. A named vhost with no `select-group` option
+MUST inherit the default vhost's entries with their labels
+(REQ-CONFIG-CFG-002). The first `select-group` in a `[vhost:NAME]` section MUST
+discard the inherited entries, so that the vhost offers exactly the groups its
+section lists and an administrator can offer fewer groups on a vhost than on
+the default one; a group listed only by the default vhost MUST NOT be offered
+on such a vhost. The list governs only which groups the login form offers and
+which labels are resolved: a proposed group outside it (a hidden group, #742)
+MUST be passed to the authentication backend, which accepts it only if the
+user is a member. `auto-select-group`, when it applies to a vhost, MUST replace
+that vhost's entries with the discovered groups, without labels.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/cfg.proto (`SelectGroup`); src/config.c (`read_select_group`,
+`add_select_group`, `clear_select_groups`, `cfg_ini_handler`, `parse_cfg_file`);
+src/worker-auth.c (`group_display_name`, `resolve_selected_group`);
+tests/config-inherit.c phase 6; tests/test-vhost-select-group
+**Acceptance:** tests/config-inherit.c phase 6, each case both after parsing and
+after `reload_cfg_file()` — default `group1[Label One]`, `group2` with nothing
+in the named vhost MUST leave the named vhost with both, `group2` without a
+label; the named vhost adding `group3[Label Three]`, `group4` MUST leave it with
+only those two, and the default vhost unchanged; `group1[]` MUST have no label;
+200 entries in each section MUST leave each with its own 200;
+`auto-select-group` with a labelled `select-group` MUST yield only the
+discovered groups, with no labels. tests/test-vhost-select-group — the login
+form of a vhost that inherits from a default vhost listing `group1` and
+`group2[Label Two]` MUST offer `group1` and `group2` as `Label Two`, and MUST
+resolve `Label Two` to `group2` (offering it first) when a client proposes it;
+the form of a vhost that replaces MUST offer only its own `group3`; on that
+vhost a user who is a member of `group1` and `group3` but not `group4` MUST be
+able to log in proposing `group3`, and proposing the hidden `group1`, and MUST
+be rejected proposing `group4`.
+**Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-007, REQ-CONFIG-CFG-008,
+REQ-PROTO-AUTH-010
 
 ---
 
