@@ -415,8 +415,8 @@ active, `ws->cert_groups_size > 0`, and the client did not request a group
 `default-select-group` not requested), the worker MUST NOT unconditionally
 respond with the "Please select your group." prompt. It MUST first compute
 the set of *eligible* certificate groups: if `select-group` is configured
-(`WSRCONFIG(ws)->n_group_list > 0`), eligible groups are the entries of
-`ws->cert_groups[]` that also appear in `WSRCONFIG(ws)->group_list[]`;
+(`WSRCONFIG(ws)->n_select_groups > 0`), eligible groups are the entries of
+`ws->cert_groups[]` that also appear in `WSRCONFIG(ws)->select_groups[]`;
 otherwise (no `select-group` configured) every entry of `ws->cert_groups[]`
 is eligible. If exactly one eligible group exists, the worker MUST set
 `ws->groupname` to it and proceed with `SEC_AUTH_INIT` as if the client had
@@ -891,7 +891,7 @@ configuration.
 A concrete (unmerged, WIP) design exists for this: gitlab!154 proposed (a) a
 vhost option (`radius_check_config_groups` in that patch) that, when set,
 makes `radius_auth_group()` validate `req_group_name` against the vhost's
-configured `select-group` list (`config->group_list[]`) instead of against
+configured `select-group` list (`config->select_groups[]`) instead of against
 `pctx->groupnames[]` — decoupling the connect-time "login group"/tunnel-group
 from RADIUS class membership entirely — and (b) a new `per-radius-class-dir`
 sup-config source consulted by `radius_get_sup_config()`

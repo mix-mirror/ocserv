@@ -1,0 +1,98 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+NO_NEED_ROOT=1
+HEAD=$(mktemp)
+POST=$(mktemp)
+OUTFILE=$(mktemp)
+
+. `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
+
+eval "${GETPORT}"
+
+echo "Testing the select-group list offered by named vhosts... "
+
+function finish {
+  set +e
+  echo " * Cleaning up..."
+  test -n "${CONFIG}" && rm -f ${CONFIG} >/dev/null 2>&1
+  rm -f $HEAD $POST $OUTFILE
+  cleanup
+}
+trap finish EXIT
+
+update_config test-vhost-select-group.config
+launch_simple_sr_server -d 1 -f -c ${CONFIG}
+PID=$!
+wait_server $PID
+
+cat >$HEAD <<_EOF
+X-Transcend-Version:1
+X-Aggregate-Auth:1
+Connection:close
+_EOF
+
+# request_form HOST GROUP: asks HOST for the login form, proposing GROUP
+request_form() {
+	cat >$POST <<_EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<config-auth client="vpn" type="init" aggregate-auth-version="2">
+<version who="vpn">4.8.03036</version>
+<group-select>$2</group-select>
+</config-auth>
+_EOF
+	LD_PRELOAD=libsocket_wrapper.so curl --silent --show-error --insecure \
+		-A 'AnyConnect Darwin_i386 4.8.03036' -H @$HEAD -d@$POST \
+		--resolve $1:$PORT:$ADDRESS https://$1:$PORT >$OUTFILE 2>&1
+}
+
+expect_in_form() {
+	if ! grep -F "$1" $OUTFILE >/dev/null;then
+		cat $OUTFILE
+		fail $PID "$2: expected '$1' in the form"
+	fi
+}
+
+expect_not_in_form() {
+	if grep -F "$1" $OUTFILE >/dev/null;then
+		cat $OUTFILE
+		fail $PID "$2: unexpected '$1' in the form"
+	fi
+}
+
+request_form inherits.example.com "group2"
+expect_in_form '<option value="group1">Label One</option>' "inherited labelled group"
+expect_in_form '<option value="group2">group2</option>' "inherited group without label"
+expect_not_in_form 'group3' "group of another vhost"
+
+request_form inherits.example.com "Label One"
+expect_in_form '<option value="group1">Label One</option>' "inherited label resolved"
+expect_not_in_form 'value="Label One"' "inherited label resolved"
+
+request_form replaces.example.com "group3"
+expect_in_form '<option value="group3">Label Three</option>' "vhost's own group"
+expect_not_in_form 'group1' "replaced inherited group"
+expect_not_in_form 'group2' "replaced inherited group"
+
+kill $PID
+wait
+exit 0

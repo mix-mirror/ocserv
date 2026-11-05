@@ -10,6 +10,13 @@
   keeps the worker from dropping the client's packets.
 - More than 255 sec-mod instances are allowed (up to 65535). Previously the
   instances above 255 could not resume the sessions they held (#779)
+- Fixed heap overflow in configuration parsing when a virtual host adds
+  to a multi-line option it inherits (e.g., route or dns), or with 96 or
+  more select-group entries (#770, #773)
+- Virtual hosts inherit the select-group labels of the default virtual host.
+  A virtual host's select-group entries replace the inherited ones, which
+  is now specified rather than a side effect, and an entry with an empty
+  label is shown by its group name (#773)
 
 * Version 1.6.0 (released 2026-10-16)
 - Send the RADIUS session ID as Acct-Session-Id in the Access-Request (#751)
