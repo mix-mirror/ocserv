@@ -10,6 +10,8 @@
   keeps the worker from dropping the client's packets.
 - More than 255 sec-mod instances are allowed (up to 65535). Previously the
   instances above 255 could not resume the sessions they held (#779)
+- Fixed workers exiting on startup with "sigaltstack: Out of memory" when
+  built with musl, on hosts where its 8 KiB signal stack is too small
 
 * Version 1.6.0 (released 2026-10-16)
 - Send the RADIUS session ID as Acct-Session-Id in the Access-Request (#751)
