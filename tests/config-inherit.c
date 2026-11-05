@@ -167,14 +167,8 @@ int snapshot_restore_entry(struct snapshot_t *snap, int fd, const char *name)
  * phase == 0: named vhost has no extra fields (pure inheritance test)
  * phase == 1: named vhost overrides keepalive
  * ----------------------------------------------------------------------- */
-static void write_config(const char *path, const char *srcdir, int phase)
+static void write_default_vhost(FILE *f, const char *srcdir)
 {
-	FILE *f = fopen(path, "w");
-	if (f == NULL) {
-		fprintf(stderr, "cannot open temp config %s\n", path);
-		exit(1);
-	}
-
 	/* Default vhost — sets all fields under test */
 	fprintf(f,
 		"auth = \"plain[%s/data/test1.passwd]\"\n"
@@ -194,9 +188,20 @@ static void write_config(const char *path, const char *srcdir, int phase)
 		"default-domain = inherit.example.com\n"
 		"rx-data-per-sec = 100000\n"
 		"mtu = 1280\n"
-		"server-stats-reset-time = 86400\n"
-		"\n",
+		"server-stats-reset-time = 86400\n",
 		srcdir, srcdir, srcdir);
+}
+
+static void write_config(const char *path, const char *srcdir, int phase)
+{
+	FILE *f = fopen(path, "w");
+	if (f == NULL) {
+		fprintf(stderr, "cannot open temp config %s\n", path);
+		exit(1);
+	}
+
+	write_default_vhost(f, srcdir);
+	fprintf(f, "\n");
 
 	if (phase == 2) {
 		/* Named vhost omits auth/cert/key entirely — all must be inherited
@@ -279,6 +284,150 @@ static void check_inherited(vhost_cfg_st *named)
 	CHECK_EQ_U("default_mtu", c->default_mtu, 1280);
 	CHECK_EQ_U("stats_reset_time", named->static_config.stats_reset_time,
 		   86400);
+}
+
+/* -----------------------------------------------------------------------
+ * Multi-line options: write a config with the given options in the default
+ * and named vhost sections, and check it both parsed and after a reload.
+ * ----------------------------------------------------------------------- */
+static void write_options_config(const char *path, const char *srcdir,
+				 const char *default_opts,
+				 const char *named_opts)
+{
+	FILE *f = fopen(path, "w");
+
+	if (f == NULL) {
+		fprintf(stderr, "cannot open temp config %s\n", path);
+		exit(1);
+	}
+
+	write_default_vhost(f, srcdir);
+	fprintf(f,
+		"%s\n"
+		"[vhost:named]\n"
+		"ipv4-network = 192.168.101.0\n"
+		"ipv4-netmask = 255.255.255.0\n"
+		"%s\n",
+		default_opts, named_opts);
+	fclose(f);
+}
+
+typedef void (*options_check_fn)(vhost_cfg_st *defvhost, vhost_cfg_st *named);
+
+static void check_options(void *pool, const char *path, const char *srcdir,
+			  const char *default_opts, const char *named_opts,
+			  options_check_fn check)
+{
+	struct list_head vconfig;
+	vhost_cfg_st *defvhost, *named;
+	int reloaded;
+
+	write_options_config(path, srcdir, default_opts, named_opts);
+
+	list_head_init(&vconfig);
+	if (vhost_add(pool, &vconfig, NULL, 0) == NULL) {
+		fprintf(stderr, "vhost_add failed\n");
+		exit(1);
+	}
+	parse_cfg_file(pool, path, &vconfig, 0);
+
+	for (reloaded = 0; reloaded < 2; reloaded++) {
+		if (reloaded)
+			reload_cfg_file(pool, &vconfig, 0);
+
+		defvhost = find_vhost(&vconfig, NULL);
+		named = find_vhost(&vconfig, "named");
+		if (defvhost == NULL || named == NULL || named->name == NULL) {
+			fprintf(stderr, "FAIL: vhost not found (reloaded=%d)\n",
+				reloaded);
+			exit(1);
+		}
+		check(defvhost, named);
+	}
+
+	clear_old_configs(&vconfig);
+}
+
+static void check_list2(const char *label, char **list, size_t size,
+			const char *first, const char *second)
+{
+	CHECK_EQ_U(label, size, second ? 2 : 1);
+	CHECK_STR(label, list[0], first);
+	if (second)
+		CHECK_STR(label, list[1], second);
+}
+
+static void check_appended_lists(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+{
+	ReloadableConfig *d = defvhost->config;
+	ReloadableConfig *c = named->config;
+
+	check_list2("default dns", d->network->dns, d->network->n_dns,
+		    "192.0.2.1", NULL);
+	check_list2("named dns", c->network->dns, c->network->n_dns,
+		    "192.0.2.1", "192.0.2.2");
+	check_list2("default nbns", d->network->nbns, d->network->n_nbns,
+		    "192.0.2.3", NULL);
+	check_list2("named nbns", c->network->nbns, c->network->n_nbns,
+		    "192.0.2.3", "192.0.2.4");
+	check_list2("default route", d->network->routes, d->network->n_routes,
+		    "198.51.100.1/255.255.255.255", NULL);
+	check_list2("named route", c->network->routes, c->network->n_routes,
+		    "198.51.100.1/255.255.255.255",
+		    "198.51.100.2/255.255.255.255");
+	check_list2("default no-route", d->network->no_routes,
+		    d->network->n_no_routes, "198.51.100.3/255.255.255.255",
+		    NULL);
+	check_list2("named no-route", c->network->no_routes,
+		    c->network->n_no_routes, "198.51.100.3/255.255.255.255",
+		    "198.51.100.4/255.255.255.255");
+	check_list2("default split-dns", d->split_dns, d->n_split_dns,
+		    "a.example.com", NULL);
+	check_list2("named split-dns", c->split_dns, c->n_split_dns,
+		    "a.example.com", "b.example.com");
+	check_list2("default custom-header", d->custom_header,
+		    d->n_custom_header, "X-A: 1", NULL);
+	check_list2("named custom-header", c->custom_header, c->n_custom_header,
+		    "X-A: 1", "X-B: 2");
+	check_list2("default included-http-headers", d->included_http_headers,
+		    d->n_included_http_headers, "X-C: 3", NULL);
+	check_list2("named included-http-headers", c->included_http_headers,
+		    c->n_included_http_headers, "X-C: 3", "X-D: 4");
+}
+
+#define MANY_VALUES 200
+
+static char *many_options(void *pool, const char *option, const char *prefix,
+			  unsigned int first)
+{
+	char *str = talloc_strdup(pool, "");
+	unsigned int i;
+
+	for (i = 0; i < MANY_VALUES; i++)
+		str = talloc_asprintf_append(str, "%s = %s%u\n", option, prefix,
+					     first + i);
+	if (str == NULL) {
+		fprintf(stderr, "memory\n");
+		exit(1);
+	}
+	return str;
+}
+
+static void check_many_values(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+{
+	ReloadableConfig *d = defvhost->config;
+	ReloadableConfig *c = named->config;
+	char want[32];
+	unsigned int i;
+
+	CHECK_EQ_U("default custom-header count", d->n_custom_header,
+		   MANY_VALUES);
+	CHECK_EQ_U("named custom-header count", c->n_custom_header,
+		   2 * MANY_VALUES);
+	for (i = 0; i < 2 * MANY_VALUES; i++) {
+		snprintf(want, sizeof(want), "X-H%u", i);
+		CHECK_STR("named custom-header", c->custom_header[i], want);
+	}
 }
 
 int main(void)
@@ -451,6 +600,32 @@ int main(void)
 	check_inherited(named);
 
 	clear_old_configs(&vconfig);
+
+	/* ----------------------------------------------------------------
+	 * Phase 5: multi-line options set in the named vhost are appended
+	 * to the exactly-sized arrays it inherited from the default vhost.
+	 * ---------------------------------------------------------------- */
+	check_options(pool, tmpfile, srcdir,
+		      "dns = 192.0.2.1\n"
+		      "nbns = 192.0.2.3\n"
+		      "route = 198.51.100.1/32\n"
+		      "no-route = 198.51.100.3/32\n"
+		      "split-dns = a.example.com\n"
+		      "custom-header = X-A: 1\n"
+		      "included-http-headers = X-C: 3\n",
+		      "dns = 192.0.2.2\n"
+		      "nbns = 192.0.2.4\n"
+		      "route = 198.51.100.2/32\n"
+		      "no-route = 198.51.100.4/32\n"
+		      "split-dns = b.example.com\n"
+		      "custom-header = X-B: 2\n"
+		      "included-http-headers = X-D: 4\n",
+		      check_appended_lists);
+
+	check_options(pool, tmpfile, srcdir,
+		      many_options(pool, "custom-header", "X-H", 0),
+		      many_options(pool, "custom-header", "X-H", MANY_VALUES),
+		      check_many_values);
 
 	unlink(tmpfile);
 	talloc_free(pool);

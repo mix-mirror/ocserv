@@ -422,6 +422,32 @@ attic entry to be freed by a subsequent `clear_old_configs()`).
 REQ-MAIN-CFG-001 (cross-process ordering: main calls `reload_cfg_file()`
 only after all sec-mod instances have completed their own reload)
 
+### REQ-CONFIG-CFG-008 — Multi-line option arrays are delimited by their count field and hold exactly the values appended
+
+**Requirement:** `_add_multi_line_val()` MUST be able to append to an array
+however it was allocated, including an array that holds exactly its elements
+because it came from the protobuf inheritance copy (REQ-CONFIG-CFG-002). It
+MUST NOT write outside the array's allocation. The number of values is given
+only by the corresponding count field; the arrays carry no NULL terminator and
+no code may rely on one. A multi-line option other than `select-group` set in
+a `[vhost:NAME]` section MUST append to the values inherited from the default
+vhost, and there is no limit on the number of values other than available
+memory.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/config.c (`_add_multi_line_val`, `READ_MULTI_LINE`);
+src/sup-config/file.c (`READ_RAW_MULTI_LINE`); tests/config-inherit.c
+(`check_appended_lists`, `check_many_values`)
+**Acceptance:** tests/config-inherit.c, each case both after parsing and after
+`reload_cfg_file()` — one value of `route`, `no-route`, `dns`, `nbns`,
+`split-dns`, `custom-header` or `included-http-headers` in the default vhost
+and another in the named vhost MUST leave the named vhost with both, inherited
+value first, and the default vhost with only its own. 200 values in each
+section MUST leave the named vhost with 400 and the default vhost with 200, all
+with the expected values, and running the test under ASAN MUST report no
+out-of-bounds access.
+**Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-006
+
 ---
 
 ## SEC

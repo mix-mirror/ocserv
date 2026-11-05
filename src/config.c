@@ -2651,27 +2651,24 @@ void remove_pid_file(void)
 int _add_multi_line_val(void *pool, char ***varname, size_t *num,
 			const char *value)
 {
-	unsigned int _max = DEFAULT_CONFIG_ENTRIES;
-	void *tmp;
+	char **tmp;
+	char *str;
 
-	if (*varname == NULL) {
+	if (*varname == NULL)
 		*num = 0;
-		*varname = talloc_array(pool, char *, _max);
-		if (*varname == NULL)
-			return -1;
-	}
 
-	if (*num >= _max - 1) {
-		tmp = talloc_realloc(pool, *varname, char *, (*num) + 2);
-		if (tmp == NULL)
-			return -1;
-		*varname = tmp;
-	}
+	tmp = talloc_realloc(pool, *varname, char *, *num + 1);
+	if (tmp == NULL)
+		return -1;
+	*varname = tmp;
 
-	(*varname)[*num] = talloc_strdup(*varname, value);
+	str = talloc_strdup(*varname, value);
+	if (str == NULL)
+		return -1;
+
+	(*varname)[*num] = str;
 	(*num)++;
 
-	(*varname)[*num] = NULL;
 	return 0;
 }
 
