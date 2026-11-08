@@ -136,4 +136,23 @@ if ! grep -q "^XyZ987 .*alice" ${OUT} || grep -q "pending" ${OUT};then
 fi
 stop_server
 
+# REQ-OCCTL-SESSION-008: 'show events' ignores an update with no user, and
+# at the end of its input keeps listening for updates without spinning.
+echo " * show events ignores an empty update and keeps listening at end of input..."
+start_server events
+TIMEFORMAT='%0U %0S'
+{ time timeout 3 ${OCCTL} -n -s ${SOCKET} show events </dev/null >${OUT} 2>&1; } 2>${OUT}.time
+RET=$?
+stop_server
+if test ${RET} != 124;then
+	echo "FAIL: expected 'show events' to keep listening after the end of its input, got exit ${RET}: $(cat ${OUT})"
+	exit 1
+fi
+read CPU_USER CPU_SYS <${OUT}.time
+rm -f ${OUT}.time
+if test $((CPU_USER + CPU_SYS)) -ge 1;then
+	echo "FAIL: expected 'show events' to wait idle at the end of its input, got ${CPU_USER}s user and ${CPU_SYS}s system CPU time in 3s"
+	exit 1
+fi
+
 exit 0

@@ -618,31 +618,34 @@ disconnect. If a listener is already registered, the new listener MUST be
 told that it will receive no updates (main MUST NOT leave it waiting
 silently), and doc/occtl.8.md MUST document the one-listener limit. A send
 failure MUST unregister the listener. occtl MUST print each update until
-`q`/`Q`, `Ctrl+C`, end of input on stdin, or the server closes the
-connection; it MUST ignore an update whose user list is empty, and MUST
+`q`/`Q`, `Ctrl+C`, or the server closes the connection; at end of input
+on stdin it MUST stop reading stdin and keep printing updates, without
+busy-waiting, so that it can run without a terminal (under `nohup`, or as
+a service). It MUST ignore an update whose user list is empty, and MUST
 restore the terminal mode and the `SIGINT` handler on every exit path.
 **Strength:** MUST
 **Status:** REVIEW
 **Source:** src/main-ctl-unix.c `method_top()`, `ctl_cmd_wacher_cb()`,
-`ctl_handler_notify()`; src/occtl/unix.c `handle_events_cmd()`;
+`ctl_handler_notify()`; src/occtl/unix.c `handle_events_cmd()` (`have_tty`,
+`watch_stdin`, `rep2->user->n_user == 0`);
 doc/occtl.8.md (`show events`); maintainer decision recorded with this
 requirement.
 **Acceptance:** positive, CI — start `occtl show events` under a pty, connect
 and disconnect a client; confirm `connected user 'test'` and `disconnect
-user 'test' ... (reason: ...)` lines appear. Negative — start a second
-`show events` listener; confirm it reports that another listener is active.
-`occtl show events </dev/null` exits instead of spinning.
+user 'test' ... (reason: ...)` lines appear. Negative, local —
+`tests/test-occtl-local` (fake server, scenario `events`): an update with
+an empty user list is ignored, and with stdin at end of input occtl keeps
+listening, using less than a second of CPU time in 3 seconds. Negative,
+CI — start a second `show events` listener; confirm it reports that
+another listener is active.
 `[REVIEW: decided 2026-11-08 — keep one listener, tell the second one and
-document the limit. Code does not yet conform: (1) a second listener gets
-the initial list and then silently nothing, and the limit is not in
-doc/occtl.8.md; (2) on an unpackable update occtl jumps to `error` without
-restoring termios/SIGINT, leaving the terminal without echo; (3) occtl
-dereferences `rep2->user->user[0]` without checking `n_user`; (4) with
-stdin at EOF `select()` keeps reporting stdin readable and `getchar()`
-returns EOF — INFERRED busy loop, not run. Left open: how the second
-listener is told (a new reply, a flag in `ctl.proto`, or closing its
-connection) changes what `show events` prints and needs a design
-decision.]`
+document the limit. Conform: the terminal mode and SIGINT handler are
+restored on every exit path, empty updates are ignored, end of input ends
+polling of stdin but not the command, and failures exit 1. Do not conform
+yet: (1) a second listener gets the initial list and then silently nothing — on hold, how it
+is told (a new reply, a flag in `ctl.proto`, or closing its connection)
+changes what `show events` prints and needs a design decision; (2) the
+one-listener limit is not in doc/occtl.8.md.]`
 **Links:** REQ-OCCTL-IPC-001, REQ-OCCTL-SEC-004
 
 ---

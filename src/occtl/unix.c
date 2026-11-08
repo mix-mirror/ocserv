@@ -2009,6 +2009,8 @@ int handle_events_cmd(struct unix_ctx *ctx, const char *arg,
 
 	PROTOBUF_ALLOCATOR(pa, ctx);
 	struct termios tio_old, tio_new;
+	bool have_tty;
+	bool watch_stdin = true;
 	SIGHANDLER_T old_sighandler;
 	fd_set rfds;
 
@@ -2032,17 +2034,20 @@ int handle_events_cmd(struct unix_ctx *ctx, const char *arg,
 	fputs("Press 'q' or CTRL+C to quit\n\n", stdout);
 
 	old_sighandler = ocsignal(SIGINT, dummy_sighandler);
-	tcgetattr(STDIN_FILENO, &tio_old);
-	tio_new = tio_old;
-	tio_new.c_lflag &= ~(ICANON | ECHO);
-	tcsetattr(STDIN_FILENO, TCSANOW, &tio_new);
+	have_tty = (tcgetattr(STDIN_FILENO, &tio_old) == 0);
+	if (have_tty) {
+		tio_new = tio_old;
+		tio_new.c_lflag &= ~(ICANON | ECHO);
+		tcsetattr(STDIN_FILENO, TCSANOW, &tio_new);
+	}
 
 	/* start listening for updates */
 	while (1) {
 		FD_ZERO(&rfds);
 #ifndef __clang_analyzer__
 		/* for some reason this confuses the clang static analyzer */
-		FD_SET(STDIN_FILENO, &rfds);
+		if (watch_stdin)
+			FD_SET(STDIN_FILENO, &rfds);
 #endif
 		FD_SET(ctx->fd, &rfds);
 
@@ -2061,12 +2066,17 @@ int handle_events_cmd(struct unix_ctx *ctx, const char *arg,
 			break;
 		}
 
-		if (FD_ISSET(STDIN_FILENO, &rfds)) {
+		if (watch_stdin && FD_ISSET(STDIN_FILENO, &rfds)) {
 			ret = getchar();
 			if (ret == 'q' || ret == 'Q') {
 				ret = 0;
 				break;
 			}
+			/* without input (e.g. under nohup or as a service) keep
+			 * printing updates, but stop polling stdin, which would
+			 * stay readable at end of file */
+			if (ret == EOF)
+				watch_stdin = false;
 		}
 
 		if (!FD_ISSET(ctx->fd, &rfds))
@@ -2127,10 +2137,17 @@ int handle_events_cmd(struct unix_ctx *ctx, const char *arg,
 
 		/* parse and print */
 		rep2 = top_update_rep__unpack(&pa, data_size, data);
-		if (rep2 == NULL)
-			goto error;
+		talloc_free(data);
+		data = NULL;
+		if (rep2 == NULL) {
+			fprintf(stderr, "events: could not parse an update\n");
+			ret = -1;
+			break;
+		}
 
-		if (HAVE_JSON(params)) {
+		if (rep2->user == NULL || rep2->user->n_user == 0) {
+			/* an update about no user carries nothing to print */
+		} else if (HAVE_JSON(params)) {
 			common_info_cmd(rep2->user, stdout, params);
 		} else {
 			if (rep2->connected) {
@@ -2170,8 +2187,11 @@ int handle_events_cmd(struct unix_ctx *ctx, const char *arg,
 		rep2 = NULL;
 	}
 
-	tcsetattr(STDIN_FILENO, TCSANOW, &tio_old);
+	if (have_tty)
+		tcsetattr(STDIN_FILENO, TCSANOW, &tio_old);
 	ocsignal(SIGINT, old_sighandler);
+	if (ret < 0)
+		ret = 1;
 	goto cleanup;
 
 error:

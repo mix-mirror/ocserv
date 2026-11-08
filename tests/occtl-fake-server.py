@@ -121,9 +121,21 @@ def sessions(conn, cmd):
     conn.sendall(frame(CTL_CMD_LIST_COOKIES_REP, reply))
 
 
+def events(conn, cmd):
+    """Answers CTL_CMD_TOP with an empty user list, then sends an update
+    whose user list is empty, and keeps the connection open."""
+    conn.sendall(frame(CTL_CMD_LIST_REP))
+    # top_update_rep: connected = 1, user = empty user_list_rep
+    conn.sendall(frame(CTL_CMD_TOP_UPDATE_REP,
+                       field_int(1, 1) + field_bytes(4, b"")))
+    while conn.recv(4096):
+        pass
+
+
 SCENARIOS = {
     "silent": silent,
     "sessions": sessions,
+    "events": events,
 }
 
 
