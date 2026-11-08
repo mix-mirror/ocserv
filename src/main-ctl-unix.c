@@ -44,6 +44,7 @@
 typedef struct method_ctx {
 	main_server_st *s;
 	void *pool;
+	unsigned int indefinite; /* keep the connection open after the reply */
 } method_ctx;
 
 static void method_top(method_ctx *ctx, int cfd, uint8_t *msg,
@@ -514,9 +515,12 @@ static void method_top(method_ctx *ctx, int cfd, uint8_t *msg,
 
 	mslog(ctx->s, NULL, LOG_DEBUG, "ctl: top");
 
-	/* we can only have a single top listener */
+	/* we can only have a single top listener; the connection of any
+	 * other one is closed after its user list */
 	if (ctx->s->top_fd == -1)
 		ctx->s->top_fd = cfd;
+	else if (ctx->s->top_fd != cfd)
+		ctx->indefinite = 0;
 
 	method_list_users(ctx, cfd, msg, msg_size);
 }
@@ -1144,10 +1148,11 @@ static void ctl_cmd_wacher_cb(EV_P_ ev_io *w, int revents)
 	method_ctx ctx;
 	struct ctl_watcher_st *wst =
 		container_of(w, struct ctl_watcher_st, ctl_cmd_io);
-	unsigned int i, indef = 0;
+	unsigned int i;
 
 	ctx.s = s;
 	ctx.pool = talloc_new(wst);
+	ctx.indefinite = 0;
 
 	if (ctx.pool == NULL)
 		goto fail;
@@ -1168,13 +1173,13 @@ static void ctl_cmd_wacher_cb(EV_P_ ev_io *w, int revents)
 			      (unsigned int)cmd);
 			break;
 		} else if (methods[i].cmd == cmd) {
-			indef = methods[i].indefinite;
+			ctx.indefinite = methods[i].indefinite;
 			methods[i].func(&ctx, wst->fd, buffer, length);
 			break;
 		}
 	}
 
-	if (indef) {
+	if (ctx.indefinite) {
 		talloc_free(ctx.pool);
 		return;
 	}

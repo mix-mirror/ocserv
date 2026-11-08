@@ -71,7 +71,8 @@ at the prompt when occtl is run without a command argument.
   * **show events**:
     Display a live log of connection and disconnection events.  The server
     sends events to a single listener at a time; a second concurrent
-    **show events** displays the connected users but no further events.
+    **show events** displays the connected users, reports that the server
+    closed the connection, and exits.
 
 ### Session management
 

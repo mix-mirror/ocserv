@@ -28,6 +28,7 @@
 # - show session <SID>
 # - terminate user
 # - show ip ban points / show ip bans / unban ip
+# - a second show events listener
 
 OCCTL="${OCCTL:-../src/occtl/occtl}"
 SERV="${SERV:-../src/ocserv}"
@@ -422,5 +423,34 @@ fi
 
 # verify can connect again after unban
 get_cookie
+
+# -----------------------------------------------------------------------
+# Section 9: show events — a second listener is closed (REQ-OCCTL-SESSION-008)
+# -----------------------------------------------------------------------
+echo ""
+echo "Section 9: a second show events listener..."
+
+${OCCTL} -s ${OCCTL_SOCKET} -n show events >${OUTFILE}.1 2>&1 < <(sleep 30) &
+EVPID=$!
+sleep 2
+
+START=$(date +%s)
+timeout 20 ${OCCTL} -s ${OCCTL_SOCKET} -n show events >${OUTFILE} 2>&1 < <(sleep 15)
+RET=$?
+ELAPSED=$(( $(date +%s) - START ))
+kill ${EVPID} >/dev/null 2>&1
+wait ${EVPID} 2>/dev/null
+rm -f ${OUTFILE}.1
+
+if test ${RET} != 0 || test ${ELAPSED} -ge 15;then
+	cat ${OUTFILE}
+	fail $PID "FAIL: expected the second show events to exit 0 at once, got ${RET} after ${ELAPSED}s"
+fi
+
+grep "one listener at a time" ${OUTFILE}
+if test $? != 0;then
+	cat ${OUTFILE}
+	fail $PID "FAIL: expected the second show events to mention the single listener"
+fi
 
 exit 0

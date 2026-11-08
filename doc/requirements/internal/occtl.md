@@ -623,10 +623,11 @@ busy-waiting, so that it can run without a terminal (under `nohup`, or as
 a service). It MUST ignore an update whose user list is empty, and MUST
 restore the terminal mode and the `SIGINT` handler on every exit path.
 **Strength:** MUST
-**Status:** REVIEW
-**Source:** src/main-ctl-unix.c `method_top()`, `ctl_cmd_wacher_cb()`,
-`ctl_handler_notify()`; src/occtl/unix.c `handle_events_cmd()` (`have_tty`,
-`watch_stdin`, `rep2->user->n_user == 0`);
+**Status:** DERIVED
+**Source:** src/main-ctl-unix.c `method_top()` (a connection stays open
+only if it is `top_fd`), `ctl_cmd_wacher_cb()`, `ctl_handler_notify()`;
+src/occtl/unix.c `handle_events_cmd()` (`have_tty`, `watch_stdin`,
+`rep2->user->n_user == 0`);
 doc/occtl.8.md (`show events`); maintainer decision recorded with this
 requirement.
 **Acceptance:** positive, CI — start `occtl show events` under a pty, connect
@@ -635,18 +636,9 @@ user 'test' ... (reason: ...)` lines appear. Negative, local —
 `tests/test-occtl-local` (fake server, scenario `events`): an update with
 an empty user list is ignored, and with stdin at end of input occtl keeps
 listening, using less than a second of CPU time in 3 seconds. Negative,
-CI — start a second `show events` listener; confirm it reports that
-another listener is active.
-`[REVIEW: decided 2026-11-08 — keep one listener; main closes the
-connection of any further listener after its user list, and occtl treats a
-closed event connection as possibly due to another listener. Conform: the
-terminal mode and SIGINT handler are restored on every exit path, empty
-updates are ignored, end of input ends polling of stdin but not the
-command, failures exit 1, doc/occtl.8.md documents the one-listener limit,
-and occtl reports a closed event connection with the one-listener hint
-(REQ-OCCTL-ERR-004).
-Do not conform yet: main keeps a second listener's connection open and
-sends it nothing.]`
+CI — `tests/test-occtl-commands` Section 9: while one `show events` runs,
+a second one prints the user list, reports that the server closed the
+connection and that another listener may be active, and exits 0 at once.
 **Links:** REQ-OCCTL-IPC-001, REQ-OCCTL-SEC-004
 
 ---
