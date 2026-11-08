@@ -22,6 +22,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <sys/wait.h>
 #include <talloc.h>
 
 #include "../src/main.h"
@@ -315,38 +316,124 @@ static void write_options_config(const char *path, const char *srcdir,
 
 typedef void (*options_check_fn)(vhost_cfg_st *defvhost, vhost_cfg_st *named);
 
+static void check_vhosts(struct list_head *vconfig, int reloaded,
+			 options_check_fn check)
+{
+	vhost_cfg_st *defvhost = find_vhost(vconfig, NULL);
+	vhost_cfg_st *named = find_vhost(vconfig, "named");
+
+	if (defvhost == NULL || named == NULL || named->name == NULL) {
+		fprintf(stderr, "FAIL: vhost not found (reloaded=%d)\n",
+			reloaded);
+		exit(1);
+	}
+	check(defvhost, named);
+}
+
+static void parse_options(void *pool, struct list_head *vconfig,
+			  const char *path)
+{
+	list_head_init(vconfig);
+	if (vhost_add(pool, vconfig, NULL, 0) == NULL) {
+		fprintf(stderr, "vhost_add failed\n");
+		exit(1);
+	}
+	parse_cfg_file(pool, path, vconfig, 0);
+}
+
 static void check_options(void *pool, const char *path, const char *srcdir,
 			  const char *default_opts, const char *named_opts,
 			  options_check_fn check)
 {
 	struct list_head vconfig;
-	vhost_cfg_st *defvhost, *named;
-	int reloaded;
+
+	write_options_config(path, srcdir, default_opts, named_opts);
+	parse_options(pool, &vconfig, path);
+	check_vhosts(&vconfig, 0, check);
+
+	reload_cfg_file(pool, &vconfig, 0);
+	check_vhosts(&vconfig, 1, check);
+
+	clear_old_configs(&vconfig);
+}
+
+/* Start with @named_opts in the named vhost, change them to
+ * @reload_named_opts and reload: @check must hold after the reload. */
+static void check_options_reload(void *pool, const char *path,
+				 const char *srcdir, const char *default_opts,
+				 const char *named_opts,
+				 const char *reload_named_opts,
+				 options_check_fn check)
+{
+	struct list_head vconfig;
+
+	write_options_config(path, srcdir, default_opts, named_opts);
+	parse_options(pool, &vconfig, path);
+
+	write_options_config(path, srcdir, default_opts, reload_named_opts);
+	reload_cfg_file(pool, &vconfig, 0);
+	check_vhosts(&vconfig, 1, check);
+
+	clear_old_configs(&vconfig);
+}
+
+/* Parsing a configuration whose named vhost sets @option must fail, with an
+ * error naming the option and the vhost. parse_cfg_file() exits on a
+ * configuration error, so it runs in a child. */
+static void check_options_fail(void *pool, const char *path, const char *srcdir,
+			       const char *default_opts, const char *named_opts,
+			       const char *option)
+{
+	char *errpath = talloc_asprintf(pool, "%s.err", path);
+	char err[4096];
+	struct list_head vconfig;
+	FILE *fp;
+	size_t len;
+	pid_t pid;
+	int status;
 
 	write_options_config(path, srcdir, default_opts, named_opts);
 
-	list_head_init(&vconfig);
-	if (vhost_add(pool, &vconfig, NULL, 0) == NULL) {
-		fprintf(stderr, "vhost_add failed\n");
+	pid = fork();
+	if (pid < 0) {
+		fprintf(stderr, "FAIL: fork failed\n");
 		exit(1);
 	}
-	parse_cfg_file(pool, path, &vconfig, 0);
-
-	for (reloaded = 0; reloaded < 2; reloaded++) {
-		if (reloaded)
-			reload_cfg_file(pool, &vconfig, 0);
-
-		defvhost = find_vhost(&vconfig, NULL);
-		named = find_vhost(&vconfig, "named");
-		if (defvhost == NULL || named == NULL || named->name == NULL) {
-			fprintf(stderr, "FAIL: vhost not found (reloaded=%d)\n",
-				reloaded);
-			exit(1);
-		}
-		check(defvhost, named);
+	if (pid == 0) {
+		if (freopen(errpath, "w", stderr) == NULL)
+			_exit(2);
+		list_head_init(&vconfig);
+		if (vhost_add(pool, &vconfig, NULL, 0) == NULL)
+			_exit(2);
+		parse_cfg_file(pool, path, &vconfig, 0);
+		_exit(0);
 	}
 
-	clear_old_configs(&vconfig);
+	if (waitpid(pid, &status, 0) < 0) {
+		fprintf(stderr, "FAIL: waitpid failed\n");
+		exit(1);
+	}
+
+	fp = fopen(errpath, "r");
+	len = fp ? fread(err, 1, sizeof(err) - 1, fp) : 0;
+	err[len] = 0;
+	if (fp)
+		fclose(fp);
+	unlink(errpath);
+
+	if (!WIFEXITED(status) || WEXITSTATUS(status) != EXIT_FAILURE) {
+		fprintf(stderr,
+			"FAIL %s without auth: expected exit status %d, got 0x%x\n%s",
+			option, EXIT_FAILURE, (unsigned)status, err);
+		exit(1);
+	}
+	if (strstr(err, "vhost:named") == NULL ||
+	    strstr(err, talloc_asprintf(pool, "'%s'", option)) == NULL) {
+		fprintf(stderr,
+			"FAIL %s without auth: expected an error naming '%s' and vhost:named, got:\n%s",
+			option, option, err);
+		exit(1);
+	}
 }
 
 static void check_list(const char *label, char **list, size_t size,
@@ -476,6 +563,136 @@ static void check_auth_replaced(vhost_cfg_st *defvhost, vhost_cfg_st *named)
 	check_plain_auth("default auth", defvhost, 1, "/test1.passwd");
 	check_plain_auth("named auth", named, 1, "/test-group.passwd");
 }
+
+/* The authentication options of REQ-CONFIG-CFG-011. The default vhost sets
+ * all three; acct is only checked when compiled in. */
+#ifdef HAVE_PAM
+#define AUTH_GROUP_ACCT "acct = \"pam\"\n"
+#else
+#define AUTH_GROUP_ACCT ""
+#endif /* HAVE_PAM */
+
+static void check_acct(const char *label, vhost_cfg_st *vhost, int has_acct)
+{
+	if (AUTH_GROUP_ACCT[0] == 0)
+		return;
+
+	CHECK_EQ_U(label, vhost->static_config.acct.amod != NULL, has_acct);
+}
+
+static void check_auth_group_default(vhost_cfg_st *defvhost)
+{
+	check_plain_auth("default auth", defvhost, 2, "/test1.passwd");
+	check_acct("default acct", defvhost, 1);
+}
+
+static void check_auth_group_inherited(vhost_cfg_st *defvhost,
+				       vhost_cfg_st *named)
+{
+	check_auth_group_default(defvhost);
+	check_plain_auth("named auth", named, 2, "/test1.passwd");
+	CHECK_EQ_U("named enable-auth", named->static_config.auth[1].type,
+		   AUTH_TYPE_CERTIFICATE);
+	check_acct("named acct", named, 1);
+}
+
+static void check_auth_group_own_auth(vhost_cfg_st *defvhost,
+				      vhost_cfg_st *named)
+{
+	check_auth_group_default(defvhost);
+	check_plain_auth("named auth", named, 1, "/test-group.passwd");
+	check_acct("named acct", named, 0);
+}
+
+static void check_auth_group(void *pool, const char *path, const char *srcdir)
+{
+	const char *defaults =
+		talloc_asprintf(pool,
+				"enable-auth = \"certificate\"\n"
+				"ca-cert = %s/certs/ca.pem\n"
+				"cert-user-oid = 0.9.2342.19200300.100.1.1\n"
+				"%s",
+				srcdir, AUTH_GROUP_ACCT);
+	const char *own_auth = talloc_asprintf(
+		pool, "auth = \"plain[%s/data/test-group.passwd]\"\n", srcdir);
+
+	check_options(pool, path, srcdir, defaults, "",
+		      check_auth_group_inherited);
+	check_options(pool, path, srcdir, defaults, own_auth,
+		      check_auth_group_own_auth);
+
+	/* without auth, the vhost may not set enable-auth or acct */
+	check_options_fail(pool, path, srcdir, defaults,
+			   "enable-auth = \"certificate\"\n", "enable-auth");
+	if (AUTH_GROUP_ACCT[0] != 0)
+		check_options_fail(pool, path, srcdir, defaults,
+				   AUTH_GROUP_ACCT, "acct");
+
+	/* the group is decided at startup; a reload does not change it */
+	check_options_reload(pool, path, srcdir, defaults, "", own_auth,
+			     check_auth_group_inherited);
+	check_options_reload(pool, path, srcdir, defaults, "",
+			     "enable-auth = \"certificate\"\n",
+			     check_auth_group_inherited);
+	check_options_reload(pool, path, srcdir, defaults, own_auth, "",
+			     check_auth_group_own_auth);
+}
+
+#ifdef HAVE_GSSAPI
+#define DEFAULT_KKDCP "kkdcp = \"/KdcProxy EXAMPLE.COM udp@127.0.0.1:88\"\n"
+#define OWN_KKDCP "kkdcp = \"/KdcProxy2 EXAMPLE.COM udp@127.0.0.1:88\"\n"
+
+static void check_kkdcp(const char *label, const ReloadableConfig *c,
+			const char *url)
+{
+	CHECK_EQ_U(label, c->n_kkdcp, 1);
+	CHECK_STR(label, c->kkdcp[0]->url, url);
+}
+
+static void check_kkdcp_inherited(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+{
+	check_kkdcp("default kkdcp", defvhost->config, "/KdcProxy");
+	check_kkdcp("named kkdcp", named->config, "/KdcProxy");
+}
+
+static void check_kkdcp_replaced(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+{
+	check_kkdcp("default kkdcp", defvhost->config, "/KdcProxy");
+	check_kkdcp("named kkdcp", named->config, "/KdcProxy2");
+}
+
+/* kkdcp is inherited on its own, whether or not the vhost sets auth, and
+ * a reload applies a change to it (REQ-CONFIG-CFG-010) */
+static void check_kkdcp_inheritance(void *pool, const char *path,
+				    const char *srcdir)
+{
+	const char *own_auth = talloc_asprintf(
+		pool, "auth = \"plain[%s/data/test-group.passwd]\"\n", srcdir);
+
+	check_options(pool, path, srcdir, DEFAULT_KKDCP, "",
+		      check_kkdcp_inherited);
+	check_options(pool, path, srcdir, DEFAULT_KKDCP, own_auth,
+		      check_kkdcp_inherited);
+	check_options(pool, path, srcdir, DEFAULT_KKDCP, OWN_KKDCP,
+		      check_kkdcp_replaced);
+	check_options(pool, path, srcdir, DEFAULT_KKDCP,
+		      talloc_asprintf(pool, "%s%s", own_auth, OWN_KKDCP),
+		      check_kkdcp_replaced);
+
+	check_options_reload(pool, path, srcdir, DEFAULT_KKDCP, "", OWN_KKDCP,
+			     check_kkdcp_replaced);
+	check_options_reload(pool, path, srcdir, DEFAULT_KKDCP, "",
+			     talloc_asprintf(pool, "%s%s", own_auth, OWN_KKDCP),
+			     check_kkdcp_replaced);
+	check_options_reload(pool, path, srcdir, DEFAULT_KKDCP, OWN_KKDCP, "",
+			     check_kkdcp_inherited);
+}
+#else
+static void check_kkdcp_inheritance(void *pool, const char *path,
+				    const char *srcdir)
+{
+}
+#endif /* HAVE_GSSAPI */
 
 #define DEFAULT_LISTS                  \
 	"dns = 192.0.2.1\n"            \
@@ -866,6 +1083,9 @@ int main(void)
 				"auth = \"plain[%s/data/test-group.passwd]\"\n",
 				srcdir),
 		check_auth_replaced);
+
+	check_auth_group(pool, tmpfile, srcdir);
+	check_kkdcp_inheritance(pool, tmpfile, srcdir);
 
 	unlink(tmpfile);
 	talloc_free(pool);

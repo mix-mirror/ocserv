@@ -243,9 +243,10 @@ all vhosts in reverse-add order (default vhost first, per
   - **conditionally** copy every `[scope: vhost (non-reloadable)]` field
     (`cert`/`cert_size`, `key`/`key_size`, `ca`, `dh_params_file`,
     `cert_hash` (`ANYCONNECT_CLIENT_COMPAT`), `pin_file`, `srk_pin_file`,
-    `key_pin`, `srk_pin`, `auth`/`auth_methods`, `acct`) **only if** the
+    `key_pin`, `srk_pin`, `auth`/`auth_methods`) **only if** the
     named vhost left that field unset (NULL / zero-size / zero-count) —
-    "inherit if not set, else keep the vhost's own value";
+    "inherit if not set, else keep the vhost's own value"; `acct` is copied
+    together with `auth`/`auth_methods` and only then (REQ-CONFIG-CFG-011);
   - **exclude** `sup_config_type`: `cfg_alloc_vhost()` pre-sets it to
     `SUP_CONFIG_FILE` (non-zero) for every vhost, so there is no zero
     sentinel to distinguish "not set" from "explicitly set to the default" —
@@ -502,10 +503,11 @@ up with exactly the values its section lists, in order, and none of the
 default vhost's; an administrator who wants to keep inherited values lists
 them again. Inherited values are never merged with the vhost's own. This
 applies to the reloadable options `route`, `no-route`, `dns`, `nbns`,
-`split-dns`, `custom-header`, `included-http-headers`, `select-group` and
-`restrict-user-to-ports`, and to the non-reloadable options `server-cert` and
-`server-key`. The authentication options `auth`, `enable-auth`, `acct` and
-`kkdcp` are not covered by this requirement. `ipv4-dns` and
+`split-dns`, `custom-header`, `included-http-headers`, `select-group`,
+`restrict-user-to-ports` and `kkdcp`, and to the non-reloadable options
+`server-cert` and `server-key`. `kkdcp` is inherited whether or not the vhost
+sets `auth`. The authentication options `auth`, `enable-auth` and `acct` are
+inherited together instead (REQ-CONFIG-CFG-011). `ipv4-dns` and
 `ipv6-dns` are spellings of `dns`, and `ipv4-nbns` and `ipv6-nbns` of `nbns`:
 each set of spellings is one option, so a vhost setting any of them replaces
 all the inherited values of that option. Setting an option in the default
@@ -517,7 +519,7 @@ not yet specified.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/config-copy.c; src/config.c (`cfg_ini_handler`,
-`inherit_unset_lists`, `vhost_inherit_static_config`);
+`inherit_unset_lists`, `vhost_inherit_static_config`, `load_kkdcp`);
 src/main-sec-mod-cmd.c (`apply_default_config`); tests/config-inherit.c
 phases 5–7
 **Acceptance:** tests/config-inherit.c, each case both after parsing and after
@@ -525,13 +527,77 @@ phases 5–7
 not set it MUST have the default vhost's values; (b) a named vhost that sets
 it MUST have only its own values, and the default vhost only its own;
 (c) `dns` in the default vhost and `ipv6-dns` in the named vhost MUST leave the
-named vhost with only the `ipv6-dns` value.
+named vhost with only the `ipv6-dns` value; (d) `kkdcp` is inherited and
+replaced as in (a) and (b) both when the named vhost sets `auth` and when it
+does not; (e) a named vhost that does not set `kkdcp` at startup and sets it,
+with or without `auth`, before a `reload_cfg_file()` MUST have only its own
+KKDCP entries after the reload, and one that sets it at startup and no longer
+does MUST have the default vhost's after the reload.
 **Note:** before this requirement, reloadable list options and
 `restrict-user-to-ports` set in a named vhost appended to the inherited values
 (REQ-CONFIG-CFG-002 did not say which), and for inherited lists of 1–94 values
-the append wrote out of bounds (#770).
+the append wrote out of bounds (#770). No named vhost inherited `kkdcp`,
+because the default vhost's KKDCP entries were built after the named vhosts
+copied its reloadable configuration (REQ-CONFIG-CFG-002). `kkdcp` is not tied
+to `auth` (REQ-CONFIG-CFG-011): the KKDCP endpoint is served before
+authentication and forwards to the KDC whatever the vhost's methods, and as
+all vhosts share the listening sockets and a client chooses its vhost, an
+inherited endpoint is no more reachable than the default vhost's own. A named
+vhost cannot turn off an inherited `kkdcp`, as with any inherited option.
 **Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-003, REQ-CONFIG-CFG-006,
-REQ-CONFIG-CFG-008, REQ-CONFIG-CFG-009
+REQ-CONFIG-CFG-008, REQ-CONFIG-CFG-009, REQ-CONFIG-CFG-011
+
+### REQ-CONFIG-CFG-011 — `auth`, `enable-auth` and `acct` are inherited together: a vhost that sets `auth` inherits none of them
+
+**Requirement:** The options `auth`, `enable-auth` and `acct` form a vhost's
+authentication settings, and `auth` decides where they come from, so that a
+vhost's accounting always comes from the same section as its authentication
+methods and the configuration never suggests a combination the administrator
+did not write, such as PAM accounting with RADIUS authentication:
+  - A named vhost whose section sets `auth` MUST use only the `auth`,
+    `enable-auth` and `acct` values its own section gives, and MUST NOT
+    inherit any of the three from the default vhost. Any of them the section
+    omits is unset for that vhost (no secondary methods, no accounting).
+  - A named vhost whose section does not set `auth` MUST inherit all three
+    from the default vhost, as the default vhost has them after the whole
+    file is parsed, independent of where the default vhost's options appear
+    in the file.
+  - A section that does not set `auth` MUST NOT set `enable-auth` or `acct`:
+    such a configuration MUST be rejected with an error naming the option and
+    the vhost, and ocserv MUST NOT start with it. A vhost either sets all of
+    its authentication settings or inherits all of them; it never inherits a
+    value in place of one its section gives.
+All three are read at startup only, so the group is decided once and a
+reload neither changes nor re-checks it. Other options used by an
+authentication method (`kkdcp`, `ca-cert`, `crl`, `cert-user-oid`,
+`cert-group-oid` and the like) are not part of this group; each is inherited
+on its own (REQ-CONFIG-CFG-010).
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/config.c (`parse_cfg_file`, `refuse_without_auth`,
+`vhost_inherit_static_config`); tests/config-inherit.c (`check_auth_group`)
+**Acceptance:** tests/config-inherit.c, each case both after parsing and after
+`reload_cfg_file()`, with the default vhost setting `auth`, `enable-auth` and
+`acct`: (a) a named vhost that sets none of the three MUST have the default's
+methods and accounting module; (b) a named vhost that sets only `auth` MUST
+have that method alone and no accounting module; (c) negative: for each of
+`enable-auth` and `acct`, a configuration whose named vhost sets that option
+without `auth` MUST fail to parse with exit status 1 and an error naming the
+option and the vhost; (d) a named vhost that starts as in (a) and whose
+section then sets `auth`, or sets `enable-auth` without `auth`, MUST be
+reloaded successfully and still be as in (a); one that starts as in (b) and
+whose section then sets none of the three MUST still be as in (b).
+**Note:** before this requirement, a vhost that set `auth` dropped the
+default's `enable-auth` but kept its `acct`; not inheriting `acct` in that case
+is an intentional design decision, as accounting belongs with the
+authentication it accounts for, and the incompatibility (such a vhost does no
+accounting unless it sets `acct`) is announced in NEWS. A vhost without `auth`
+silently ignored its own `enable-auth` and `acct`; a configuration that relied
+on that is now rejected, as announced in NEWS. As the three are read at
+startup only, a reload that makes a section invalid under this requirement
+is accepted and the restart rejects it, like any other non-reloadable option.
+**Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-003, REQ-CONFIG-CFG-004,
+REQ-CONFIG-CFG-010
 
 ---
 

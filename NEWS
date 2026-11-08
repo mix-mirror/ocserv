@@ -35,6 +35,15 @@
   appended to the top-level values before, which for most configurations also
   corrupted memory (#770). A virtual host that relied on that must repeat the
   top-level values in its section.
+- A virtual host that sets 'auth' no longer inherits 'acct' from the
+  top-level configuration, as it already did not inherit 'enable-auth'.
+  Such a virtual host performs no accounting unless its section sets 'acct'.
+  A virtual host that does not set 'auth' inherits 'auth', 'enable-auth'
+  and 'acct'; setting 'enable-auth' or 'acct' in it is now a configuration
+  error instead of being silently ignored.
+- A virtual host that does not set 'kkdcp' now inherits it from the
+  top-level configuration, like other options; it previously was not
+  inherited.
 
 * Version 1.6.0 (released 2026-10-16)
 - Send the RADIUS session ID as Acct-Session-Id in the Access-Request (#751)

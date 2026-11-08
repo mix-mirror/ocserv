@@ -606,12 +606,28 @@ static void read_select_group(ReloadableConfig *config, const char *value)
 	talloc_free(label);
 }
 
+/* A named vhost without 'auth' takes enable-auth and acct from the default
+ * vhost along with its auth (REQ-CONFIG-CFG-011), so setting either of them
+ * in its section is a configuration error. */
+static void refuse_without_auth(vhost_cfg_st *vhost, const char *option,
+				bool set)
+{
+	if (!set)
+		return;
+
+	fprintf(stderr,
+		ERRSTR
+		"%s'%s' cannot be set in a virtual host that does not set 'auth'\n",
+		PREFIX_VHOST(vhost), option);
+	exit(EXIT_FAILURE);
+}
+
 #ifdef HAVE_GSSAPI
 static void parse_kkdcp(ReloadableConfig *config, char **urlfw,
 			unsigned int urlfw_size)
 {
 	unsigned int i, j;
-	char *path, *server, *port, *realm;
+	char *line, *path, *server, *port, *realm;
 	struct addrinfo hints, *res;
 	int ret;
 	KkdcpConfig *kkdcp;
@@ -628,7 +644,14 @@ static void parse_kkdcp(ReloadableConfig *config, char **urlfw,
 	for (i = 0; i < urlfw_size; i++) {
 		memset(&hints, 0, sizeof(hints));
 
-		parse_kkdcp_string(urlfw[i], &hints.ai_socktype, &port, &server,
+		/* parsed on a copy, as a named vhost may parse the default
+		 * vhost's lines again */
+		line = talloc_strdup(config, urlfw[i]);
+		if (line == NULL) {
+			fprintf(stderr, ERRSTR "memory\n");
+			exit(EXIT_FAILURE);
+		}
+		parse_kkdcp_string(line, &hints.ai_socktype, &port, &server,
 				   &path, &realm);
 
 		ret = getaddrinfo(server, port, &hints, &res);
@@ -691,10 +714,42 @@ static void parse_kkdcp(ReloadableConfig *config, char **urlfw,
 		kkdcp_realm->realm = talloc_strdup(kkdcp_realm, realm);
 
 		freeaddrinfo(res);
+		talloc_free(line);
 
 		kkdcp->realms[kkdcp->n_realms] = kkdcp_realm;
 		kkdcp->n_realms++;
 	}
+}
+
+/* A named vhost that does not set kkdcp inherits the default vhost's
+ * (REQ-CONFIG-CFG-010) */
+static void load_kkdcp(vhost_cfg_st *vhost, vhost_cfg_st *defvhost)
+{
+	if (vhost->urlfw_size > 0)
+		parse_kkdcp(vhost->config, vhost->urlfw, vhost->urlfw_size);
+	else if (defvhost != NULL && defvhost->urlfw_size > 0)
+		parse_kkdcp(vhost->config, defvhost->urlfw,
+			    defvhost->urlfw_size);
+}
+
+static void free_kkdcp_urls(struct list_head *head)
+{
+	vhost_cfg_st *vhost = NULL;
+
+	list_for_each(head, vhost, list)
+	{
+		talloc_free(vhost->urlfw);
+		vhost->urlfw = NULL;
+		vhost->urlfw_size = 0;
+	}
+}
+#else
+static void load_kkdcp(vhost_cfg_st *vhost, vhost_cfg_st *defvhost)
+{
+}
+
+static void free_kkdcp_urls(struct list_head *head)
+{
 }
 #endif
 
@@ -1788,6 +1843,10 @@ static void parse_cfg_file(void *pool, const char *file, struct list_head *head,
 						PREFIX_VHOST(vhost));
 					exit(EXIT_FAILURE);
 				}
+				refuse_without_auth(vhost, "enable-auth",
+						    vhost->eauth_size > 0);
+				refuse_without_auth(vhost, "acct",
+						    vhost->acct != NULL);
 			} else {
 				figure_auth_funcs(vhost, PREFIX_VHOST(vhost),
 						  &vhost->static_config,
@@ -1858,14 +1917,8 @@ static void parse_cfg_file(void *pool, const char *file, struct list_head *head,
 			tls_reload_crl(NULL, vhost, 1);
 		}
 
-#ifdef HAVE_GSSAPI
-		if (vhost->urlfw_size > 0) {
-			parse_kkdcp(config, vhost->urlfw, vhost->urlfw_size);
-			talloc_free(vhost->urlfw);
-			vhost->urlfw = NULL;
-			vhost->urlfw_size = 0;
-		}
-#endif
+		load_kkdcp(vhost, defvhost);
+
 		if (!ctx.is_worker)
 			fprintf(stderr,
 				NOTESTR
@@ -1874,6 +1927,9 @@ static void parse_cfg_file(void *pool, const char *file, struct list_head *head,
 				sup_config_name(
 					vhost->static_config.sup_config_type));
 	}
+
+	/* kept until here, as named vhosts may parse the default's */
+	free_kkdcp_urls(head);
 }
 
 #define VHOST_INHERIT(member) \
@@ -2007,12 +2063,10 @@ static void vhost_inherit_static_config(vhost_cfg_st *vhost,
 				exit(EXIT_FAILURE);
 			}
 		}
-	}
 
-	/* Accounting */
-	if (vhost->static_config.acct.amod == NULL &&
-	    defvhost->static_config.acct.amod != NULL)
+		/* accounting goes with the authentication methods */
 		vhost->static_config.acct = defvhost->static_config.acct;
+	}
 }
 
 /* sanity checks on config */

@@ -155,6 +155,13 @@ This also holds for options that can be given multiple times, such as `route`,
 option at all, the virtual host uses only the values listed in its section,
 and none of the top-level ones.
 
+The options `auth`, `enable-auth` and `acct` are inherited together. A virtual
+host that sets `auth` uses only the `enable-auth` and `acct` of its own section,
+so it performs no accounting unless it sets `acct`. A virtual host that does
+not set `auth` uses all three from the top-level configuration, and setting
+`enable-auth` or `acct` in it is a configuration error that prevents ocserv
+from starting.
+
 The name may be up to 253 characters long, the maximum length of a domain
 name. A longer name is rejected as a configuration error rather than shortened,
 since a shortened name would never match the domain a client requests.
