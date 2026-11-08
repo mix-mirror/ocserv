@@ -43,6 +43,7 @@ of the exit codes above and register it with @command.
 """
 
 import argparse
+import base64
 import html
 import http.client
 import re
@@ -404,6 +405,48 @@ def cmd_negotiate_fallback(server, args):
     reply = server.post_form({"username": args.user,
                               "password": args.password}, "/auth")
     return login_result(server, reply)
+
+
+@command("oversized",
+         arg("--method", choices=["GET", "POST"], default="POST"),
+         arg("--path", default="/"),
+         arg("--body-size", type=int, default=0,
+             help="send a body of this many zero bytes"),
+         arg("--headers", type=int, default=0,
+             help="add this many 1 KiB X-Test-N headers"),
+         arg("--cookie", metavar="NAME:BYTES",
+             help="send cookie NAME with the base64 encoding of BYTES "
+             "zero bytes as its value"))
+def cmd_oversized(server, args):
+    """Send a request with an oversized part and report the outcome.
+
+    Prints 'Status: CODE' if the server answered. Succeeds if it
+    answered with any status but 413 or 431. Refuses if it answered 413
+    or 431, or closed the connection without answering after the TLS
+    handshake, even while the request was still being sent: this is how
+    ocserv refuses a request over its limits, and also how a worker that
+    crashed looks, so a test must check the server's log for crashes."""
+    headers = {}
+    for i in range(args.headers):
+        headers["X-Test-%d" % i] = "A" * 1024
+    if args.cookie:
+        name, _, size = args.cookie.partition(":")
+        value = base64.b64encode(bytes(int(size))).decode()
+        headers["Cookie"] = "%s=%s" % (name, value)
+    body = None
+    if args.method == "POST":
+        body = "\0" * args.body_size
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+    server.conn.connect()
+    try:
+        reply = server.request(args.method, args.path, body, headers)
+    except (ConnectionError, ssl.SSLError) as e:
+        server.report("closed without a response")
+        server.trace("<", "connection closed: %s" % e)
+        return REFUSED
+    server.report("Status: %d" % reply.status)
+    return REFUSED if reply.status in (413, 431) else OK
 
 
 def login_result(server, reply):

@@ -349,6 +349,12 @@ oc_expect_not() {
 	! grep -Eq -- "^($1)" ${OC_OUT} || oc_fail "$2: unexpected line '$1'"
 }
 
+# oc_value NAME: prints the value of the first 'NAME: value' line the last
+# oc_run printed
+oc_value() {
+	sed -n "s/^$1: //p" ${OC_OUT} | head -n 1
+}
+
 # Check for a utility to list ports.  Both ss and netstat will list
 # ports for normal users, and have similar semantics, so put the
 # command in the caller's PFCMD, or exit, indicating an unsupported

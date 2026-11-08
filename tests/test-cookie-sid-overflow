@@ -47,17 +47,13 @@ NO_NEED_ROOT=1
 
 eval "${GETPORT}"
 
-if ! which curl >/dev/null 2>&1; then
-	echo "curl not found, skipping test"
-	exit 77
-fi
+require_oc_client
 
-CURL_OUT="test-cookie-sid-overflow.$$.curl"
 SRVLOG="test-cookie-sid-overflow.$$.log"
 
 finish() {
 	test -n "${PID}" && kill "${PID}" >/dev/null 2>&1
-	rm -f "${CURL_OUT}" "${SRVLOG}" "${CONFIG}"
+	rm -f "${OC_OUT}" "${OC_LOG}" "${SRVLOG}" "${CONFIG}"
 	test -n "${SOCKDIR}" && rm -rf "${SOCKDIR}"
 }
 trap finish EXIT
@@ -69,31 +65,27 @@ update_config test-user-cert.config
 # Launch with output captured so we can grep for worker crash messages.
 # The main process logs "Child NNN died with sigsegv" when a worker crashes,
 # which lets us detect crashes that happen after the HTTP response is sent
-# (those would not be visible via curl's connection-reset path alone).
+# (those would not be visible via the client's connection-reset path alone).
 LD_PRELOAD=libsocket_wrapper.so:libuid_wrapper.so UID_WRAPPER=1 UID_WRAPPER_ROOT=1 \
 	"${SERV}" -d 1 -f -c "${CONFIG}" >"${SRVLOG}" 2>&1 &
 PID=$!
 wait_server $PID
 
-# 750 null bytes → 1000-char base64 string, decoding to ~750 bytes.
+# get_with_cookie NAME: unauthenticated GET with a NAME= cookie whose value
+# is 750 null bytes in base64, a 1000-char string decoding to ~750 bytes.
 # This is far above SID_SIZE=32 (+8 slack), so the pre-decode bounds check
 # must reject it before any write to ws->sid or ws->cookie occurs.
-OVERSIZED=$(dd if=/dev/zero bs=750 count=1 2>/dev/null | base64 | tr -d '\n')
-
-# curl_get: unauthenticated GET; extra options via "$@".
-# Prints the HTTP status code; response body goes to CURL_OUT.
-curl_get() {
-	LD_PRELOAD=libsocket_wrapper.so \
-	curl --silent --insecure --max-time 10 \
-	     --user-agent "AnyConnect Linux_64 4.10" \
-	     --write-out "%{http_code}" \
-	     "$@" -o "${CURL_OUT}"
+# Prints the HTTP status code, or "000" if no response arrived.
+get_with_cookie() {
+	oc_run oversized --method GET --cookie "$1:750"
+	code=$(oc_value Status)
+	echo ${code:-000}
 }
 
 # check_no_crash: verify neither the connection was reset (pre-response crash)
 # nor the server log records a worker SIGSEGV (post-response crash).
 # A brief sleep lets the main process write the SIGCHLD log entry before we
-# grep, since the worker may die concurrently with curl returning.
+# grep, since the worker may die concurrently with the client returning.
 check_no_crash() {
 	local desc="$1" http_code="$2"
 	if [ "${http_code}" = "000" ]; then
@@ -111,20 +103,18 @@ check_no_crash() {
 # --- 1. webvpncontext= (the vulnerable path before the fix) ---------------
 # Without the fix: oc_base64_decode() writes ~750 bytes into ws->sid (32 bytes),
 # corrupts worker_st, and the worker segfaults before sending any response →
-# curl sees a connection reset (HTTP "000").
+# the client sees a connection reset (HTTP "000").
 # With the fix: the pre-check (nlen > SID_SIZE+8 → return) rejects the
 # oversized value and the server returns a normal HTTP status.
 echo -n " * Oversized webvpncontext= cookie... "
-http_code=$(curl_get -H "Cookie: webvpncontext=${OVERSIZED}" \
-	"https://${ADDRESS}:${PORT}/")
+http_code=$(get_with_cookie webvpncontext)
 check_no_crash "oversized webvpncontext= cookie" "${http_code}"
 
 # --- 2. webvpn= (existing guard, should already be safe) ------------------
 # The webvpn= branch performs the pre-check and decodes into ws->buffer (16 KB)
 # rather than directly into ws->cookie.  Verify the guard is intact.
 echo -n " * Oversized webvpn= cookie... "
-http_code=$(curl_get -H "Cookie: webvpn=${OVERSIZED}" \
-	"https://${ADDRESS}:${PORT}/")
+http_code=$(get_with_cookie webvpn)
 check_no_crash "oversized webvpn= cookie" "${http_code}"
 
 echo "All cookie overflow tests passed."

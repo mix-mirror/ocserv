@@ -24,6 +24,8 @@ NO_NEED_ROOT=1
 
 . `dirname $0`/common.sh
 
+require_oc_client
+
 eval "${GETPORT}"
 
 echo "Testing HTTP body and header size limits..."
@@ -34,81 +36,49 @@ PID=$!
 wait_server $PID
 
 BODY_LIMIT=$((256 * 1024))
-HDR_LIMIT=$((16 * 1024))
-HDRFILE=test-http-limits.$$.tmp
-CURL_OUT=test-http-limits.$$.curl
 
-# Run a POST via socket_wrapper; print HTTP status code to stdout.
-# Returns curl's exit code (28 = timeout, 52 = empty reply, 0 = got response).
-curl_post() {
-	LD_PRELOAD=libsocket_wrapper.so \
-	curl --silent --insecure --max-time 10 --user-agent "AnyConnect" \
-		--write-out "%{http_code}" \
-		"$@" -o "$CURL_OUT"
+# oversized WHAT [OPTIONS]: posts to /auth with the oversized parts in
+# OPTIONS
+oversized() {
+	echo -n "Testing $1... "
+	shift
+	oc_run oversized --path /auth "$@"
+	ret=$?
 }
 
-echo -n "Testing body within limit (${BODY_LIMIT} bytes)... "
-http_code=$(head -c ${BODY_LIMIT} /dev/zero | \
-	curl_post -X POST https://$ADDRESS:$PORT/auth --data-binary @-)
-rc=$?
-if [ $rc -ne 0 ] || [ "$http_code" = "000" ]; then
-	echo "FAILED (curl exit=$rc, HTTP=$http_code)"
-	cat "$CURL_OUT"
-	fail $PID "Body within limit was rejected"
-fi
-echo "ok (HTTP $http_code)"
-
-echo -n "Testing body over limit ($((BODY_LIMIT + 1)) bytes)... "
-http_code=$(head -c $((BODY_LIMIT + 1)) /dev/zero | \
-	curl_post -X POST https://$ADDRESS:$PORT/auth --data-binary @-)
-rc=$?
-if [ $rc -eq 0 ] && [ "$http_code" != "413" ] && [ "$http_code" != "431" ]; then
-	echo "FAILED (curl exit=$rc, HTTP=$http_code)"
-	cat "$CURL_OUT"
-	fail $PID "Body over limit was not rejected (HTTP $http_code)"
-fi
-echo "ok (HTTP $http_code)"
-
-# Generate N headers of 1 KB each into $HDRFILE for curl's -H @file.
-# With a 16 KB limit: 3 headers (3 KB) is within; 20 headers (20 KB) is over.
-HDR_CHUNK=$((1 * 1024))
-gen_headers() {
-	n=$1; rm -f "$HDRFILE"; i=0
-	while [ $i -lt $n ]; do
-		{ printf 'X-Test-%d: ' $i
-		  head -c ${HDR_CHUNK} /dev/zero | tr '\0' 'A'
-		  printf '\n'; } >> "$HDRFILE"
-		i=$((i+1))
-	done
+# expect_answered WHAT: the server answered the last request, with any
+# status
+expect_answered() {
+	oc_expect 'Status: [0-9]+' "$1 was rejected"
+	echo "ok (HTTP $(oc_value Status))"
 }
 
-echo -n "Testing headers within limit ($((3 * HDR_CHUNK)) bytes)... "
-gen_headers 3
-# Explicit Content-Length: 0 is required: older curl (e.g. 7.76.1 on CentOS 9)
-# omits it for empty bodies, leaving the server unable to determine
-# message_complete and causing a timeout.
-http_code=$(curl_post -X POST -H "Content-Length: 0" -H @"$HDRFILE" \
-	https://$ADDRESS:$PORT/auth)
-rc=$?
-if [ $rc -ne 0 ] || [ "$http_code" = "000" ]; then
-	echo "FAILED (curl exit=$rc, HTTP=$http_code)"
-	cat "$CURL_OUT"
-	fail $PID "Headers within limit were rejected"
-fi
-echo "ok (HTTP $http_code)"
+# expect_refused WHAT: the server refused the last request with 413 or 431,
+# or by closing the connection; a request that did not reach it (exit 2)
+# is not a refusal
+expect_refused() {
+	if test $ret = 0; then
+		oc_fail "$1 was not rejected"
+	elif test $ret != 1; then
+		oc_fail "$1: the request did not reach the server (exit $ret)"
+	fi
+	echo "ok ($(cat ${OC_OUT}))"
+}
 
-echo -n "Testing headers over limit ($((20 * HDR_CHUNK)) bytes)... "
-gen_headers 20
-http_code=$(curl_post -X POST -H "Content-Length: 0" -H @"$HDRFILE" \
-	https://$ADDRESS:$PORT/auth)
-rc=$?
-if [ $rc -eq 0 ] && [ "$http_code" != "413" ] && [ "$http_code" != "431" ]; then
-	echo "FAILED (curl exit=$rc, HTTP=$http_code)"
-	cat "$CURL_OUT"
-	fail $PID "Headers over limit were not rejected (HTTP $http_code)"
-fi
-echo "ok (HTTP $http_code)"
+oversized "body within limit (${BODY_LIMIT} bytes)" --body-size ${BODY_LIMIT}
+expect_answered "Body within limit"
 
-rm -f "$HDRFILE" "$CURL_OUT"
+oversized "body over limit ($((BODY_LIMIT + 1)) bytes)" \
+	--body-size $((BODY_LIMIT + 1))
+expect_refused "Body over limit"
+
+# Headers of 1 KB each; with a 16 KB limit, 3 headers (3 KB) are within and
+# 20 headers (20 KB) are over.
+oversized "headers within limit (3 KB)" --headers 3
+expect_answered "Headers within limit"
+
+oversized "headers over limit (20 KB)" --headers 20
+expect_refused "Headers over limit"
+
 cleanup
 exit 0
