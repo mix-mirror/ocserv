@@ -12,7 +12,7 @@
  * from the default vhost when those fields are not set in the vhost section,
  * and that vhost-specific values correctly override inherited ones.
  *
- * Covers both the ReloadableConfig path (cfg_copy_from_default) and the
+ * Covers both the ReloadableConfig path (cfg_copy_without_lists) and the
  * static_cfg_st path (vhost_inherit_static_config).
  */
 
@@ -159,6 +159,7 @@ int snapshot_restore_entry(struct snapshot_t *snap, int fd, const char *name)
 #include "../src/config-ports.c"
 #include "../src/subconfig.c"
 #include "../src/config-kkdcp.c"
+#include "../src/config-copy.c"
 #include "../src/config.c"
 
 /* -----------------------------------------------------------------------
@@ -348,52 +349,142 @@ static void check_options(void *pool, const char *path, const char *srcdir,
 	clear_old_configs(&vconfig);
 }
 
-static void check_list2(const char *label, char **list, size_t size,
-			const char *first, const char *second)
+static void check_list(const char *label, char **list, size_t size,
+		       const char *value)
 {
-	CHECK_EQ_U(label, size, second ? 2 : 1);
-	CHECK_STR(label, list[0], first);
-	if (second)
-		CHECK_STR(label, list[1], second);
+	CHECK_EQ_U(label, size, 1);
+	CHECK_STR(label, list[0], value);
 }
 
-static void check_appended_lists(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+/* Each vhost has one value of every list option: its own, or the default
+ * vhost's if it does not set the option. */
+static void check_lists(vhost_cfg_st *named, const char *dns, const char *nbns,
+			const char *route, const char *no_route,
+			const char *split_dns, const char *custom_header,
+			const char *included_header)
 {
-	ReloadableConfig *d = defvhost->config;
 	ReloadableConfig *c = named->config;
 
-	check_list2("default dns", d->network->dns, d->network->n_dns,
-		    "192.0.2.1", NULL);
-	check_list2("named dns", c->network->dns, c->network->n_dns,
-		    "192.0.2.1", "192.0.2.2");
-	check_list2("default nbns", d->network->nbns, d->network->n_nbns,
-		    "192.0.2.3", NULL);
-	check_list2("named nbns", c->network->nbns, c->network->n_nbns,
-		    "192.0.2.3", "192.0.2.4");
-	check_list2("default route", d->network->routes, d->network->n_routes,
-		    "198.51.100.1/255.255.255.255", NULL);
-	check_list2("named route", c->network->routes, c->network->n_routes,
-		    "198.51.100.1/255.255.255.255",
-		    "198.51.100.2/255.255.255.255");
-	check_list2("default no-route", d->network->no_routes,
-		    d->network->n_no_routes, "198.51.100.3/255.255.255.255",
-		    NULL);
-	check_list2("named no-route", c->network->no_routes,
-		    c->network->n_no_routes, "198.51.100.3/255.255.255.255",
-		    "198.51.100.4/255.255.255.255");
-	check_list2("default split-dns", d->split_dns, d->n_split_dns,
-		    "a.example.com", NULL);
-	check_list2("named split-dns", c->split_dns, c->n_split_dns,
-		    "a.example.com", "b.example.com");
-	check_list2("default custom-header", d->custom_header,
-		    d->n_custom_header, "X-A: 1", NULL);
-	check_list2("named custom-header", c->custom_header, c->n_custom_header,
-		    "X-A: 1", "X-B: 2");
-	check_list2("default included-http-headers", d->included_http_headers,
-		    d->n_included_http_headers, "X-C: 3", NULL);
-	check_list2("named included-http-headers", c->included_http_headers,
-		    c->n_included_http_headers, "X-C: 3", "X-D: 4");
+	check_list("dns", c->network->dns, c->network->n_dns, dns);
+	check_list("nbns", c->network->nbns, c->network->n_nbns, nbns);
+	check_list("route", c->network->routes, c->network->n_routes, route);
+	check_list("no-route", c->network->no_routes, c->network->n_no_routes,
+		   no_route);
+	check_list("split-dns", c->split_dns, c->n_split_dns, split_dns);
+	check_list("custom-header", c->custom_header, c->n_custom_header,
+		   custom_header);
+	check_list("included-http-headers", c->included_http_headers,
+		   c->n_included_http_headers, included_header);
 }
+
+static void check_default_lists(vhost_cfg_st *vhost)
+{
+	check_lists(vhost, "192.0.2.1", "192.0.2.3",
+		    "198.51.100.1/255.255.255.255",
+		    "198.51.100.3/255.255.255.255", "a.example.com", "X-A: 1",
+		    "X-C: 3");
+}
+
+static void check_inherited_lists(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+{
+	check_default_lists(defvhost);
+	check_default_lists(named);
+}
+
+static void check_replaced_lists(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+{
+	check_default_lists(defvhost);
+	check_lists(named, "192.0.2.2", "192.0.2.4",
+		    "198.51.100.2/255.255.255.255",
+		    "198.51.100.4/255.255.255.255", "b.example.com", "X-B: 2",
+		    "X-D: 4");
+}
+
+static void check_dns_spellings(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+{
+	check_list("default dns", defvhost->config->network->dns,
+		   defvhost->config->network->n_dns, "192.0.2.1");
+	check_list("named ipv6-dns", named->config->network->dns,
+		   named->config->network->n_dns, "2001:db8::1");
+	check_list("default nbns", defvhost->config->network->nbns,
+		   defvhost->config->network->n_nbns, "192.0.2.3");
+	check_list("named ipv4-nbns", named->config->network->nbns,
+		   named->config->network->n_nbns, "192.0.2.4");
+}
+
+static void check_port(const char *label, const ReloadableConfig *c,
+		       unsigned int port)
+{
+	CHECK_EQ_U(label, c->n_fw_ports, 1);
+	CHECK_EQ_U(label, c->fw_ports[0]->port, port);
+}
+
+static void check_ports_inherited(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+{
+	check_port("default restrict-user-to-ports", defvhost->config, 443);
+	check_port("named restrict-user-to-ports", named->config, 443);
+}
+
+static void check_ports_replaced(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+{
+	check_port("default restrict-user-to-ports", defvhost->config, 443);
+	check_port("named restrict-user-to-ports", named->config, 53);
+}
+
+static void check_suffix(const char *label, const char *got, const char *want)
+{
+	size_t glen = got ? strlen(got) : 0, wlen = strlen(want);
+
+	if (glen < wlen || strcmp(got + glen - wlen, want) != 0) {
+		fprintf(stderr, "FAIL %s: expected \"...%s\" got \"%s\"\n",
+			label, want, got ? got : "(null)");
+		exit(1);
+	}
+}
+
+static void check_certs(const char *label, vhost_cfg_st *vhost,
+			const char *cert, const char *key)
+{
+	CHECK_EQ_U(label, vhost->static_config.cert_size, 1);
+	check_suffix(label, vhost->static_config.cert[0], cert);
+	CHECK_EQ_U(label, vhost->static_config.key_size, 1);
+	check_suffix(label, vhost->static_config.key[0], key);
+}
+
+static void check_certs_replaced(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+{
+	check_certs("default certs", defvhost, "/server-cert.pem",
+		    "/server-key.pem");
+	check_certs("named certs", named, "/server-cert-secp521r1.pem",
+		    "/server-key-secp521r1.pem");
+}
+
+static void check_plain_auth(const char *label, vhost_cfg_st *vhost,
+			     unsigned int methods, const char *passwd)
+{
+	const plain_cfg_st *plain =
+		(const plain_cfg_st *)vhost->static_config.auth[0].additional;
+
+	CHECK_EQ_U(label, vhost->static_config.auth_methods, methods);
+	CHECK_EQ_U(label, vhost->static_config.auth[0].type,
+		   AUTH_TYPE_PLAIN | AUTH_TYPE_USERNAME_PASS);
+	check_suffix(label, plain->passwd, passwd);
+}
+
+static void check_auth_replaced(vhost_cfg_st *defvhost, vhost_cfg_st *named)
+{
+	check_plain_auth("default auth", defvhost, 1, "/test1.passwd");
+	check_plain_auth("named auth", named, 1, "/test-group.passwd");
+}
+
+#define DEFAULT_LISTS                  \
+	"dns = 192.0.2.1\n"            \
+	"nbns = 192.0.2.3\n"           \
+	"route = 198.51.100.1/32\n"    \
+	"no-route = 198.51.100.3/32\n" \
+	"split-dns = a.example.com\n"  \
+	"custom-header = X-A: 1\n"     \
+	"included-http-headers = X-C: 3\n"
 
 #define MANY_VALUES 200
 
@@ -423,9 +514,11 @@ static void check_many_values(vhost_cfg_st *defvhost, vhost_cfg_st *named)
 	CHECK_EQ_U("default custom-header count", d->n_custom_header,
 		   MANY_VALUES);
 	CHECK_EQ_U("named custom-header count", c->n_custom_header,
-		   2 * MANY_VALUES);
-	for (i = 0; i < 2 * MANY_VALUES; i++) {
+		   MANY_VALUES);
+	for (i = 0; i < MANY_VALUES; i++) {
 		snprintf(want, sizeof(want), "X-H%u", i);
+		CHECK_STR("default custom-header", d->custom_header[i], want);
+		snprintf(want, sizeof(want), "X-H%u", MANY_VALUES + i);
 		CHECK_STR("named custom-header", c->custom_header[i], want);
 	}
 }
@@ -682,17 +775,13 @@ int main(void)
 	clear_old_configs(&vconfig);
 
 	/* ----------------------------------------------------------------
-	 * Phase 5: multi-line options set in the named vhost are appended
-	 * to the exactly-sized arrays it inherited from the default vhost.
+	 * Phase 5: multi-line options are inherited when the named vhost
+	 * does not set them, and replaced as a whole when it does.
 	 * ---------------------------------------------------------------- */
-	check_options(pool, tmpfile, srcdir,
-		      "dns = 192.0.2.1\n"
-		      "nbns = 192.0.2.3\n"
-		      "route = 198.51.100.1/32\n"
-		      "no-route = 198.51.100.3/32\n"
-		      "split-dns = a.example.com\n"
-		      "custom-header = X-A: 1\n"
-		      "included-http-headers = X-C: 3\n",
+	check_options(pool, tmpfile, srcdir, DEFAULT_LISTS, "",
+		      check_inherited_lists);
+
+	check_options(pool, tmpfile, srcdir, DEFAULT_LISTS,
 		      "dns = 192.0.2.2\n"
 		      "nbns = 192.0.2.4\n"
 		      "route = 198.51.100.2/32\n"
@@ -700,7 +789,12 @@ int main(void)
 		      "split-dns = b.example.com\n"
 		      "custom-header = X-B: 2\n"
 		      "included-http-headers = X-D: 4\n",
-		      check_appended_lists);
+		      check_replaced_lists);
+
+	check_options(pool, tmpfile, srcdir, DEFAULT_LISTS,
+		      "ipv6-dns = 2001:db8::1\n"
+		      "ipv4-nbns = 192.0.2.4\n",
+		      check_dns_spellings);
 
 	check_options(pool, tmpfile, srcdir,
 		      many_options(pool, "custom-header", "X-H", 0),
@@ -744,6 +838,34 @@ int main(void)
 			      pool, "auth = \"plain[%s/data/test1.passwd]\"\n",
 			      srcdir),
 		      check_groups_auto_selected);
+
+	/* ----------------------------------------------------------------
+	 * Phase 7: the same rule for restrict-user-to-ports and for the
+	 * non-reloadable options that may be given multiple times.
+	 * ---------------------------------------------------------------- */
+	check_options(pool, tmpfile, srcdir,
+		      "restrict-user-to-ports = \"tcp(443)\"\n", "",
+		      check_ports_inherited);
+	check_options(pool, tmpfile, srcdir,
+		      "restrict-user-to-ports = \"tcp(443)\"\n",
+		      "restrict-user-to-ports = \"udp(53)\"\n",
+		      check_ports_replaced);
+
+	check_options(
+		pool, tmpfile, srcdir, "",
+		talloc_asprintf(
+			pool,
+			"server-cert = %s/certs/server-cert-secp521r1.pem\n"
+			"server-key = %s/certs/server-key-secp521r1.pem\n",
+			srcdir, srcdir),
+		check_certs_replaced);
+
+	check_options(
+		pool, tmpfile, srcdir, "",
+		talloc_asprintf(pool,
+				"auth = \"plain[%s/data/test-group.passwd]\"\n",
+				srcdir),
+		check_auth_replaced);
 
 	unlink(tmpfile);
 	talloc_free(pool);

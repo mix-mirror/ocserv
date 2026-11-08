@@ -150,6 +150,7 @@ core_sources = files(
   'common/hmac.c',
   'common/snapshot.c',
   'config.c',
+  'config-copy.c',
   'config-kkdcp.c',
   'config-ports.c',
   'gnulib/cloexec.c',

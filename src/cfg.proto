@@ -17,11 +17,16 @@ syntax = "proto2";
  *   - Retired numbers are marked with a comment; do not reclaim them.
  *
  * Memory model:
- *   These messages are never packed/unpacked for IPC.  protoc-c is used only
- *   to generate the C struct (with has_X presence fields) and the
- *   ProtobufCMessageDescriptor.  All string/bytes/sub-message pointers are
- *   talloc children of the ReloadableConfig allocation; talloc_free(config)
- *   cascades to all associated memory.
+ *   These messages are never sent over IPC.  They are packed and unpacked
+ *   only by src/config-copy.c, to deep-copy a vhost's configuration.  All
+ *   string/bytes/sub-message pointers are talloc children of the
+ *   ReloadableConfig allocation; talloc_free(config) cascades to all
+ *   associated memory.
+ *
+ *   For that copy to work, a required field must always be set (packing a
+ *   NULL required string crashes), and a string or bytes field must not have
+ *   a [default = ...]: unpack would point it to protobuf-c's static default,
+ *   which is not talloc memory.
  */
 
 import "ipc.proto";   /* reuse fw_port_st */

@@ -28,7 +28,13 @@
   no longer replaces long values with "(invalid)".
 - occtl gives up after 10 seconds on a server that does not reply, rejects
   over-long user names locally, and no longer crashes on unexpected replies.
-
+- An option set in a virtual host now replaces the value from the top-level
+  configuration, also for options that can be given multiple times (route,
+  no-route, dns, nbns, split-dns, custom-header, included-http-headers) and
+  for restrict-user-to-ports, as it already did for select-group. These were
+  appended to the top-level values before, which for most configurations also
+  corrupted memory (#770). A virtual host that relied on that must repeat the
+  top-level values in its section.
 
 * Version 1.6.0 (released 2026-10-16)
 - Send the RADIUS session ID as Acct-Session-Id in the Access-Request (#751)

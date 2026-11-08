@@ -187,19 +187,26 @@ REQ-CONFIG-CFG-006
 **Requirement:** The first time `cfg_ini_handler()` encounters a
 `[vhost:NAME]` section for a given vhost (`vhost->cfg_inherited == 0`), and
 **before** parsing any option in that section, it MUST replace
-`vhost->config` with `cfg_copy_from_default(defvhost->config, vhost->pool)`
-— a full protobuf `pack()`/`unpack()` round-trip of the default vhost's
-*current* `ReloadableConfig` (including all scalars, strings, repeated
-fields, and sub-messages such as `NetworkConfig`), reallocated under
-`vhost->pool` via a talloc-backed `ProtobufCAllocator` so a single
-`talloc_free(vhost->config)` releases the entire copy. It MUST then set
+`vhost->config` with `cfg_copy_without_lists(defvhost->config, vhost->pool)`
+— a protobuf `pack()`/`unpack()` round-trip of the default vhost's
+*current* `ReloadableConfig` (including all scalars, strings, and
+sub-messages such as `NetworkConfig`) with every repeated field left empty,
+reallocated under `vhost->pool` via a talloc-backed `ProtobufCAllocator` so a
+single `talloc_free(vhost->config)` releases the entire copy. It MUST then set
 `vhost->cfg_inherited = 1` so the copy happens at most once per
 parse/reload pass. Options subsequently parsed in the `[vhost:NAME]` section
-overlay this inherited snapshot field-by-field.
+overlay this inherited snapshot field-by-field. After the whole file is
+parsed, and before any list is computed from the configuration (iroutes,
+`kkdcp`, `auto-select-group`), every repeated field a named vhost left empty,
+at any depth, MUST be copied from the default vhost, so that a repeated field
+is one field, replaced as a whole (REQ-CONFIG-CFG-010), without a list of
+such fields to maintain.
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/config.c:540-568 (`cfg_copy_from_default`), 1014-1029
-(call site); tests/config-inherit.c (phases 1–3)
+**Source:** src/config-copy.c (`cfg_copy_without_lists`,
+`cfg_inherit_lists`); src/config.c (`inherit_unset_lists`; call sites
+in `cfg_ini_handler` and `parse_cfg_file`); tests/config-inherit.c
+(phases 1–3)
 **Acceptance:** tests/config-inherit.c phase 1 — a `[vhost:named]` section
 that sets only `auth`/`server-cert`/`server-key`/`ipv4-network`/
 `ipv4-netmask` MUST end up with `keepalive`, `dpd`, `idle_timeout`,
@@ -429,24 +436,20 @@ however it was allocated, including an array that holds exactly its elements
 because it came from the protobuf inheritance copy (REQ-CONFIG-CFG-002). It
 MUST NOT write outside the array's allocation. The number of values is given
 only by the corresponding count field; the arrays carry no NULL terminator and
-no code may rely on one. A multi-line option other than `select-group`
-(REQ-CONFIG-CFG-009) set in a `[vhost:NAME]` section MUST append to the values inherited from the default
-vhost, and there is no limit on the number of values other than available
-memory.
+no code may rely on one. There is no limit on the number of values of an
+option other than available memory. Which values a named vhost ends up with
+is set by REQ-CONFIG-CFG-010.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/config.c (`_add_multi_line_val`, `READ_MULTI_LINE`);
 src/sup-config/file.c (`READ_RAW_MULTI_LINE`); tests/config-inherit.c
-(`check_appended_lists`, `check_many_values`)
-**Acceptance:** tests/config-inherit.c, each case both after parsing and after
-`reload_cfg_file()` — one value of `route`, `no-route`, `dns`, `nbns`,
-`split-dns`, `custom-header` or `included-http-headers` in the default vhost
-and another in the named vhost MUST leave the named vhost with both, inherited
-value first, and the default vhost with only its own. 200 values in each
-section MUST leave the named vhost with 400 and the default vhost with 200, all
-with the expected values, and running the test under ASAN MUST report no
+(`check_many_values`)
+**Acceptance:** tests/config-inherit.c, both after parsing and after
+`reload_cfg_file()` — 200 `custom-header` values in the default vhost and 200
+in the named vhost MUST leave each vhost with its own 200, all with the
+expected values, and running the test under ASAN MUST report no
 out-of-bounds access.
-**Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-006, REQ-CONFIG-CFG-009
+**Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-006, REQ-CONFIG-CFG-010
 
 ### REQ-CONFIG-CFG-009 — `select-group` entries carry their label, and a named vhost's list replaces the inherited one
 
@@ -455,15 +458,16 @@ entry of `ReloadableConfig.select_groups`, holding the group's `name` and, when
 the value has a non-empty bracketed label, its `label`; an empty or missing
 label MUST leave `label` absent. A named vhost with no `select-group` option
 MUST inherit the default vhost's entries with their labels
-(REQ-CONFIG-CFG-002). The first `select-group` in a `[vhost:NAME]` section MUST
-discard the inherited entries, so that the vhost offers exactly the groups its
-section lists and an administrator can offer fewer groups on a vhost than on
-the default one; a group listed only by the default vhost MUST NOT be offered
-on such a vhost. The list governs only which groups the login form offers and
-which labels are resolved: a proposed group outside it (a hidden group, #742)
-MUST be passed to the authentication backend, which accepts it only if the
-user is a member. `auto-select-group`, when it applies to a vhost, MUST replace
-that vhost's entries with the discovered groups, without labels.
+(REQ-CONFIG-CFG-002). A vhost that sets `select-group` MUST replace the
+inherited entries, as for every option (REQ-CONFIG-CFG-010), so that the vhost
+offers exactly the groups its section lists and an administrator can offer
+fewer groups on a vhost than on the default one; a group listed only by the
+default vhost MUST NOT be offered on such a vhost. The list governs only which
+groups the login form offers and which labels are resolved: a proposed group
+outside it (a hidden group, #742) MUST be passed to the authentication backend,
+which accepts it only if the user is a member. `auto-select-group`, when it
+applies to a vhost, MUST replace that vhost's entries with the discovered
+groups, without labels.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/cfg.proto (`SelectGroup`); src/config.c (`read_select_group`,
@@ -486,7 +490,48 @@ vhost a user who is a member of `group1` and `group3` but not `group4` MUST be
 able to log in proposing `group3`, and proposing the hidden `group1`, and MUST
 be rejected proposing `group4`.
 **Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-007, REQ-CONFIG-CFG-008,
-REQ-PROTO-AUTH-010
+REQ-CONFIG-CFG-010, REQ-PROTO-AUTH-010
+
+### REQ-CONFIG-CFG-010 — An option set in a `[vhost:NAME]` section replaces the inherited value as a whole, including options given multiple times
+
+**Requirement:** A named vhost MUST inherit each option it does not set from
+the default vhost (REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-003). If its section sets
+an option, the values given in that section MUST replace the inherited value
+as a whole. For an option that may be given multiple times, the vhost MUST end
+up with exactly the values its section lists, in order, and none of the
+default vhost's; an administrator who wants to keep inherited values lists
+them again. Inherited values are never merged with the vhost's own. This
+applies to the reloadable options `route`, `no-route`, `dns`, `nbns`,
+`split-dns`, `custom-header`, `included-http-headers`, `select-group` and
+`restrict-user-to-ports`, and to the non-reloadable options `server-cert` and
+`server-key`. The authentication options `auth`, `enable-auth`, `acct` and
+`kkdcp` are not covered by this requirement. `ipv4-dns` and
+`ipv6-dns` are spellings of `dns`, and `ipv4-nbns` and `ipv6-nbns` of `nbns`:
+each set of spellings is one option, so a vhost setting any of them replaces
+all the inherited values of that option. Setting an option in the default
+vhost MUST NOT change any named vhost's own values. The same rule applies one
+level down: a per-user or per-group file that sets a `[scope: vhost user]`
+option replaces the vhost's values for that session (REQ-CONFIG-CFG-006),
+except for `route` and `no-route` when `append-routes` is enabled, which is
+not yet specified.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/config-copy.c; src/config.c (`cfg_ini_handler`,
+`inherit_unset_lists`, `vhost_inherit_static_config`);
+src/main-sec-mod-cmd.c (`apply_default_config`); tests/config-inherit.c
+phases 5–7
+**Acceptance:** tests/config-inherit.c, each case both after parsing and after
+`reload_cfg_file()`: (a) for each option listed above, a named vhost that does
+not set it MUST have the default vhost's values; (b) a named vhost that sets
+it MUST have only its own values, and the default vhost only its own;
+(c) `dns` in the default vhost and `ipv6-dns` in the named vhost MUST leave the
+named vhost with only the `ipv6-dns` value.
+**Note:** before this requirement, reloadable list options and
+`restrict-user-to-ports` set in a named vhost appended to the inherited values
+(REQ-CONFIG-CFG-002 did not say which), and for inherited lists of 1–94 values
+the append wrote out of bounds (#770).
+**Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-003, REQ-CONFIG-CFG-006,
+REQ-CONFIG-CFG-008, REQ-CONFIG-CFG-009
 
 ---
 

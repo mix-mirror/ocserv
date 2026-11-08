@@ -148,6 +148,13 @@ of the form:
 All options that follow (until the next section header or end of file) apply
 only to that virtual host.
 
+A virtual host uses the value of the top-level configuration for every option
+it does not set. When it sets an option, its value replaces the top-level one.
+This also holds for options that can be given multiple times, such as `route`,
+`dns`, `select-group` or `server-cert`: if a virtual host section sets the
+option at all, the virtual host uses only the values listed in its section,
+and none of the top-level ones.
+
 The name may be up to 253 characters long, the maximum length of a domain
 name. A longer name is rejected as a configuration error rather than shortened,
 since a shortened name would never match the domain a client requests.

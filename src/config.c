@@ -55,6 +55,7 @@
 #include "occtl/ctl.h"
 #include <gnutls/crypto.h>
 #include "common-config.h"
+#include "config-copy.h"
 
 #include <getopt.h>
 #include "common/snapshot.h"
@@ -513,63 +514,32 @@ static void figure_acct_funcs(void *pool, const char *vhostname,
 			vhostname, config->acct.name);
 }
 
-/* Two-phase talloc allocator for protobuf-c unpack */
-struct cfg_alloc_ctx {
-	TALLOC_CTX *pool;
-	void *top; /* NULL until first alloc */
-};
-
-static void *cfg_talloc_alloc(void *data, size_t size)
+/* Gives a named vhost, once the configuration is parsed, the default vhost's
+ * values of every list option its section did not set. It must run before
+ * lists are computed from the configuration (iroutes, kkdcp,
+ * auto-select-group), so that those are never inherited. It replaces
+ * vhost->config, so nothing outside it may be allocated under it. */
+static void inherit_unset_lists(vhost_cfg_st *vhost,
+				const ReloadableConfig *def)
 {
-	struct cfg_alloc_ctx *ctx = data;
-
-	if (ctx->top == NULL) {
-		ctx->top = talloc_size(ctx->pool, size);
-		return ctx->top;
-	}
-	return talloc_size(ctx->top, size);
-}
-
-static void cfg_talloc_free(void *data, void *ptr)
-{
-	(void)data;
-	talloc_free(ptr);
-}
-
-/*
- * cfg_copy_from_default - deep-copy a ReloadableConfig via protobuf pack+unpack.
- *
- * All fields (strings, repeated, sub-messages) are talloc-allocated under the
- * returned ReloadableConfig so a single talloc_free(copy) releases everything.
- */
-static ReloadableConfig *cfg_copy_from_default(const ReloadableConfig *def,
-					       TALLOC_CTX *pool)
-{
-	struct cfg_alloc_ctx ctx = { .pool = pool, .top = NULL };
-	ProtobufCAllocator alloc = {
-		.alloc = cfg_talloc_alloc,
-		.free = cfg_talloc_free,
-		.allocator_data = &ctx,
-	};
-	size_t len;
-	uint8_t *buf;
 	ReloadableConfig *copy;
 
-	len = reloadable_config__get_packed_size(def);
-	buf = talloc_size(pool, len);
-	if (buf == NULL) {
+	copy = cfg_inherit_lists(vhost->config, def, vhost->pool);
+	if (copy == NULL) {
 		fprintf(stderr, ERRSTR "memory\n");
 		exit(EXIT_FAILURE);
 	}
-	reloadable_config__pack(def, buf);
-	copy = (ReloadableConfig *)protobuf_c_message_unpack(
-		&reloadable_config__descriptor, &alloc, len, buf);
-	talloc_free(buf);
-	if (copy == NULL) {
-		fprintf(stderr, ERRSTR "protobuf unpack failed\n");
+	vhost->config = copy;
+}
+
+/* Adds one value of an option that may be given several times */
+static void add_list_value(void *pool, char ***list, size_t *size,
+			   const char *value)
+{
+	if (_add_multi_line_val(pool, list, size, value) < 0) {
+		fprintf(stderr, ERRSTR "memory\n");
 		exit(EXIT_FAILURE);
 	}
-	return copy;
 }
 
 static void clear_select_groups(ReloadableConfig *config)
@@ -1101,14 +1071,16 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 		}
 		talloc_free(vname);
 
-		/* Pre-populate this named vhost from the default vhost before
-		 * any of its options are parsed, so subsequent options overlay
-		 * the inherited values. */
+		/* Step 1: apply the default vhost's config, without its lists,
+		 * to a named vhost before its section is parsed, so that each
+		 * option the section sets replaces the inherited value
+		 * (REQ-CONFIG-CFG-002). Lists are applied in step 2, in
+		 * parse_cfg_file(). */
 		if (!vhost->cfg_inherited) {
 			ReloadableConfig *copy;
 
-			copy = cfg_copy_from_default(defvhost->config,
-						     vhost->pool);
+			copy = cfg_copy_without_lists(defvhost->config,
+						      vhost->pool);
 			if (copy == NULL) {
 				fprintf(stderr, ERRSTR "memory\n");
 				exit(EXIT_FAILURE);
@@ -1271,7 +1243,9 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 			goto exit;
 	}
 
-	/* read the rest of the (non-permanent) configuration */
+	/* read the rest of the (non-permanent) configuration; only fields of
+	 * the config may be allocated under it, as inherit_unset_lists()
+	 * replaces it after parsing */
 	pool = vhost->config;
 	config = vhost->config;
 
@@ -1288,7 +1262,8 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 		READ_TF_VC(append_routes);
 #ifdef HAVE_GSSAPI
 	} else if (strcmp(name, "kkdcp") == 0) {
-		READ_MULTI_LINE(vhost->urlfw, vhost->urlfw_size);
+		/* not under the config, which inherit_unset_lists() replaces */
+		add_list_value(vhost, &vhost->urlfw, &vhost->urlfw_size, value);
 #endif
 	} else if (strcmp(name, "tunnel-all-dns") == 0) {
 		READ_TF_VC(tunnel_all_dns);
@@ -1551,25 +1526,22 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 			}
 		}
 	} else if (strcmp(name, "custom-header") == 0) {
-		READ_MULTI_LINE(config->custom_header, config->n_custom_header);
+		add_list_value(pool, &config->custom_header,
+			       &config->n_custom_header, value);
 	} else if (strcmp(name, "split-dns") == 0) {
-		READ_MULTI_LINE(config->split_dns, config->n_split_dns);
+		add_list_value(pool, &config->split_dns, &config->n_split_dns,
+			       value);
 	} else if (strcmp(name, "included-http-headers") == 0) {
 		/* Don't use sanitized input since http header values can contain
 		 * optional trailing blanks and double quotes */
-		if (_add_multi_line_val(pool, &(config->included_http_headers),
-					&(config->n_included_http_headers),
-					_value) < 0) {
-			fprintf(stderr, ERRSTR "memory\n");
-			exit(EXIT_FAILURE);
-		}
+		add_list_value(pool, &config->included_http_headers,
+			       &config->n_included_http_headers, _value);
 	} else if (strcmp(name, "route") == 0) {
-		_add_multi_line_val(config->network, &config->network->routes,
-				    &config->network->n_routes, value);
+		add_list_value(config->network, &config->network->routes,
+			       &config->network->n_routes, value);
 	} else if (strcmp(name, "no-route") == 0) {
-		_add_multi_line_val(config->network,
-				    &config->network->no_routes,
-				    &config->network->n_no_routes, value);
+		add_list_value(config->network, &config->network->no_routes,
+			       &config->network->n_no_routes, value);
 	} else if (strcmp(name, "default-select-group") == 0) {
 		READ_STRING(config->default_select_group);
 	} else if (strcmp(name, "select-group-by-url") == 0) {
@@ -1577,30 +1549,16 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 	} else if (strcmp(name, "auto-select-group") == 0) {
 		READ_TF_VC(auto_select_group);
 	} else if (strcmp(name, "select-group") == 0) {
-		/* A vhost's list replaces the inherited one, so that it can
-		 * offer fewer groups than the default vhost. */
-		if (vhost->cfg_inherited && !vhost->select_group_set)
-			clear_select_groups(config);
-		vhost->select_group_set = 1;
 		read_select_group(config, value);
-	} else if (strcmp(name, "dns") == 0) {
-		_add_multi_line_val(config->network, &config->network->dns,
-				    &config->network->n_dns, value);
-	} else if (strcmp(name, "ipv4-dns") == 0) {
-		_add_multi_line_val(config->network, &config->network->dns,
-				    &config->network->n_dns, value);
-	} else if (strcmp(name, "ipv6-dns") == 0) {
-		_add_multi_line_val(config->network, &config->network->dns,
-				    &config->network->n_dns, value);
-	} else if (strcmp(name, "nbns") == 0) {
-		_add_multi_line_val(config->network, &config->network->nbns,
-				    &config->network->n_nbns, value);
-	} else if (strcmp(name, "ipv4-nbns") == 0) {
-		_add_multi_line_val(config->network, &config->network->nbns,
-				    &config->network->n_nbns, value);
-	} else if (strcmp(name, "ipv6-nbns") == 0) {
-		_add_multi_line_val(config->network, &config->network->nbns,
-				    &config->network->n_nbns, value);
+	} else if (strcmp(name, "dns") == 0 || strcmp(name, "ipv4-dns") == 0 ||
+		   strcmp(name, "ipv6-dns") == 0) {
+		add_list_value(config->network, &config->network->dns,
+			       &config->network->n_dns, value);
+	} else if (strcmp(name, "nbns") == 0 ||
+		   strcmp(name, "ipv4-nbns") == 0 ||
+		   strcmp(name, "ipv6-nbns") == 0) {
+		add_list_value(config->network, &config->network->nbns,
+			       &config->network->n_nbns, value);
 	} else if (strcmp(name, "route-add-cmd") == 0) {
 		if (error_on_vhost(vhost->name, "route-add-cmd"))
 			return 0;
@@ -1793,10 +1751,24 @@ static void parse_cfg_file(void *pool, const char *file, struct list_head *head,
 	}
 #endif
 
-	/* apply configuration not yet applied.
-	 * We start from the last, which is the default server (firstly
-	 * added).
-	 */
+	/* Step 2: apply to each named vhost the default vhost's lists that its
+	 * section did not set (REQ-CONFIG-CFG-010). This must precede step 3,
+	 * which finalizes the default vhost first and adds to its config lists
+	 * computed from the configuration (kkdcp, iroutes, auto-select-group)
+	 * that a named vhost must not inherit. */
+	defvhost = default_vhost(head);
+	list_for_each(head, vhost, list)
+	{
+		if (vhost->cfg_inherited)
+			inherit_unset_lists(vhost, defvhost->config);
+	}
+
+	/* Step 3: apply what parsing alone does not: the authentication and
+	 * accounting methods, auto-select-group, iroutes, the non-reloadable
+	 * options a named vhost inherits, the TLS files and kkdcp. The default
+	 * vhost, added first and so last in the list, is finalized first, as
+	 * named vhosts take their authentication and non-reloadable options
+	 * from it. */
 	list_for_each_rev(head, vhost, list)
 	{
 		config = vhost->config;
@@ -2553,7 +2525,6 @@ static void archive_cfg(struct list_head *head)
 
 		/* reset so the next reload re-inherits from the new default */
 		vhost->cfg_inherited = 0;
-		vhost->select_group_set = 0;
 
 		if (e->usage_count == NULL || *e->usage_count == 0) {
 			talloc_free(e);
@@ -2574,7 +2545,6 @@ static void clear_cfg(struct list_head *head)
 		cpos->config = NULL;
 		/* reset so the next reload re-inherits from the new default */
 		cpos->cfg_inherited = 0;
-		cpos->select_group_set = 0;
 	}
 }
 
