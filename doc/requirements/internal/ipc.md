@@ -768,13 +768,10 @@ REQ-MAIN-INIT-006
   periodic/administrative and have no security-relevant validation beyond
   REQ-IPC-001/002. `[UNDOCUMENTED: if these messages gain validation logic
   in the future, add requirements here.]`
-- **ctl.proto**: only the termination flow (REQ-IPC-070..072) is covered in
-  detail, since it is the security-relevant occtl path (it can end a user's
-  VPN session). Read-only `occtl` queries (`status_rep`, `user_list_rep`,
-  `ban_list_rep`, etc.) are reporting-only and have no MUST/MUST NOT
-  contract beyond "reflect server state accurately" —
-  `[UNDOCUMENTED: candidate for a future REQ-IPC-LOG-* style requirement if
-  occtl output is found to diverge from server state]`.
+- **ctl.proto**: the termination flow (REQ-IPC-070..072) is covered here,
+  since it crosses into sec-mod. The rest of the occtl <-> main contract
+  (peer authorization, framing, every `CTL_CMD_*` request and its reply) is
+  in `internal/occtl.md` (REQ-OCCTL-*).
 - **Field coverage gap**: `group_cfg_st` (the per-user/group supplemental
   config forwarded in `auth_cookie_reply_msg.config` and
   `secm_session_reply_msg.config`) is not covered field-by-field here; its

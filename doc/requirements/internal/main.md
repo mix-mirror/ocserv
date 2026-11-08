@@ -638,10 +638,10 @@ partial reload.
   REQ-MAIN-NET-* + REQ-IPC-* covering how main demultiplexes UDP packets to
   the owning worker by source address, and what happens on a DTLS
   client-hello from an address with no matching worker.]`
-- **occtl control socket** (`main-ctl-unix.c`): only the termination flow is
-  covered (`internal/ipc.md` REQ-IPC-070..072). Other `occtl` commands
-  (`show status`, `show ip bans`, `reload`, `show iroutes`) are
-  reporting/administrative with no further requirements in this pass.
+- **occtl control socket** (`main-ctl-unix.c`): covered in
+  `internal/occtl.md` (REQ-OCCTL-*), which specifies both the occtl client
+  and main's ctl-socket handler; the main <-> sec-mod termination messages
+  stay in `internal/ipc.md` (REQ-IPC-070..072).
 - **chroot** (`src/main.c:1675-1691`): sec-mod's chdir-to-chroot behavior is
   noted but not analyzed for completeness — `[UNDOCUMENTED: candidate
   REQ-MAIN-SEC-* covering what happens if chroot_dir is misconfigured
