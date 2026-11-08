@@ -7,6 +7,7 @@ libinih = static_library('inih', 'ini.c',
     '-DINI_INLINE_COMMENT_PREFIXES="#"',
   ],
   pic: false,
+  override_options: ['werror=false'],
 )
 
 inih_dep = declare_dependency(
