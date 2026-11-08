@@ -311,10 +311,12 @@ require_oc_client() {
 }
 
 # oc_client [OPTIONS] COMMAND [ARGS]: runs tests/oc-client.py
-# (REQ-GEN-TEST-014) against the server at ADDRESS:PORT
+# (REQ-GEN-TEST-014) against the server at ADDRESS:PORT, through
+# socket_wrapper when the test uses it, or at localhost:PORT otherwise
 oc_client() {
-	LD_PRELOAD=libsocket_wrapper.so python3 "${srcdir}/oc-client.py" \
-		--address ${ADDRESS} --port ${PORT} "$@"
+	env ${SOCKDIR:+LD_PRELOAD=libsocket_wrapper.so} \
+		python3 "${srcdir}/oc-client.py" \
+		--address ${ADDRESS:-localhost} --port ${PORT} "$@"
 }
 
 # oc_run [OPTIONS] COMMAND [ARGS]: runs oc_client, keeping what it observed
