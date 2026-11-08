@@ -21,12 +21,10 @@
 SERV="${SERV:-../src/ocserv}"
 srcdir=${srcdir:-.}
 NO_NEED_ROOT=1
-HEAD=$(mktemp)
-POST=$(mktemp)
-COOKIES=$(mktemp)
-OUTFILE=$(mktemp)
 
 . `dirname $0`/common.sh
+
+require_oc_client
 
 eval "${GETPORT}"
 
@@ -38,7 +36,6 @@ function finish {
   set +e
   echo " * Cleaning up..."
   test -n "${CONFIG}" && rm -f ${CONFIG} >/dev/null 2>&1
-  rm -f $HEAD $POST $COOKIES #$OUTFILE 2>&1
   cleanup
 }
 trap finish EXIT
@@ -48,133 +45,33 @@ launch_simple_sr_server -d 1 -f -c ${CONFIG}
 PID=$!
 wait_server $PID
 
-TARGET=https://$ADDRESS:$PORT
-
-cat >$HEAD <<_EOF
-Accept-Encoding:identity
-X-Transcend-Version:1
-X-AnyConnect-STRAP-Pubkey:MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0ZzFevkIYwkFXw9Q1u1W9H5NX6sLhU+IC19UWkXAjBljNxbBFK2/GoIgwPtbE7hDgWkTkQ1J4wPRlnBfCL4hzA==
-X-Aggregate-Auth:1
-Connection:close
-_EOF
-
-cat >$POST <<_EOF
-<?xml version: "1.0" encoding="UTF-8"?>
-<config-auth client="vpn" type="init" aggregate-auth-version="2">
-<version who="vpn">4.8.03036</version>
-<device-id computer-name="node.some.domain" device-type="MacBookPro11,1" platform-version="10.15.4" unique-id="1234567890123456789012345678901234567890123456789012345678901234"
-unique-id-global="1234567890123456789012345678901234567890">mac-intel</device-id>
-<mac-address-list>
-<mac-address public-interface="true">aa-bb-cc-dd-ee-ff</mac-address></mac-address-list>
-<group-select>Do not tunnel access LAN subnet</group-select>
-<group-access>'$TARGET'</group-access>
-<capabilities>
-<auth-method>multiple-cert</auth-method>
-<auth-method>single-sign-on</auth-method>
-<auth-method>single-sign-on-v2</auth-method></capabilities>
-</config-auth>
-_EOF
-
-LD_PRELOAD=libsocket_wrapper.so curl -i -A 'AnyConnect Darwin_i386 4.8.03036' -H @$HEAD -k -d@$POST $TARGET >$OUTFILE
-
-grep "Content-Type: text/xml; charset=utf-8" $OUTFILE >/dev/null
-if test $? != 0;then
-	echo "Auth form does not declare UTF-8 charset"
-	echo "========================================="
-	cat $OUTFILE
-	exit 1
-fi
-
-grep "value=\"Do not tunnel access LAN subnet\">Do not tunnel access LAN subnet" $OUTFILE >/dev/null
-if test $? = 0;then
-	echo "Name was not translated"
-	echo "======================="
-	cat $OUTFILE
-	exit 1
-fi
-
-grep "value=\"group3\">Do not tunnel access LAN subnet" $OUTFILE >/dev/null
-if test $? != 0;then
-	echo "Unknown state ($NR)"
-	echo "==================="
-	cat $OUTFILE
-	exit 1
-fi
-
+oc_run init --group "Do not tunnel access LAN subnet" ||
+	oc_fail "Requesting the auth form failed"
+oc_expect 'Content-Type: text/xml; charset=utf-8$' \
+	"Auth form does not declare UTF-8 charset"
+oc_expect_not 'Group: value="Do not tunnel access LAN subnet"' \
+	"Name was not translated"
+oc_expect 'Group: value="group3" label="Do not tunnel access LAN subnet"' \
+	"Translated group was not offered"
 # A client-proposed group must be selected first without suppressing the
 # remaining server-advertised groups.
-grep "value=\"group1\">group1" $OUTFILE >/dev/null
-if test $? != 0;then
-	echo "Selected group suppressed the rest of the group list"
-	echo "==================================================="
-	cat $OUTFILE
-	exit 1
-fi
+oc_expect 'Group: value="group1" label="group1"' \
+	"Selected group suppressed the rest of the group list"
 
-cat >$POST <<_EOF
-<?xml version: "1.0" encoding="UTF-8"?>
-<config-auth client="vpn" type="init" aggregate-auth-version="2">
-<group-select>Маршрут по умолчанию без BY</group-select>
-</config-auth>
-_EOF
+oc_run init --group "Маршрут по умолчанию без BY" ||
+	oc_fail "Requesting the auth form failed"
+oc_expect_not 'Group: value="Маршрут по умолчанию без BY"' \
+	"Localized friendly name was not translated"
+oc_expect 'Group: value="group5" label="Маршрут по умолчанию без BY"' \
+	"Localized friendly name was not offered"
+oc_expect 'Group: value="group1" label="group1"' \
+	"Localized selected group suppressed the rest of the group list"
 
-LD_PRELOAD=libsocket_wrapper.so curl -A 'AnyConnect Darwin_i386 5.1.15.287' -H @$HEAD -k -d@$POST $TARGET >$OUTFILE
-
-grep "value=\"Маршрут по умолчанию без BY\">Маршрут по умолчанию без BY" $OUTFILE >/dev/null
-if test $? = 0;then
-	echo "Localized friendly name was not translated"
-	echo "=========================================="
-	cat $OUTFILE
-	exit 1
-fi
-
-grep "value=\"group5\">Маршрут по умолчанию без BY" $OUTFILE >/dev/null
-if test $? != 0;then
-	echo "Localized friendly name was not offered"
-	echo "======================================="
-	cat $OUTFILE
-	exit 1
-fi
-
-grep "value=\"group1\">group1" $OUTFILE >/dev/null
-if test $? != 0;then
-	echo "Localized selected group suppressed the rest of the group list"
-	echo "============================================================="
-	cat $OUTFILE
-	exit 1
-fi
-
-cat >$POST <<_EOF
-<?xml version: "1.0" encoding="UTF-8"?>
-<config-auth client="vpn" type="init" aggregate-auth-version="2">
-<group-select>NotExistGroup</group-select>
-</config-auth>
-_EOF
-
-LD_PRELOAD=libsocket_wrapper.so curl -A 'AnyConnect Darwin_i386 4.8.03036' -H @$HEAD -k -d@$POST $TARGET >$OUTFILE
-
-grep "value=\"NotExistGroup\">NotExistGroup" $OUTFILE >/dev/null
-if test $? = 0;then
-	echo "Unknown group was offered back to the client"
-	echo "============================================"
-	cat $OUTFILE
-	exit 1
-fi
-
-grep "value=\"group1\">group1" $OUTFILE >/dev/null
-if test $? != 0;then
-	echo "Default group was not offered"
-	echo "============================="
-	cat $OUTFILE
-	exit 1
-fi
-
-grep "value=\"group3\">Do not tunnel access LAN subnet" $OUTFILE >/dev/null
-if test $? != 0;then
-	echo "Configured group list was not offered"
-	echo "====================================="
-	cat $OUTFILE
-	exit 1
-fi
+oc_run init --group NotExistGroup || oc_fail "Requesting the auth form failed"
+oc_expect_not 'Group: value="NotExistGroup"' \
+	"Unknown group was offered back to the client"
+oc_expect 'Group: value="group1" label="group1"' "Default group was not offered"
+oc_expect 'Group: value="group3" label="Do not tunnel access LAN subnet"' \
+	"Configured group list was not offered"
 
 exit 0

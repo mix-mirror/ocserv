@@ -98,9 +98,11 @@ class _VhostConnection(http.client.HTTPSConnection):
 
 
 class Reply:
-    def __init__(self, status, body):
+    def __init__(self, status, headers, body):
         self.status = status
+        self.headers = headers
         self.body = body
+        self.set_cookies = headers.get_all("Set-Cookie") or []
 
 
 class Server:
@@ -149,12 +151,12 @@ class Server:
         self.conn.request(method, path,
                           None if body is None else body.encode(), headers)
         resp = self.conn.getresponse()
-        reply = Reply(resp.status, resp.read().decode(errors="replace"))
-        set_cookies = resp.msg.get_all("Set-Cookie") or []
+        reply = Reply(resp.status, resp.msg,
+                      resp.read().decode(errors="replace"))
         self.trace("<", "HTTP %d %s" % (resp.status, resp.reason),
-              "".join("Set-Cookie: %s\n" % c for c in set_cookies)
-              + reply.body)
-        for cookie in set_cookies:
+                   "".join("Set-Cookie: %s\n" % c for c in reply.set_cookies)
+                   + reply.body)
+        for cookie in reply.set_cookies:
             self._keep(cookie)
         return reply
 
@@ -226,6 +228,20 @@ def asks_for_password(form):
     return 'type="password"' in form
 
 
+_MESSAGE = re.compile(r"<message>(.*?)</message>", re.S)
+_AUTH_ID = re.compile(r'<auth id="([^"]*)"')
+
+
+def messages(body):
+    return [html.unescape(m) for m in _MESSAGE.findall(body)]
+
+
+def auth_ids(body):
+    """The id of each <auth> element: "main" for a form, "success" for a
+    completed login."""
+    return _AUTH_ID.findall(body)
+
+
 # ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
@@ -239,7 +255,8 @@ def arg(*flags, **options):
 
 def command(name, *arguments):
     """Registers a command; each argument is an arg(...) passed on to
-    argparse. The function's docstring is the command's help."""
+    argparse. The function's docstring is the command's help, its first
+    line the summary in the list of commands."""
     def register(func):
         COMMANDS[name] = (func, arguments)
         return func
@@ -250,8 +267,9 @@ def command(name, *arguments):
          arg("--group", help="group to propose, as a client does with the "
              "group it used last"))
 def cmd_groups(server, args):
-    """Print the groups the login form offers, in the order offered, as
-    'value<TAB>label' lines."""
+    """Print the groups the login form offers.
+
+    One 'value<TAB>label' line per group, in the order offered."""
     reply = server.post_xml(init_request(group=args.group))
     if reply.status != 200:
         raise ProtocolError("expected the login form, got HTTP %d"
@@ -265,14 +283,45 @@ def cmd_groups(server, args):
     return OK
 
 
+@command("init",
+         arg("--group", help="group to propose, sent as given even if the "
+             "server does not list it"))
+def cmd_init(server, args):
+    """Start a login and print what the server answered.
+
+    One item per line, headers as the server sent them:
+      Content-Type: VALUE
+      Message: TEXT                       each message of the form
+      Group: value="VALUE" label="LABEL"  each group, in the order offered
+      Auth: ID                            each <auth> id ("success" for a
+                                          completed login)
+      Set-Cookie: HEADER                  each Set-Cookie header"""
+    reply = server.post_xml(init_request(group=args.group))
+    if reply.status != 200:
+        raise ProtocolError("expected an answer to the init message, got "
+                            "HTTP %d" % reply.status)
+    server.report("Content-Type: %s" % reply.headers.get("Content-Type", ""))
+    for text in messages(reply.body):
+        server.report("Message: %s" % text)
+    for value, label in offered_groups(reply.body) or []:
+        server.report('Group: value="%s" label="%s"' % (value, label))
+    for auth_id in auth_ids(reply.body):
+        server.report("Auth: %s" % auth_id)
+    for cookie in reply.set_cookies:
+        server.report("Set-Cookie: %s" % cookie)
+    return OK
+
+
 @command("login",
          arg("--group", help="group to propose, sent as given even if the "
              "form does not offer it"),
          arg("--user", required=True),
          arg("--password", required=True))
 def cmd_login(server, args):
-    """Log in with a username and password; succeed if the server issues
-    a session cookie, refuse if it rejects the login."""
+    """Log in with a username and password.
+
+    Succeeds if the server issues a session cookie, refuses if it rejects
+    the login."""
     reply = server.post_xml(init_request(group=args.group))
     if reply.status != 200 or not asks_for_password(reply.body):
         raise ProtocolError("expected the login form, got HTTP %d"
@@ -320,8 +369,9 @@ def main():
     commands = parser.add_subparsers(dest="command")
     commands.required = True
     for name, (func, arguments) in COMMANDS.items():
-        sub = commands.add_parser(name, help=func.__doc__.split("\n")[0],
-                                  description=func.__doc__)
+        sub = commands.add_parser(
+            name, help=func.__doc__.split("\n")[0], description=func.__doc__,
+            formatter_class=argparse.RawDescriptionHelpFormatter)
         for flags, options in arguments:
             sub.add_argument(*flags, **options)
         sub.set_defaults(func=func)

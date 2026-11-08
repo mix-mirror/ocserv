@@ -261,7 +261,7 @@ cleanup() {
 	wait
 	test -n "${PAM_WRAPPER_SERVICE_DIR}" && rm -rf ${PAM_WRAPPER_SERVICE_DIR}
 	test -n "${SOCKDIR}" && rm -rf ${SOCKDIR}
-	rm -f ${CONFIG}
+	rm -f ${CONFIG} ${OC_OUT} ${OC_LOG}
 	return $ret
 }
 
@@ -306,6 +306,8 @@ require_oc_client() {
 		echo "python3 is needed to run this test"
 		exit 77
 	fi
+	OC_OUT="oc-client.$$.out"
+	OC_LOG="oc-client.$$.log"
 }
 
 # oc_client [OPTIONS] COMMAND [ARGS]: runs tests/oc-client.py
@@ -313,6 +315,38 @@ require_oc_client() {
 oc_client() {
 	LD_PRELOAD=libsocket_wrapper.so python3 "${srcdir}/oc-client.py" \
 		--address ${ADDRESS} --port ${PORT} "$@"
+}
+
+# oc_run [OPTIONS] COMMAND [ARGS]: runs oc_client, keeping what it observed
+# in OC_OUT and its exchange with the server in OC_LOG
+oc_run() {
+	oc_client --output ${OC_OUT} --log ${OC_LOG} "$@"
+}
+
+# oc_fail WHAT: shows what the last oc_run observed and exchanged, and the
+# server's log if SERVER_LOG names one, then fails the test with WHAT
+oc_fail() {
+	echo "--- client output:"
+	cat ${OC_OUT}
+	echo "--- client exchange:"
+	cat ${OC_LOG}
+	if test -n "${SERVER_LOG}"; then
+		echo "--- server log:"
+		cat ${SERVER_LOG}
+	fi
+	fail $PID "$1"
+}
+
+# oc_expect PATTERN WHAT: fails with WHAT unless a line the last oc_run
+# printed starts with the extended regular expression PATTERN
+oc_expect() {
+	grep -Eq -- "^($1)" ${OC_OUT} || oc_fail "$2: expected a line '$1'"
+}
+
+# oc_expect_not PATTERN WHAT: fails with WHAT if a line the last oc_run
+# printed starts with PATTERN
+oc_expect_not() {
+	! grep -Eq -- "^($1)" ${OC_OUT} || oc_fail "$2: unexpected line '$1'"
 }
 
 # Check for a utility to list ports.  Both ss and netstat will list

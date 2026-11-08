@@ -34,59 +34,37 @@ function finish {
   set +e
   echo " * Cleaning up..."
   test -n "${CONFIG}" && rm -f ${CONFIG} >/dev/null 2>&1
-  rm -f ${CLIENT_OUT} ${CLIENT_LOG} ${SERVER_LOG}
+  rm -f ${SERVER_LOG}
   cleanup
 }
 trap finish EXIT
 
-CLIENT_OUT=$(mktemp)
-CLIENT_LOG=$(mktemp)
 SERVER_LOG=$(mktemp)
 
 update_config test-vhost-select-group.config
-# VERBOSE keeps the server's log, which a failure prints
+# VERBOSE keeps the server's log, which oc_fail prints
 VERBOSE=1 launch_simple_sr_server -d 1 -f -c ${CONFIG} >${SERVER_LOG} 2>&1
 PID=$!
 wait_server $PID
-
-# client HOST COMMAND [ARGS]: runs an oc-client.py command against HOST; what
-# it observed goes to CLIENT_OUT, its exchange with the server to CLIENT_LOG
-client() {
-	host=$1
-	shift
-	oc_client --host $host --output ${CLIENT_OUT} --log ${CLIENT_LOG} "$@"
-}
-
-# failure WHAT: prints the client's output and exchange and the server's log,
-# then fails the test with WHAT
-failure() {
-	echo "--- client output:"
-	cat ${CLIENT_OUT}
-	echo "--- client exchange:"
-	cat ${CLIENT_LOG}
-	echo "--- server log:"
-	cat ${SERVER_LOG}
-	fail $PID "$1"
-}
 
 # expect_groups HOST PROPOSED EXPECTED WHAT: the groups HOST offers to a
 # client proposing PROPOSED are exactly EXPECTED, in that order. A group the
 # server resolves is offered first.
 expect_groups() {
-	client $1 groups --group "$2" || failure "$4: listing the groups failed"
-	got=$(cat ${CLIENT_OUT})
+	oc_run --host $1 groups --group "$2" || oc_fail "$4: listing the groups failed"
+	got=$(cat ${OC_OUT})
 	if test "$got" != "$3"; then
-		failure "$4: expected groups '$3', got '$got'"
+		oc_fail "$4: expected groups '$3', got '$got'"
 	fi
 }
 
 # expect_login HOST GROUP RESULT WHAT: logging in as test to HOST proposing
 # GROUP exits with RESULT (0 accepted, 1 rejected; 2 is a broken exchange)
 expect_login() {
-	client $1 login --group "$2" --user test --password test
+	oc_run --host $1 login --group "$2" --user test --password test
 	ret=$?
 	if test $ret != $3; then
-		failure "$4: expected exit $3, got $ret"
+		oc_fail "$4: expected exit $3, got $ret"
 	fi
 }
 

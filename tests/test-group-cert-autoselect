@@ -21,11 +21,10 @@
 SERV="${SERV:-../src/ocserv}"
 srcdir=${srcdir:-.}
 NO_NEED_ROOT=1
-HEAD=$(mktemp)
-POST=$(mktemp)
-OUTFILE=$(mktemp)
 
 . `dirname $0`/common.sh
+
+require_oc_client
 
 eval "${GETPORT}"
 
@@ -41,57 +40,43 @@ function finish {
   set +e
   echo " * Cleaning up..."
   test -n "${CONFIG}" && rm -f ${CONFIG} >/dev/null 2>&1
-  rm -f $HEAD $POST $OUTFILE >/dev/null 2>&1
   cleanup
 }
 trap finish EXIT
+
+SINGLE_GROUP_CERT=${srcdir}/certs/user-group-single-cert.pem
+MULTI_GROUP_CERT=${srcdir}/certs/user-group-cert.pem
+
+# cert_init CERT [GROUP]: starts a login with the client certificate CERT,
+# proposing GROUP if given
+cert_init() {
+	cert=$1
+	shift
+	oc_run --client openconnect \
+		--cert ${cert} --key ${srcdir}/certs/user-group-key.pem \
+		init ${1:+--group "$1"} || oc_fail "Starting the login failed"
+}
+
+# ocserv always sends a Set-Cookie: webvpncontext= header, even to clear
+# a non-existing one (webvpncontext=; expires=...1970...). Only a
+# non-empty cookie value indicates a completed session.
+SESSION_COOKIE='Set-Cookie: webvpncontext=[^;[:space:]]'
+GROUP_PROMPT='Message: Please select your group'
 
 update_config test-group-cert-autoselect.config
 launch_simple_sr_server -d 1 -f -c ${CONFIG}
 PID=$!
 wait_server $PID
 
-TARGET=https://$ADDRESS:$PORT
-
-cat >$HEAD <<_EOF
-Accept-Encoding:identity
-X-Transcend-Version:1
-X-Aggregate-Auth:1
-Connection:close
-_EOF
-
 echo " * Sanity check: explicit group-select with a single certificate group"
 
 # Sanity check: explicitly selecting the (only) certificate group works
 # and completes authentication immediately.
-cat >$POST <<_EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<config-auth client="vpn" type="init" aggregate-auth-version="2">
-<group-select>onlygroup</group-select>
-</config-auth>
-_EOF
-
-LD_PRELOAD=libsocket_wrapper.so curl -i -A 'OpenConnect VPN Agent v9.12' \
-	-H @$HEAD -k \
-	--cert ${srcdir}/certs/user-group-single-cert.pem \
-	--key ${srcdir}/certs/user-group-key.pem \
-	-d@$POST $TARGET >$OUTFILE
-
-grep 'auth id="success"' $OUTFILE >/dev/null
-if test $? != 0; then
-	echo "Explicit group selection did not complete authentication"
-	echo "==========================================================="
-	cat $OUTFILE
-	exit 1
-fi
-
-grep "Set-Cookie: webvpncontext=" $OUTFILE >/dev/null
-if test $? != 0; then
-	echo "Explicit group selection did not result in a session cookie"
-	echo "============================================================="
-	cat $OUTFILE
-	exit 1
-fi
+cert_init ${SINGLE_GROUP_CERT} onlygroup
+oc_expect 'Auth: success$' \
+	"Explicit group selection did not complete authentication"
+oc_expect 'Set-Cookie: webvpncontext=' \
+	"Explicit group selection did not result in a session cookie"
 
 echo " * OK: explicit group selection completed authentication"
 
@@ -103,45 +88,13 @@ echo " * Reproducer: single eligible certificate group, no group-select sent"
 # sending a <group-select> at all, as a first-contact AnyConnect client
 # would. Authentication must complete directly, without an extra
 # "Please select your group" prompt.
-cat >$POST <<_EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<config-auth client="vpn" type="init" aggregate-auth-version="2">
-<version who="vpn">4.8.03036</version>
-</config-auth>
-_EOF
-
-LD_PRELOAD=libsocket_wrapper.so curl -i -A 'OpenConnect VPN Agent v9.12' \
-	-H @$HEAD -k \
-	--cert ${srcdir}/certs/user-group-single-cert.pem \
-	--key ${srcdir}/certs/user-group-key.pem \
-	-d@$POST $TARGET >$OUTFILE
-
-grep "Please select your group" $OUTFILE >/dev/null
-if test $? = 0; then
-	echo "Server asked to select a group despite the certificate"
-	echo "containing a single, unambiguous group and no configured"
-	echo "select-group list (issue #692)"
-	echo "=========================================================="
-	cat $OUTFILE
-	exit 1
-fi
-
-grep 'auth id="success"' $OUTFILE >/dev/null
-if test $? != 0; then
-	echo "Authentication did not complete with the certificate's"
-	echo "sole group automatically selected"
-	echo "========================================================"
-	cat $OUTFILE
-	exit 1
-fi
-
-grep "Set-Cookie: webvpncontext=" $OUTFILE >/dev/null
-if test $? != 0; then
-	echo "Automatic group selection did not result in a session cookie"
-	echo "=============================================================="
-	cat $OUTFILE
-	exit 1
-fi
+cert_init ${SINGLE_GROUP_CERT}
+oc_expect_not "${GROUP_PROMPT}" \
+	"Server asked to select a group despite the certificate containing a single, unambiguous group and no configured select-group list (issue #692)"
+oc_expect 'Auth: success$' \
+	"Authentication did not complete with the certificate's sole group automatically selected"
+oc_expect 'Set-Cookie: webvpncontext=' \
+	"Automatic group selection did not result in a session cookie"
 
 echo " * OK: certificate's sole group was auto-selected, no prompt sent"
 
@@ -152,39 +105,11 @@ echo " * Ambiguous case: multiple eligible certificate groups, no group-select s
 # "select-group" list configured, so all of them are eligible and there
 # is no single unambiguous group to auto-select. The server must still
 # prompt the client to select a group.
-cat >$POST <<_EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<config-auth client="vpn" type="init" aggregate-auth-version="2">
-<version who="vpn">4.8.03036</version>
-</config-auth>
-_EOF
-
-LD_PRELOAD=libsocket_wrapper.so curl -i -A 'OpenConnect VPN Agent v9.12' \
-	-H @$HEAD -k \
-	--cert ${srcdir}/certs/user-group-cert.pem \
-	--key ${srcdir}/certs/user-group-key.pem \
-	-d@$POST $TARGET >$OUTFILE
-
-grep "Please select your group" $OUTFILE >/dev/null
-if test $? != 0; then
-	echo "Server did not ask to select a group despite the certificate"
-	echo "containing multiple, ambiguous groups and no configured"
-	echo "select-group list"
-	echo "=========================================================="
-	cat $OUTFILE
-	exit 1
-fi
-
-# ocserv always sends a Set-Cookie: webvpncontext= header, even to clear
-# a non-existing one (webvpncontext=; expires=...1970...). Only a
-# non-empty cookie value indicates a completed session.
-grep -E "Set-Cookie: webvpncontext=[^;[:space:]]" $OUTFILE >/dev/null
-if test $? = 0; then
-	echo "Ambiguous group selection unexpectedly resulted in a session cookie"
-	echo "====================================================================="
-	cat $OUTFILE
-	exit 1
-fi
+cert_init ${MULTI_GROUP_CERT}
+oc_expect "${GROUP_PROMPT}" \
+	"Server did not ask to select a group despite the certificate containing multiple, ambiguous groups and no configured select-group list"
+oc_expect_not "${SESSION_COOKIE}" \
+	"Ambiguous group selection unexpectedly resulted in a session cookie"
 
 echo " * OK: ambiguous certificate groups still require group selection"
 
@@ -202,52 +127,19 @@ launch_simple_sr_server -d 1 -f -c ${CONFIG}
 PID=$!
 wait_server $PID
 
-TARGET=https://$ADDRESS:$PORT
-
 echo " * Filtered match: cert group is in select-group list, no group-select sent"
 
 # select-group = onlygroup is configured; the client certificate carries
 # exactly one group (OU=onlygroup) which is in the list.  The eligible set
 # has exactly one entry, so the server must auto-select it and complete
 # authentication without an extra round trip.
-cat >$POST <<_EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<config-auth client="vpn" type="init" aggregate-auth-version="2">
-<version who="vpn">4.8.03036</version>
-</config-auth>
-_EOF
-
-LD_PRELOAD=libsocket_wrapper.so curl -i -A 'OpenConnect VPN Agent v9.12' \
-	-H @$HEAD -k \
-	--cert ${srcdir}/certs/user-group-single-cert.pem \
-	--key ${srcdir}/certs/user-group-key.pem \
-	-d@$POST $TARGET >$OUTFILE
-
-grep "Please select your group" $OUTFILE >/dev/null
-if test $? = 0; then
-	echo "Server prompted for group despite cert's sole group being in"
-	echo "the configured select-group list (select-group filter path)"
-	echo "=========================================================="
-	cat $OUTFILE
-	exit 1
-fi
-
-grep 'auth id="success"' $OUTFILE >/dev/null
-if test $? != 0; then
-	echo "Authentication did not complete with cert group auto-selected"
-	echo "from the configured select-group list"
-	echo "=============================================================="
-	cat $OUTFILE
-	exit 1
-fi
-
-grep "Set-Cookie: webvpncontext=" $OUTFILE >/dev/null
-if test $? != 0; then
-	echo "Filtered auto-selection did not result in a session cookie"
-	echo "============================================================"
-	cat $OUTFILE
-	exit 1
-fi
+cert_init ${SINGLE_GROUP_CERT}
+oc_expect_not "${GROUP_PROMPT}" \
+	"Server prompted for group despite cert's sole group being in the configured select-group list (select-group filter path)"
+oc_expect 'Auth: success$' \
+	"Authentication did not complete with cert group auto-selected from the configured select-group list"
+oc_expect 'Set-Cookie: webvpncontext=' \
+	"Filtered auto-selection did not result in a session cookie"
 
 echo " * OK: cert group in select-group list was auto-selected"
 
@@ -256,35 +148,11 @@ echo " * Filtered non-match: cert groups not in select-group list, no group-sele
 # select-group = onlygroup is configured; the client certificate carries
 # four groups (OU=group1..4), none of which match "onlygroup".  The eligible
 # set is empty, so the server must fall back to the group selection prompt.
-cat >$POST <<_EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<config-auth client="vpn" type="init" aggregate-auth-version="2">
-<version who="vpn">4.8.03036</version>
-</config-auth>
-_EOF
-
-LD_PRELOAD=libsocket_wrapper.so curl -i -A 'OpenConnect VPN Agent v9.12' \
-	-H @$HEAD -k \
-	--cert ${srcdir}/certs/user-group-cert.pem \
-	--key ${srcdir}/certs/user-group-key.pem \
-	-d@$POST $TARGET >$OUTFILE
-
-grep "Please select your group" $OUTFILE >/dev/null
-if test $? != 0; then
-	echo "Server did not prompt for group despite none of the cert's"
-	echo "groups matching the configured select-group list"
-	echo "=========================================================="
-	cat $OUTFILE
-	exit 1
-fi
-
-grep -E "Set-Cookie: webvpncontext=[^;[:space:]]" $OUTFILE >/dev/null
-if test $? = 0; then
-	echo "Non-matching cert groups unexpectedly resulted in a session cookie"
-	echo "==================================================================="
-	cat $OUTFILE
-	exit 1
-fi
+cert_init ${MULTI_GROUP_CERT}
+oc_expect "${GROUP_PROMPT}" \
+	"Server did not prompt for group despite none of the cert's groups matching the configured select-group list"
+oc_expect_not "${SESSION_COOKIE}" \
+	"Non-matching cert groups unexpectedly resulted in a session cookie"
 
 echo " * OK: cert groups not in select-group list still require group selection"
 
