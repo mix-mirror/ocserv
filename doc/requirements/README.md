@@ -70,9 +70,10 @@ REQ-<PREFIX><CATEGORY>-<NNN>
 - `<CATEGORY>` for other `internal/*` documents uses the tags from
   `requirements-from-implementation.md`: `INIT`, `AUTH`, `ACCT`,
   `SESSION`, `CFG`, `NET`, `SEC`, `ERR`, `TEARDOWN`.
-  `internal/occtl.md` additionally uses `IPC` (ctl-socket framing) and
+  `internal/occtl.md` additionally uses `IPC` (ctl-socket framing),
   `CLI` (the administrator-facing command-line, output and exit-status
-  contract, which has no daemon-process equivalent).
+  contract, which has no daemon-process equivalent), and `TEST` (how
+  occtl tests stand in for main).
 - `<CATEGORY>` for `protocol/unified.md` uses the tags from
   `requirements-reconciliation.md`: `CONN`, `AUTH`, `SESSION`, `DATA`,
   `CTRL`, `CFG`, `COMPAT`, `SEC`, `EXT`.

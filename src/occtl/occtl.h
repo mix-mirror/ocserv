@@ -72,7 +72,8 @@ char *search_for_ip(unsigned int idx, const char *match, int match_size);
 void ip_entries_add(void *pool, const char *ip, unsigned int ip_size);
 void ip_entries_clear(void);
 
-#define DEFAULT_TIMEOUT (10 * 1000)
+/* in seconds, as force_read_timeout() and recv_msg_headers() expect */
+#define DEFAULT_TIMEOUT 10
 #define NO_GROUP "(none)"
 #define NO_USER "(none)"
 

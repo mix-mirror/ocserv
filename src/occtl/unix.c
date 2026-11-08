@@ -2091,7 +2091,8 @@ int handle_events_cmd(struct unix_ctx *ctx, const char *arg,
 			break;
 		}
 
-		ret = force_read(ctx->fd, data, data_size);
+		ret = force_read_timeout(ctx->fd, data, data_size,
+					 DEFAULT_TIMEOUT);
 		if (ret == -1) {
 			int e = errno;
 

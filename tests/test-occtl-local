@@ -1,0 +1,85 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# This test validates occtl's client-side behavior against a stand-in for
+# main's control socket (occtl-fake-server.py); it needs neither root nor
+# a running server.
+
+OCCTL="${OCCTL:-../src/occtl/occtl}"
+srcdir=${srcdir:-.}
+SOCKET=./occtl-local-$$.socket
+LOG=occtl-local-$$.log
+OUT=occtl-local-$$.out
+
+if ! command -v python3 >/dev/null 2>&1;then
+	echo "python3 is required for this test"
+	exit 77
+fi
+
+function finish {
+	stop_server
+	rm -f ${SOCKET} ${LOG} ${OUT}
+}
+trap finish EXIT
+
+# start_server SCENARIO: starts the fake server and waits for its socket
+start_server() {
+	rm -f ${SOCKET} ${LOG}
+	python3 -I ${srcdir}/occtl-fake-server.py ${SOCKET} $1 ${LOG} &
+	SPID=$!
+	for i in $(seq 1 50);do
+		test -S ${SOCKET} && return
+		sleep 0.1
+	done
+	echo "FAIL: fake server did not create ${SOCKET}"
+	exit 1
+}
+
+stop_server() {
+	if test -n "${SPID}";then
+		kill ${SPID} >/dev/null 2>&1
+		wait ${SPID} 2>/dev/null
+		SPID=""
+	fi
+}
+
+# REQ-OCCTL-IPC-004: a server that never replies makes occtl fail after
+# about 10 seconds, not hang.
+echo " * occtl gives up on a server that does not reply..."
+start_server silent
+START=$(date +%s)
+timeout 60 ${OCCTL} -n -s ${SOCKET} show status >${OUT} 2>&1
+RET=$?
+ELAPSED=$(( $(date +%s) - START ))
+stop_server
+if test ${RET} = 124;then
+	echo "FAIL: expected occtl to time out after ~10s, got still waiting after 60s"
+	exit 1
+fi
+if test ${RET} = 0;then
+	echo "FAIL: expected a non-zero exit when the server does not reply, got 0"
+	exit 1
+fi
+if test ${ELAPSED} -lt 8 || test ${ELAPSED} -gt 20;then
+	echo "FAIL: expected occtl to give up after ~10s, got ${ELAPSED}s"
+	exit 1
+fi
+
+exit 0

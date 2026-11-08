@@ -401,19 +401,16 @@ scripts indefinitely. This applies to every request/reply exchange; the
 MUST apply the same bound to reading the body of an update once its header
 has arrived.
 **Strength:** MUST
-**Status:** REVIEW
-**Source:** src/occtl/occtl.h `DEFAULT_TIMEOUT` (`10 * 1000`);
+**Status:** DERIVED
+**Source:** src/occtl/occtl.h `DEFAULT_TIMEOUT` (10, in seconds);
 src/occtl/unix.c `send_cmd()` (passes it as the timeout to
-`recv_msg_headers()` / `force_read_timeout()`); src/common/common.c
-`force_read_timeout()`, `recvmsg_timeout()` (the parameter is in
-**seconds**: `poll(..., sec * 1000)`); src/occtl/unix.c
-`handle_events_cmd()` (reads update bodies with `force_read()`, no
-timeout)
-**Acceptance:** local — a fake server accepts and never replies; confirm
-`occtl -s <fake> show status` exits 1 after about 10 seconds.
-`[REVIEW: decided 2026-11-08 — 10 seconds. Code does not yet conform:
-DEFAULT_TIMEOUT is 10 * 1000 but is consumed as seconds (~2.8 hours), and
-`show events` reads update bodies with force_read() (no timeout).]`
+`recv_msg_headers()` / `force_read_timeout()`), `handle_events_cmd()`
+(reads update headers and bodies with `force_read_timeout()`);
+src/common/common.c `force_read_timeout()`, `recvmsg_timeout()` (the
+parameter is in seconds: `poll(..., sec * 1000)`)
+**Acceptance:** local — `tests/test-occtl-local`: against a fake server
+(`tests/occtl-fake-server.py`, scenario `silent`) that accepts and never
+replies, `occtl show status` exits non-zero after 8–20 seconds.
 **Links:** REQ-OCCTL-IPC-002
 
 ---
@@ -1014,6 +1011,49 @@ talloc_new(wst)`, `fail:` path), `ctl_handler_notify()`
 **Acceptance:** local — run `occtl show status` 1000 times; confirm main's
 open-fd count (`/proc/<pid>/fd`) and RSS return to baseline.
 **Links:** REQ-OCCTL-IPC-001
+
+---
+
+## TEST
+
+### REQ-OCCTL-TEST-001 — An occtl test that cannot use ocserv MUST reproduce its scenario with `tests/occtl-fake-server.py`
+
+**Requirement:** A test of occtl that cannot get the server behavior it
+checks from a running ocserv — because main does not normally behave that
+way (it never replies, closes the connection, or sends a reply with a
+field missing or with values that need escaping), or because the test
+must run without root (REQ-OCCTL-SEC-001) — MUST run occtl against
+`tests/occtl-fake-server.py` and reproduce the scenario there. A test that
+needs a behavior the fake server does not have MUST add a scenario to
+`occtl-fake-server.py`; it MUST NOT build ctl replies itself, in the test
+script, an inline script or a new helper program.
+
+`tests/occtl-fake-server.py` MUST:
+
+  (a) use only the Python standard library (`REQ-GEN-TECH-005`);
+  (b) implement each scenario as one function registered in `SCENARIOS`,
+      so that adding a scenario changes no other code of the tool, and
+      state in its module docstring why the tool exists and how it is
+      invoked;
+  (c) frame its replies as `send_msg()` does and encode them as the
+      messages of `src/ctl.proto`, and append every request it receives to
+      its log file, so that a test can confirm occtl sent no request.
+
+The fake server stands in for main only to test how occtl handles a
+reply; what depends on main's state (sessions, sec-mod instances,
+workers) MUST still be tested against ocserv.
+**Strength:** MUST / MUST NOT
+**Status:** DERIVED
+**Source:** `tests/occtl-fake-server.py` (`SCENARIOS`, `frame()`,
+`read_request()`, `main()`); `tests/test-occtl-local` (`start_server()`);
+maintainer decision recorded with this requirement.
+**Acceptance:** code-review — for each new or changed occtl test that
+does not start ocserv, confirm occtl talks to `occtl-fake-server.py`, and
+that each new scenario is one function registered in `SCENARIOS` and uses
+no module outside the standard library. local — `tests/test-occtl-local`
+passes without root.
+**Links:** REQ-GEN-TEST-014, REQ-GEN-TEST-001, REQ-GEN-TECH-005,
+REQ-OCCTL-IPC-004
 
 ---
 

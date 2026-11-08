@@ -114,6 +114,7 @@ always_scripts = [
   'test-select-group-length-warning',
   'test-vhost-name-length',
   'test-vhost-select-group',
+  'test-occtl-local',
 ]
 
 foreach s : always_scripts
