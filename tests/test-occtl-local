@@ -155,4 +155,32 @@ if test $((CPU_USER + CPU_SYS)) -ge 1;then
 	exit 1
 fi
 
+# REQ-OCCTL-CLI-009: --json output is valid JSON, escapes every string,
+# passes UTF-8 through and does not truncate long values.
+echo " * --json show users is valid JSON..."
+start_server users
+${OCCTL} -n -s ${SOCKET} --json show users >${OUT} 2>/dev/null
+stop_server
+python3 -I - ${OUT} <<'PYEOF'
+import json, sys
+try:
+    users = json.load(open(sys.argv[1], encoding="utf-8"))
+except ValueError as e:
+    print("FAIL: expected valid JSON from --json show users, got %s:" % e)
+    print(open(sys.argv[1], encoding="utf-8", errors="replace").read())
+    sys.exit(1)
+u = users[0]
+expected = {
+    "Username": 'quote"back\\slash',
+    "Groupname": "caf\u00e9-\u20ac",
+    "DNS": ['dns"entry'],
+    "User-Agent": "A" * 600,
+}
+for key, value in expected.items():
+    if u.get(key) != value:
+        print("FAIL: expected %s = %r, got %r" % (key, value, u.get(key)))
+        sys.exit(1)
+PYEOF
+test $? = 0 || exit 1
+
 exit 0

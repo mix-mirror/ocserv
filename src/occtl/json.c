@@ -24,7 +24,8 @@
 #include <string.h>
 
 /* Escapes @val and stores it in tmp. A fixed string is returned
- * in case tmp is too small.
+ * in case tmp is too small; see JSON_ESCAPED_SIZE(). Bytes of
+ * multi-byte UTF-8 sequences are copied unchanged.
  */
 char *json_escape_val(char *tmp, unsigned int tmp_size, const char *val)
 {
@@ -38,7 +39,8 @@ char *json_escape_val(char *tmp, unsigned int tmp_size, const char *val)
 			snprintf(&tmp[j], 3, "\\%c", val[i]);
 			j += 2;
 		} else if ((unsigned char)val[i] <= 0x1F) {
-			snprintf(&tmp[j], 7, "\\u00%02x", (unsigned int)val[i]);
+			snprintf(&tmp[j], 7, "\\u00%02x",
+				 (unsigned int)(unsigned char)val[i]);
 			j += 6;
 		} else
 			tmp[j++] = val[i];

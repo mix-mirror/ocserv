@@ -91,5 +91,30 @@ int main(void)
 			p, guarded[0], guarded[9]);
 		return 1;
 	}
+
+	/* a buffer of JSON_ESCAPED_SIZE() holds the escaped value however
+	 * long it is and whatever it contains */
+	{
+		char in[2048];
+		char *out;
+		size_t size;
+
+		memset(in, '"', sizeof(in) - 1);
+		in[sizeof(in) - 1] = 0;
+		in[0] = '\x01';
+		size = JSON_ESCAPED_SIZE(strlen(in));
+		out = malloc(size);
+		if (out == NULL)
+			exit(1);
+		p = json_escape_val(out, size, in);
+		if (p != out || strncmp(p, "\\u0001\\\"", 8) != 0 ||
+		    strlen(p) != 6 + 2 * (sizeof(in) - 2)) {
+			fprintf(stderr,
+				"long value fails encoding: got '%.40s...' of length %zu\n",
+				p, strlen(p));
+			exit(1);
+		}
+		free(out);
+	}
 	return 0;
 }

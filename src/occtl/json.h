@@ -21,6 +21,10 @@
 #ifndef JSON_H
 #define JSON_H
 
+/* A buffer of this size holds any value of @len bytes once escaped: each
+ * byte becomes at most 6, and json_escape_val() needs 2 bytes to spare. */
+#define JSON_ESCAPED_SIZE(len) (6 * (len) + 2)
+
 char *json_escape_val(char *tmp, unsigned int tmp_size, const char *val);
 
 #endif

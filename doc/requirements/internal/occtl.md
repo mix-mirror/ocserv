@@ -878,20 +878,22 @@ of its length. A field whose value is empty MAY be omitted, so consumers
 MUST treat every key as optional. Machine-only companions (`raw_*`,
 `_<name>`, `Full session`) MUST be emitted only in JSON mode.
 **Strength:** MUST
-**Status:** REVIEW
-**Source:** src/occtl/print.c `print_list_entries()`, `print_single_value()`,
-`print_single_value_ex()`, `print_pair_value()`; src/occtl/json.c
-`json_escape_val()`; src/occtl/nl.c `print_iface_stats()`; maintainer
-decision recorded with this requirement.
-**Acceptance:** CI — `tests/json` pipes each `--json` command through a JSON
-validator. Negative/regression — a user name or group containing `"`, `\`,
-a control character, or UTF-8 such as `é`, and a value longer than 512
-bytes, MUST round-trip through `jq` unchanged; a split-DNS domain or route
-entry containing `"` MUST still yield valid JSON.
-`[REVIEW: decided 2026-11-08 — always valid JSON, no truncation. Code does
-not yet conform: (1) print_list_entries() writes DNS/NBNS/domain/route/
-iroute values without escaping; (2) values longer than about 505 bytes
-become the literal "(invalid)".]`
+**Status:** DERIVED
+**Source:** src/occtl/print.c `print_json_string()` (used by
+`print_list_entries()`, `print_single_value()`, `print_single_value_ex()`,
+`print_pair_value()`); src/occtl/json.h `JSON_ESCAPED_SIZE()`;
+src/occtl/json.c `json_escape_val()` (compares bytes as `unsigned char`);
+src/occtl/nl.c `print_iface_stats()`; maintainer decision recorded with
+this requirement.
+**Acceptance:** unit, local — `tests/json-escape.c`: 2-, 3- and 4-byte
+UTF-8 sequences are copied unchanged, also next to an escaped character;
+a buffer too small for the value yields `(invalid)` without writing outside
+it; and a 2047-byte value escapes completely into a buffer of
+`JSON_ESCAPED_SIZE()`. Negative, local — `tests/test-occtl-local` (fake
+server, scenario `users`): `--json show users` with a user name containing
+`"` and `\`, a UTF-8 group name, a DNS entry containing `"`, and a
+600-byte user agent parses as JSON and round-trips each value. CI —
+`tests/json` pipes each `--json` command through a JSON validator.
 **Links:** REQ-OCCTL-CLI-006, REQ-OCCTL-CLI-007
 
 ### REQ-OCCTL-CLI-010 — Interactive mode: completion from last listing

@@ -82,6 +82,31 @@ def cookie_int_msg(safe_id, username, status):
             field_bytes(12, "default"))
 
 
+def zigzag(n):
+    return (n << 1) ^ (n >> 31)
+
+
+# Values that need JSON escaping, are UTF-8, or are long
+JSON_USERNAME = 'quote"back\\slash'
+JSON_GROUPNAME = "caf\u00e9-\u20ac"
+JSON_DNS = 'dns"entry'
+JSON_USER_AGENT = "A" * 600
+
+
+def user_info_rep():
+    """A user_info_rep with every string field main fills in."""
+    msg = field_int(1, zigzag(1234)) + field_bytes(2, JSON_USERNAME)
+    msg += field_bytes(3, JSON_GROUPNAME) + field_bytes(4, "192.0.2.20")
+    for num in (5, 6, 7, 8, 9, 11, 14, 15, 26):
+        msg += field_bytes(num, "")
+    msg += field_int(10, 1700000000) + field_bytes(12, JSON_USER_AGENT)
+    msg += field_int(13, PS_AUTH_COMPLETED) + field_bytes(18, JSON_DNS)
+    msg += field_int(28, 90) + field_int(29, 300) + field_int(30, 0)
+    msg += field_bytes(32, SAFE_ID_DONE) + field_bytes(33, "default")
+    msg += field_int(34, 1700000000)
+    return msg
+
+
 def frame(cmd, payload=b""):
     """The framing of send_msg(): command byte, host-order length, body."""
     return struct.pack("=BI", cmd, len(payload)) + payload
@@ -132,10 +157,16 @@ def events(conn, cmd):
         pass
 
 
+def users(conn, cmd):
+    """Answers CTL_CMD_LIST with one user whose fields need escaping."""
+    conn.sendall(frame(CTL_CMD_LIST_REP, field_bytes(1, user_info_rep())))
+
+
 SCENARIOS = {
     "silent": silent,
     "sessions": sessions,
     "events": events,
+    "users": users,
 }
 
 
