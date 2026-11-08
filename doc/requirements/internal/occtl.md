@@ -642,10 +642,11 @@ connection of any further listener after its user list, and occtl treats a
 closed event connection as possibly due to another listener. Conform: the
 terminal mode and SIGINT handler are restored on every exit path, empty
 updates are ignored, end of input ends polling of stdin but not the
-command, failures exit 1, and doc/occtl.8.md documents the one-listener
-limit. Do not conform yet: main
-keeps a second listener's connection open and sends it nothing; occtl does
-not recognise a closed connection (REQ-OCCTL-ERR-004).]`
+command, failures exit 1, doc/occtl.8.md documents the one-listener limit,
+and occtl reports a closed event connection with the one-listener hint
+(REQ-OCCTL-ERR-004).
+Do not conform yet: main keeps a second listener's connection open and
+sends it nothing.]`
 **Links:** REQ-OCCTL-IPC-001, REQ-OCCTL-SEC-004
 
 ---
@@ -997,8 +998,9 @@ is being read — and `events: Unexpected message ...` when it receives
 anything other than `CTL_CMD_TOP_UPDATE_REP`, and stop listening in both
 cases; a closed connection is not an error (exit 0).
 **Strength:** MUST
-**Status:** REVIEW
-**Source:** src/occtl/unix.c `handle_events_cmd()`; src/common/common.c
+**Status:** DERIVED
+**Source:** src/occtl/unix.c `handle_events_cmd()` (`errno == ENOENT`),
+`EVENTS_CLOSED_MSG`; src/common/common.c
 `force_read_timeout()` (returns -1 with `errno = ENOENT` at end of file,
 never 0)
 **Acceptance:** positive, local — `tests/test-occtl-local` (fake server,
@@ -1006,10 +1008,6 @@ scenario `events-close`): the server sends the user list and closes the
 connection; occtl prints `server closed the connection` and exits 0.
 Positive, CI — start `occtl show events`, run `occtl stop now`; confirm the
 same line and that occtl exits.
-`[REVIEW: decided 2026-11-08 — a bug. Code does not yet conform:
-handle_events_cmd() tests `ret == 0` for end of file, but
-force_read_timeout() returns -1 with errno ENOENT then, so occtl prints
-`events: read1: No such file or directory` and exits 1.]`
 **Links:** REQ-OCCTL-SESSION-008
 
 ### REQ-OCCTL-TEARDOWN-001 — main releases per-request state after each command

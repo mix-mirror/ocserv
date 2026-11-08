@@ -251,4 +251,26 @@ if test ${RET} != 1 || ! grep -q "OPTIONS" ${OUT};then
 	exit 1
 fi
 
+# REQ-OCCTL-ERR-004: 'show events' recognises that the server closed the
+# connection, says so, and exits 0.
+echo " * show events reports a closed connection..."
+start_server events-close
+START=$(date +%s)
+timeout 30 ${OCCTL} -n -s ${SOCKET} show events >${OUT} 2>&1 < <(sleep 10)
+RET=$?
+ELAPSED=$(( $(date +%s) - START ))
+stop_server
+if test ${RET} != 0 || ! grep -q "server closed the connection" ${OUT};then
+	echo "FAIL: expected 'show events' to report the closed connection and exit 0, got ${RET}: $(cat ${OUT})"
+	exit 1
+fi
+if ! grep -q "one listener at a time" ${OUT};then
+	echo "FAIL: expected the closed-connection message to mention the single listener, got: $(cat ${OUT})"
+	exit 1
+fi
+if test ${ELAPSED} -ge 10;then
+	echo "FAIL: expected 'show events' to stop when the connection closed, got it running until its input ended (${ELAPSED}s)"
+	exit 1
+fi
+
 exit 0

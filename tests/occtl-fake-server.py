@@ -172,8 +172,15 @@ def status_nopids(conn, cmd):
     conn.sendall(frame(CTL_CMD_STATUS_REP, msg))
 
 
+def events_close(conn, cmd):
+    """Answers CTL_CMD_TOP with an empty user list and closes the
+    connection, as main does for a second listener."""
+    conn.sendall(frame(CTL_CMD_LIST_REP))
+
+
 SCENARIOS = {
     "silent": silent,
+    "events-close": events_close,
     "status-nopids": status_nopids,
     "sessions": sessions,
     "events": events,

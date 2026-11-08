@@ -1994,6 +1994,12 @@ static void dummy_sighandler(int signo)
 {
 }
 
+/* main closes the event connection of all but one listener; occtl cannot
+ * tell that from a server shutting down */
+#define EVENTS_CLOSED_MSG                                                   \
+	"events: server closed the connection; the server sends events to " \
+	"one listener at a time, so another 'show events' may be running\n"
+
 int handle_events_cmd(struct unix_ctx *ctx, const char *arg,
 		      cmd_params_st *params)
 {
@@ -2085,18 +2091,18 @@ int handle_events_cmd(struct unix_ctx *ctx, const char *arg,
 		assert(sizeof(header) == 1 + sizeof(slength));
 		ret = force_read_timeout(ctx->fd, header, 1 + sizeof(slength),
 					 DEFAULT_TIMEOUT);
+		/* force_read_timeout() reports end of file as ENOENT */
+		if (ret == -1 && errno == ENOENT) {
+			fputs(EVENTS_CLOSED_MSG, stderr);
+			ret = 0;
+			break;
+		}
+
 		if (ret == -1) {
 			int e = errno;
 
 			fprintf(stderr, "events: read1: %s\n", strerror(e));
 			ret = -1;
-			break;
-		}
-
-		if (ret == 0) {
-			fprintf(stderr,
-				"events: server closed the connection\n");
-			ret = 0;
 			break;
 		}
 
@@ -2127,6 +2133,12 @@ int handle_events_cmd(struct unix_ctx *ctx, const char *arg,
 
 		ret = force_read_timeout(ctx->fd, data, data_size,
 					 DEFAULT_TIMEOUT);
+		if (ret == -1 && errno == ENOENT) {
+			fputs(EVENTS_CLOSED_MSG, stderr);
+			ret = 0;
+			break;
+		}
+
 		if (ret == -1) {
 			int e = errno;
 
