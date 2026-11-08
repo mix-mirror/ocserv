@@ -599,11 +599,10 @@ sessions valid` prints its header first although the first session
 returned is still authenticating. Positive, CI — `tests/test-occtl-commands`
 Section 6 (short SID). Negative — `occtl show session zzzzzz` prints
 `Session ID not found or expired` and exits 2.
-`[REVIEW: decided 2026-11-08 — match the full ID, fail when none matches.
-The matching and the header conform. Left open: handle_show_session_cmd()
-ignores session_info_cmd()'s "not found" result and exits 0; exiting 2
-instead changes an exit status from 0, which conflicts with
-REQ-OCCTL-CLI-011.]`
+`[REVIEW: decided 2026-11-08 — match the full ID, fail when none matches;
+exiting 2 is a bug fix. The matching and the header conform. Code does not
+yet conform: handle_show_session_cmd() ignores session_info_cmd()'s "not
+found" result and exits 0.]`
 **Links:** REQ-SECMOD-SESSION-006, REQ-OCCTL-ERR-002
 
 ### REQ-OCCTL-SESSION-008 — show events: initial list then one update per connect/disconnect
@@ -614,9 +613,12 @@ event listener: if none is registered it MUST register this connection as
 `top_fd` and then send one `CTL_CMD_TOP_UPDATE_REP` (`top_update_rep` with
 `connected`, the `user_info_rep` of that worker, and for disconnects
 `discon_reason` / `discon_reason_txt`) on every client connect and
-disconnect. If a listener is already registered, the new listener MUST be
-told that it will receive no updates (main MUST NOT leave it waiting
-silently), and doc/occtl.8.md MUST document the one-listener limit. A send
+disconnect. If a listener is already registered, main MUST send the new
+connection the user list and then close it, rather than leave it waiting
+silently; occtl, on seeing the server close the event connection, MUST say
+that the server sends events to one listener at a time, so another `show
+events` may be running (it cannot tell this from a server shutting down).
+doc/occtl.8.md MUST document the one-listener limit. A send
 failure MUST unregister the listener. occtl MUST print each update until
 `q`/`Q`, `Ctrl+C`, or the server closes the connection; at end of input
 on stdin it MUST stop reading stdin and keep printing updates, without
@@ -638,14 +640,15 @@ an empty user list is ignored, and with stdin at end of input occtl keeps
 listening, using less than a second of CPU time in 3 seconds. Negative,
 CI — start a second `show events` listener; confirm it reports that
 another listener is active.
-`[REVIEW: decided 2026-11-08 — keep one listener, tell the second one and
-document the limit. Conform: the terminal mode and SIGINT handler are
-restored on every exit path, empty updates are ignored, end of input ends
-polling of stdin but not the command, and failures exit 1. Do not conform
-yet: (1) a second listener gets the initial list and then silently nothing — on hold, how it
-is told (a new reply, a flag in `ctl.proto`, or closing its connection)
-changes what `show events` prints and needs a design decision. The
-one-listener limit is documented in doc/occtl.8.md.]`
+`[REVIEW: decided 2026-11-08 — keep one listener; main closes the
+connection of any further listener after its user list, and occtl treats a
+closed event connection as possibly due to another listener. Conform: the
+terminal mode and SIGINT handler are restored on every exit path, empty
+updates are ignored, end of input ends polling of stdin but not the
+command, failures exit 1, and doc/occtl.8.md documents the one-listener
+limit. Do not conform yet: main
+keeps a second listener's connection open and sends it nothing; occtl does
+not recognise a closed connection (REQ-OCCTL-ERR-004).]`
 **Links:** REQ-OCCTL-IPC-001, REQ-OCCTL-SEC-004
 
 ---
@@ -693,36 +696,38 @@ points below `max-ban-score` appears in `show ip ban points` and not in
 
 ## CLI
 
-### REQ-OCCTL-CLI-001 — Option syntax: options precede the command
+### REQ-OCCTL-CLI-001 — Option syntax: documented options precede the command
 
 **Requirement:** occtl MUST treat leading arguments starting with `-` as
 options and everything after them as one command (words joined by single
-spaces). `-j/--json` and `-n/--no-pager` apply to the command; `--debug`
-adds debug-only fields; `-v/--version` prints the version and exits 0; `-s
-FILE` selects the socket. With no command left (`occtl`, `occtl -s FILE`,
-`occtl --debug`) occtl MUST start interactive mode, where JSON output is
-disabled. occtl MUST recognise an option only by its exact short or long
-name; `-h/--help` MUST print usage and exit 0, and any other unrecognised
-option MUST print usage and exit 1.
+spaces). The options are exactly the ones doc/occtl.8.md documents, in
+their documented short and long forms: `-s FILE`, `--socket-file FILE` or
+`--socket-file=FILE` selects the socket; `-j`/`--json` and
+`-n`/`--no-pager` apply to the command; `--debug` adds debug-only fields;
+`-v`/`--version` prints the version and exits 0; `-h`/`--help` prints
+usage and exits 0. Any other argument starting with `-`, including an
+abbreviation or extension of a documented option (`--j`, `-json`), MUST be
+rejected: occtl prints usage and exits 1. With no command left (`occtl`,
+`occtl -s FILE`, `occtl --debug`) occtl MUST start interactive mode, where
+JSON output is disabled.
 **Strength:** MUST
 **Status:** REVIEW
 **Source:** src/occtl/occtl.c `main()`; doc/occtl.8.md (OPTIONS, EXAMPLES:
 "options must precede the command"; EXIT STATUS: 1 when "the command syntax
 was not valid"); maintainer decision recorded with this requirement.
-**Acceptance:** positive, CI — `occtl -s S --json -n show users` produces
-JSON (`tests/test-occtl`, `tests/json`); `occtl -h` exits 0. Negative,
-local — `occtl -x show status` and `occtl --jxyz show status` print usage
-and exit 1.
-`[REVIEW: decided 2026-11-08 — exact option names, unknown option exits 1.
-Code does not yet conform: options are recognised by their second/third
-character only (`--jxyz` is `--json`), and an unrecognised option prints
-usage and exits 0. Left as is (not decided to change): `occtl -j` /
-`occtl -n` with no command runs an empty command and exits 1 instead of
-starting interactive mode. Left open: both changes conflict with
-REQ-OCCTL-CLI-011 — exact names would stop accepting spellings that work
-today (`-json`, `--j`, `-jq`, `-no-pager`, ...), and exit 1 changes the
-status of an invocation that exits 0 today.]`
-**Links:** REQ-OCCTL-ERR-001
+**Acceptance:** positive, local — `tests/test-occtl-local`: each
+documented form (`-s`, `--socket-file FILE`, `--socket-file=FILE`, `-j`,
+`--json`, `-n`, `--no-pager`, `--debug`) is accepted; `-h`, `--help`,
+`-v`, `--version` exit 0. Negative, local — `-x`, `--j`, `-json`,
+`--jxyz`, `-d` print usage and exit 1.
+`[REVIEW: decided 2026-11-08 — the documented forms are the interface
+(REQ-OCCTL-CLI-011); undocumented spellings are rejected and exit 1. Code
+does not yet conform: options are recognised by their second/third
+character only (`--jxyz` is `--json`), `--socket-file=FILE` is not
+accepted, and an unrecognised option prints usage and exits 0. Left as is
+(not decided to change): `occtl -j` / `occtl -n` with no command runs an
+empty command and exits 1 instead of starting interactive mode.]`
+**Links:** REQ-OCCTL-ERR-001, REQ-OCCTL-CLI-011
 
 ### REQ-OCCTL-CLI-002 — Command matching
 
@@ -910,10 +915,13 @@ src/occtl/cache.c, src/occtl/session-cache.c, src/occtl/ip-cache.c
 ### REQ-OCCTL-CLI-011 — occtl's command-line interface is stable across releases
 
 **Requirement:** A new ocserv release MUST NOT remove an occtl command,
-command alias or command-line option that a previous release accepted,
-MUST NOT change the arguments such a command or option takes, and MUST NOT
-change the meaning of a documented exit status of a command, so that
-scripts and administrator habits keep working across upgrades. A release
+command alias, or command-line option in a form documented in
+doc/occtl.8.md, MUST NOT change the arguments such a command or option
+takes, and MUST NOT change the meaning of a documented exit status of a
+command, so that scripts and administrator habits keep working across
+upgrades. The interface is what is documented: an undocumented spelling
+that an earlier release happened to accept (such as an abbreviated
+option) is not part of it. A release
 MAY add new commands and options, and MAY extend an existing command so it
 accepts input it previously rejected or failed to match (a new optional
 argument, a wider argument syntax), provided every invocation that worked
@@ -921,7 +929,7 @@ before still works with the same effect. A change that would break this
 MUST be agreed with the maintainers before it is made.
 **Strength:** MUST NOT
 **Status:** DERIVED
-**Source:** maintainer decision (2026-11-08), recorded with this
+**Source:** maintainer decisions (2026-11-08), recorded with this
 requirement; src/occtl/occtl.c `commands[]` (command table, including the
 hidden aliases kept for compatibility: `quit`, `?`, `show cookies
 all|valid`); src/config.c `cfg_ini_handler()` (the `use-dbus` →
@@ -958,11 +966,12 @@ maintainer decision recorded with this requirement.
 `tests/test-occtl-commands` and `tests/terminate-commands` checks `$?`;
 `show user nosuchuser` exits 2; `occtl -x` exits 1.
 `[REVIEW: decided 2026-11-08 — document 2 as "not found", collapse every
-other failure to 1. Conform: doc/occtl.8.md documents 0, 1 and 2 (for
+other failure to 1; making `show session` exit 2 and an invalid option
+exit 1 is a bug fix. Conform: doc/occtl.8.md documents 0, 1 and 2 (for
 `show user`/`show id`), and `show events` exits 1 on failure. Do not
 conform yet: an invalid option exits 0 (REQ-OCCTL-CLI-001); `show
-session` exits 0 when nothing matches (REQ-OCCTL-SESSION-007). Left open: the last two change an exit status from
-0, which conflicts with REQ-OCCTL-CLI-011.]`
+session` exits 0 when nothing matches (REQ-OCCTL-SESSION-007), and
+doc/occtl.8.md does not list it under exit status 2.]`
 **Links:** REQ-OCCTL-ERR-002, REQ-OCCTL-CLI-001
 
 ### REQ-OCCTL-ERR-002 — Not-found is a failure for show user / show id / show session
@@ -995,20 +1004,26 @@ administrator does not read them as live counters.
 ### REQ-OCCTL-ERR-004 — show events reports connection loss
 
 **Requirement:** `show events` MUST print `events: server closed the
-connection` when main closes the event connection, and `events: Unexpected
-message ...` when it receives anything other than `CTL_CMD_TOP_UPDATE_REP`,
-and stop listening in both cases.
+connection` (with the hint of REQ-OCCTL-SESSION-008) when main closes the
+event connection — whether it does so between updates or while an update
+is being read — and `events: Unexpected message ...` when it receives
+anything other than `CTL_CMD_TOP_UPDATE_REP`, and stop listening in both
+cases; a closed connection is not an error (exit 0).
 **Strength:** MUST
-**Status:** DERIVED
-**Source:** src/occtl/unix.c `handle_events_cmd()`
-**Acceptance:** positive, CI — start `occtl show events` under a pty, run
-`occtl stop now`; confirm the `server closed the connection` line and
-that occtl exits.
+**Status:** REVIEW
+**Source:** src/occtl/unix.c `handle_events_cmd()`; src/common/common.c
+`force_read_timeout()` (returns -1 with `errno = ENOENT` at end of file,
+never 0)
+**Acceptance:** positive, local — `tests/test-occtl-local` (fake server,
+scenario `events-close`): the server sends the user list and closes the
+connection; occtl prints `server closed the connection` and exits 0.
+Positive, CI — start `occtl show events`, run `occtl stop now`; confirm the
+same line and that occtl exits.
+`[REVIEW: decided 2026-11-08 — a bug. Code does not yet conform:
+handle_events_cmd() tests `ret == 0` for end of file, but
+force_read_timeout() returns -1 with errno ENOENT then, so occtl prints
+`events: read1: No such file or directory` and exits 1.]`
 **Links:** REQ-OCCTL-SESSION-008
-
----
-
-## TEARDOWN
 
 ### REQ-OCCTL-TEARDOWN-001 — main releases per-request state after each command
 
