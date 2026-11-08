@@ -1123,7 +1123,7 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 	if (value == NULL)
 		return 1;
 
-	/* read persistent configuration */
+	/* read non-reloadable configuration (global and vhost scope) */
 	if (vhost->auth_init == 0) {
 		pool = vhost;
 
@@ -1211,6 +1211,19 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 				return 0;
 			PREAD_STRING(pool,
 				     vhost->static_config.occtl_socket_file);
+		} else if (strcmp(name, "use-dbus") == 0) {
+			if (error_on_vhost(vhost->name, "use-dbus"))
+				return 0;
+			READ_TF(use_dbus);
+			if (use_dbus != 0) {
+				fprintf(stderr, NOTESTR
+					"'use-dbus' was replaced by 'use-occtl'\n");
+				vhost->static_config.use_occtl = use_dbus;
+			}
+		} else if (strcmp(name, "use-occtl") == 0) {
+			if (error_on_vhost(vhost->name, "use-occtl"))
+				return 0;
+			READ_TF(vhost->static_config.use_occtl);
 		} else if (strcmp(name, "chroot-dir") == 0) {
 			if (error_on_vhost(vhost->name, "chroot-dir"))
 				return 0;
@@ -1391,20 +1404,6 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 		if (error_on_vhost(vhost->name, "use-utmp"))
 			return 0;
 		READ_TF_VC(use_utmp);
-	} else if (strcmp(name, "use-dbus") == 0) {
-		if (error_on_vhost(vhost->name, "use-dbus"))
-			return 0;
-		READ_TF(use_dbus);
-		if (use_dbus != 0) {
-			fprintf(stderr, NOTESTR
-				"'use-dbus' was replaced by 'use-occtl'\n");
-			config->use_occtl = use_dbus;
-			config->has_use_occtl = 1;
-		}
-	} else if (strcmp(name, "use-occtl") == 0) {
-		if (error_on_vhost(vhost->name, "use-occtl"))
-			return 0;
-		READ_TF_VC(use_occtl);
 	} else if (strcmp(name, "try-mtu-discovery") == 0) {
 		if (error_on_vhost(vhost->name, "try-mtu-discovery"))
 			return 0;
@@ -1968,6 +1967,7 @@ static void vhost_inherit_static_config(vhost_cfg_st *vhost,
 	VHOST_INHERIT(stats_reset_time);
 	VHOST_INHERIT_STRDUP(socket_file_prefix);
 	VHOST_INHERIT_STRDUP(occtl_socket_file);
+	VHOST_INHERIT(use_occtl);
 	VHOST_INHERIT_STRDUP(chroot_dir);
 
 	/* --- [scope: vhost (non-reloadable)] — inherit if not set --- */

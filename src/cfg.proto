@@ -109,7 +109,9 @@ message ReloadableConfig {
   optional uint32 max_same_clients       = 35; /* [scope: vhost user] */
   optional uint32 use_utmp               = 36; /* [scope: global] */
   optional uint32 tunnel_all_dns         = 37; /* [scope: vhost user] */
-  optional uint32 use_occtl              = 38; /* [scope: global] */
+  /* field 38 (use_occtl) moved to static_cfg_st: the occtl socket is
+   * set up only at startup */
+  reserved 38;
   optional uint32 try_mtu                = 39; /* [scope: global] */
   optional uint32 cisco_client_compat    = 40; /* [scope: vhost] */
   optional uint32 cisco_svc_client_compat = 41; /* [scope: vhost] */

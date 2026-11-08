@@ -233,6 +233,7 @@ struct static_cfg_st {
 
 	char *chroot_dir; /* [scope: global (non-reloadable)] where the xml files are served from */
 	char *occtl_socket_file; /* [scope: global (non-reloadable)] */
+	unsigned int use_occtl; /* [scope: global (non-reloadable)] */
 	char *socket_file_prefix; /* [scope: global (non-reloadable)] */
 
 	uid_t uid; /* [scope: global (non-reloadable)] */

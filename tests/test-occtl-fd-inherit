@@ -23,6 +23,8 @@
 # false. Rather than looking for that one socket, it checks that no worker
 # shares any socket with main: main closes its copy of every socket it hands
 # to a worker, so a socket open in both was leaked across fork() and exec().
+# use-occtl is non-reloadable, so occtl keeps working after that reload
+# (REQ-OCCTL-CFG-004).
 
 OCCTL="${OCCTL:-../src/occtl/occtl}"
 SERV="${SERV:-../src/ocserv}"
@@ -105,6 +107,13 @@ echo " * Reloading with use-occtl = false..."
 sed -i 's/^use-occtl = true/use-occtl = false/' ${CONFIG}
 kill -HUP ${PID}
 sleep 3
+
+echo " * Checking that occtl still works after the reload..."
+${OCCTL} -s ${OCCTL_SOCKET} show status >${TMPFILE} 2>&1
+if test $? != 0;then
+	cat ${TMPFILE}
+	fail $PID "FAIL: expected occtl show status to succeed after a reload setting use-occtl = false, got failure"
+fi
 
 echo " * Checking workers after the reload..."
 check_workers

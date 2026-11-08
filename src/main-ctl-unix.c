@@ -112,7 +112,7 @@ static const ctl_method_st methods[] = {
 
 void ctl_handler_deinit(main_server_st *s)
 {
-	if (GETRCONFIG(s)->use_occtl == 0)
+	if (GETSCONFIG(s)->use_occtl == 0)
 		return;
 
 	if (s->ctl_fd >= 0) {
@@ -130,7 +130,7 @@ int ctl_handler_init(main_server_st *s)
 	struct sockaddr_un sa;
 	int sd, e;
 
-	if (GETRCONFIG(s)->use_occtl == 0 ||
+	if (GETSCONFIG(s)->use_occtl == 0 ||
 	    GETSCONFIG(s)->occtl_socket_file == NULL) {
 		mslog(s, NULL, LOG_INFO, "not using control unix socket");
 		return 0;
@@ -1213,7 +1213,7 @@ fail:
 
 void ctl_handler_set_fds(main_server_st *s, ev_io *watcher)
 {
-	if (GETRCONFIG(s)->use_occtl == 0)
+	if (GETSCONFIG(s)->use_occtl == 0)
 		return;
 
 	ev_io_set(watcher, s->ctl_fd, EV_READ);
@@ -1221,7 +1221,7 @@ void ctl_handler_set_fds(main_server_st *s, ev_io *watcher)
 
 void ctl_handler_run_pending(main_server_st *s, ev_io *watcher)
 {
-	if (GETRCONFIG(s)->use_occtl == 0)
+	if (GETSCONFIG(s)->use_occtl == 0)
 		return;
 
 	ctl_handle_commands(s);

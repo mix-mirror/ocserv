@@ -307,23 +307,19 @@ main MUST decide whether to serve the occtl socket once, at startup, and a
 reload that changes `use-occtl` MUST NOT open, close, or stop serving the
 socket, so that the socket's lifetime and main's use of it always agree.
 **Strength:** MUST
-**Status:** REVIEW
-**Source:** doc/sample.config `use-occtl` (currently `[scope: global]`);
-src/main.c `main()` (`ctl_handler_init()` only at startup);
-src/main-ctl-unix.c `ctl_handler_deinit()`, `ctl_handler_set_fds()`,
-`ctl_handler_run_pending()` (`GETRCONFIG(s)->use_occtl` re-read on every
-event); maintainer decision recorded with this requirement.
-**Acceptance:** CI — start with `use-occtl = true`, change it to `false`
-and `occtl reload`; confirm `occtl show status` still succeeds and main
-stays idle (no CPU spin). Start with `false`, change to `true`, reload;
-confirm the socket still does not exist. `tests/check-config-scope.py`
-accepts the `(non-reloadable)` annotation.
-`[REVIEW: decided 2026-11-08 — make the option non-reloadable. Code and doc
-do not yet conform: doc/sample.config and the `src/vpn.h` scope comment
-still say reloadable, and main re-reads `use_occtl` from the reloaded
-config, so a true→false reload leaves the socket open but un-accepted
-(INFERRED, not run, to spin main's level-triggered `ev_io`) and leaks
-`ctl_fd` into workers (REQ-OCCTL-SEC-004).]`
+**Status:** DERIVED
+**Source:** doc/sample.config `use-occtl` (`[scope: global
+(non-reloadable)]`); src/vpn.h `static_cfg_st.use_occtl`; src/config.c
+`cfg_ini_handler()` (`use-occtl` and its `use-dbus` alias are parsed only
+on the initial load); src/main.c `main()` (`ctl_handler_init()` only at
+startup); src/main-ctl-unix.c `ctl_handler_deinit()`,
+`ctl_handler_set_fds()`, `ctl_handler_run_pending()` (read
+`GETSCONFIG(s)->use_occtl`); maintainer decision recorded with this
+requirement.
+**Acceptance:** CI — `tests/test-occtl-fd-inherit`: start with `use-occtl
+= true`, change it to `false` and reload; `occtl show status` still
+succeeds. Local — `tests/check-config-scope.py` accepts the
+`(non-reloadable)` annotation and finds the field in `static_cfg_st`.
 **Links:** REQ-OCCTL-INIT-001, REQ-OCCTL-SEC-004, REQ-CONFIG-CFG-002
 
 ---
