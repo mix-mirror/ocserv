@@ -500,20 +500,25 @@ requests with one of:
   (a) **openconnect**, for everything a conforming client does (see the
       Glossary in `doc/requirements/README.md`).
   (b) **`tests/oc-client.py`**, for what openconnect cannot be made to
-      do or does not show: reporting what the server offered, and sending
-      what a conforming client would not send — a value the server did
-      not offer, a login stopped halfway, a request that breaks the
-      protocol, a protocol openconnect does not speak (e.g. Cisco SVC,
-      HTTP Negotiate), or oversized or malformed HTTP. A test that needs
-      such a request MUST add a command to `oc-client.py`; it MUST NOT
-      build the request itself with curl, an inline script or a new
-      helper program.
+      do or does not show: reporting what the server offered, and
+      sending what a conforming client would not send — a value the
+      server did not offer, a login stopped halfway, a request that
+      breaks the protocol, a protocol openconnect does not speak (e.g.
+      Cisco SVC), or oversized or malformed HTTP. A test that needs such
+      a request MUST add a command to `oc-client.py`; it MUST NOT build
+      the request itself with curl, an inline script or a new helper
+      program.
   (c) **curl**, only for a request whose checked result is its HTTP
       status code or response headers alone, that carries no
       AnyConnect/OpenConnect message body and no credentials other than
       a cookie obtained by openconnect, and that stays within ocserv's
       HTTP limits — as in `tests/test-owasp-headers` and
-      `tests/test-camouflage`. Any other curl request falls under (b).
+      `tests/test-camouflage`. As the one exception, curl's
+      `--negotiate` MAY carry out a real HTTP Negotiate (SPNEGO/GSSAPI)
+      authentication, which the Python standard library (d) cannot, as
+      in `tests/test-gssapi`, `tests/test-gssapi-opt-cert` and
+      `tests/test-gssapi-opt-pass`; a Negotiate exchange built from fixed
+      tokens falls under (b). Any other curl request falls under (b).
 
 `tests/oc-client.py` MUST:
 
@@ -531,30 +536,13 @@ requests with one of:
 Out of scope: TLS- and DTLS-level clients — `gnutls-cli` sending raw
 bytes or resuming a TLS session (`tests/test-http-smuggling`,
 `tests/test-mtu-connect`, `tests/resumption`) and `nc` replaying a DTLS
-hello (`tests/test-replay`); `tests/oidc-strap-client.c`; helper servers
-a test runs (`tests/oidc-mock-provider.py`, haproxy, radiusd) and the
-requests a test sends to them; packet capture (`tcpdump`); capability
-probes (`gnutls-cli --list`, `pkg-config`); and ocserv's own tools
-(`occtl`, `ocpasswd`).
-
-**Technical debt:** these tests build protocol requests themselves and
-MUST be converted to (a) or (b); until then, a change to one of them MUST
-NOT add a further request of that kind:
-
-  - `tests/test-group-name`, `tests/test-group-cert-autoselect` — an
-    AnyConnect XML login built with curl;
-  - `tests/test-pam-abort` — a login stopped halfway, with curl;
-  - `tests/test-oidc`, `tests/test-oidc-code-flow` — AnyConnect requests
-    carrying OpenID Connect tokens, with curl;
-  - `tests/test-gssapi`, `tests/test-gssapi-opt-cert`,
-    `tests/test-gssapi-opt-pass` — HTTP Negotiate with curl, and in
-    `test-gssapi-opt-pass` an inline Python client;
-  - `tests/test-pass-svc`, `tests/test-cert-svc` — Cisco SVC logins with
-    curl;
-  - `tests/test-http-limits`, `tests/test-cookie-sid-overflow` —
-    oversized HTTP requests with curl;
-  - `tests/test-cstp-burst` — the separate client
-    `tests/cstp-burst-client.py`.
+hello (`tests/test-replay`); the OpenID Connect logins of `tests/test-oidc`
+and `tests/test-oidc-code-flow` and the latter's helper
+`tests/oidc-strap-client.c`; helper servers a test runs
+(`tests/oidc-mock-provider.py`, haproxy, radiusd) and the requests a test
+sends to them; packet capture (`tcpdump`); capability probes
+(`gnutls-cli --list`, `pkg-config`); and ocserv's own tools (`occtl`,
+`ocpasswd`).
 **Strength:** MUST / MUST NOT
 **Status:** DERIVED
 **Source:** `tests/oc-client.py` (`command`, `cmd_groups`, `cmd_login`,
@@ -562,10 +550,9 @@ NOT add a further request of that kind:
 maintainer decision recorded with this requirement.
 **Acceptance:** code-review — for each new or changed test that starts
 ocserv, confirm every request it sends to ocserv goes through
-openconnect, `oc-client.py`, or a curl request meeting (c), and that a
-changed test listed under technical debt gains no further request of
-that kind; confirm a new `oc-client.py` command is one registered
-function and uses no module outside the standard library. local,
+openconnect, `oc-client.py`, or a curl request meeting (c); confirm a
+new `oc-client.py` command is one registered function and uses no
+module outside the standard library. local,
 negative — `python3 tests/oc-client.py --address 127.0.0.1 --port P
 groups`, with nothing listening on `P`, MUST exit 2 and print the reason
 on standard error. local — in `tests/test-vhost-select-group`, the login
