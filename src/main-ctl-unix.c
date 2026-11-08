@@ -930,13 +930,16 @@ static int terminate_user_sessions_in_secmod(method_ctx *ctx,
 	return result;
 }
 
-/* Invalidate a single session cookie by safe_id in sec-mod */
+/* Invalidate a single session cookie by safe_id in sec-mod. Returns 1 if
+ * an instance invalidated it, 0 if every instance answered that it holds
+ * no such session, and -1 if it was not found but some instance could not
+ * be asked. */
 static int terminate_session_in_secmod(method_ctx *ctx, const char *safe_id,
 				       size_t safe_id_len)
 {
 	SecmTerminateSessionMsg req = SECM_TERMINATE_SESSION_MSG__INIT;
 	SecmTerminateSessionReplyMsg *reply = NULL;
-	int ret, result = 0;
+	int ret, result = 0, unreachable = 0;
 	unsigned int i;
 
 	PROTOBUF_ALLOCATOR(pa, ctx->pool);
@@ -954,6 +957,7 @@ static int terminate_session_in_secmod(method_ctx *ctx, const char *safe_id,
 		if (ret < 0) {
 			mslog(ctx->s, NULL, LOG_ERR,
 			      "error sending terminate to sec-mod!");
+			unreachable = 1;
 			continue;
 		}
 
@@ -965,6 +969,7 @@ static int terminate_session_in_secmod(method_ctx *ctx, const char *safe_id,
 		if (ret < 0) {
 			mslog(ctx->s, NULL, LOG_ERR,
 			      "error receiving terminate reply");
+			unreachable = 1;
 			continue;
 		}
 
@@ -978,6 +983,8 @@ static int terminate_session_in_secmod(method_ctx *ctx, const char *safe_id,
 			break;
 	}
 
+	if (result == 0 && unreachable)
+		return -1;
 	return result;
 }
 
@@ -1054,18 +1061,26 @@ static void method_terminate_id(method_ctx *ctx, int cfd, uint8_t *msg,
 				     SAFE_ID_SIZE);
 			found = 1;
 			disconnect_proc(ctx->s, ctmp);
-			rep.status = 1;
 			break;
 		}
 	}
 
-	/* Invalidate session cookie for the specific connection */
+	/* Success means that no valid cookie remains for the connection:
+	 * invalidated now, or held by no sec-mod instance. The latter
+	 * includes a connection whose SID main never learned, as its sid is
+	 * still all zeros. */
 	if (found) {
-		if (terminate_session_in_secmod(ctx, safe_id,
-						SAFE_ID_SIZE - 1)) {
+		ret = terminate_session_in_secmod(ctx, safe_id,
+						  SAFE_ID_SIZE - 1);
+		if (ret > 0)
 			mslog(ctx->s, NULL, LOG_INFO,
 			      "terminated session cookie for ID %d", req->id);
-		}
+		if (ret >= 0)
+			rep.status = 1;
+		else
+			mslog(ctx->s, NULL, LOG_ERR,
+			      "disconnected ID %d but could not invalidate its session cookie",
+			      req->id);
 	}
 
 	id_req__free_unpacked(req, NULL);
@@ -1097,7 +1112,7 @@ static void method_terminate_session(method_ctx *ctx, int cfd, uint8_t *msg,
 	/* Invalidate session cookie by safe_id */
 	if (req->safe_id.data != NULL && req->safe_id.len > 0 &&
 	    terminate_session_in_secmod(ctx, (const char *)req->safe_id.data,
-					req->safe_id.len)) {
+					req->safe_id.len) > 0) {
 		mslog(ctx->s, NULL, LOG_INFO,
 		      "terminated session (session: %.6s)",
 		      (const char *)req->safe_id.data);

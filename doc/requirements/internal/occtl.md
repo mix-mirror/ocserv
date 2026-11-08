@@ -493,30 +493,41 @@ REQ-MAIN-INIT-003
 
 ### REQ-OCCTL-SESSION-004 — terminate id disconnects and invalidates that connection's cookie
 
-**Requirement:** On `CTL_CMD_TERMINATE_ID` main MUST, for the worker whose
-pid equals `id_req.id`, compute its `safe_id`, disconnect it, and send
-`SECM_TERMINATE_SESSION` with that full-length `safe_id` (`SAFE_ID_SIZE -
-1` bytes) to the sec-mod instances until one reports `result = true`. main
-MUST reply `status = true` only if the worker was disconnected **and** its
-cookie was invalidated. If no worker matches, main MUST NOT contact sec-mod
-and MUST reply `status = false`. occtl MUST print `connection ID 'ID' was
-terminated (session invalidated)` and exit 0 only on `status = true`, and
-otherwise MUST report the failure and exit 1.
+**Requirement:** On `CTL_CMD_TERMINATE_ID` main MUST disconnect the worker
+whose pid equals `id_req.id` and send `SECM_TERMINATE_SESSION` with its
+full-length `safe_id` (`SAFE_ID_SIZE - 1` bytes) to the sec-mod instances
+until one reports `result = true`, whatever the connection's
+authentication state: main MUST NOT infer from that state whether a
+cookie exists (while a connect-script runs, the connection is not
+`PS_AUTH_COMPLETED` but its session is open in sec-mod). main MUST reply
+`status = true` only if the worker was disconnected **and** no valid
+cookie remains for it — sec-mod invalidated it now, or every instance
+answered that it holds no such session (e.g. `terminate session` already
+invalidated it, or main never learned the connection's SID). If some
+instance could not be asked and none invalidated the cookie, main MUST log
+that the cookie could not be invalidated and reply `status = false`. If no worker matches, main
+MUST NOT contact sec-mod and MUST reply `status = false`. occtl MUST print
+`connection ID 'ID' was terminated (session invalidated)` and exit 0 only
+on `status = true`, and otherwise print `could not terminate ID 'ID'` and
+exit 1.
 **Strength:** MUST
-**Status:** REVIEW
-**Source:** src/main-ctl-unix.c `terminate_session_in_secmod()`,
-`method_terminate_id()`; src/occtl/unix.c `handle_terminate_id_cmd()`;
-maintainer decision recorded with this requirement.
-**Acceptance:** positive, CI — `tests/terminate-commands` (`terminate id`
-then `assert_cookie_rejected`). Negative, CI — `occtl terminate id 999999`
-exits 1 with `could not terminate ID`.
-`[REVIEW: decided 2026-11-08 — the reply reflects both steps. Code does not
-yet conform: rep.status is set by the disconnect alone, so if sec-mod fails
-to invalidate the cookie occtl still prints "(session invalidated)" and
-exits 0. The reply is a single bool_msg, so telling "disconnected but
-cookie still valid" apart from "not found" in the occtl message needs
-either a second status value or a log line in main; implementer's
-choice.]`
+**Status:** DERIVED
+**Source:** src/main-ctl-unix.c `terminate_session_in_secmod()` (1
+invalidated, 0 not found anywhere, -1 not found with an instance
+unreachable), `method_terminate_id()`; src/main-auth.c `handle_auth_cookie_req()` (main
+learns `proc->sid` from the cookie request, and opens the session in
+sec-mod); src/main-worker-cmd.c `handle_cookie_auth_res()` (status is
+`PS_AUTH_FAILED` until the connect-script exits); src/main-proc.c
+`new_proc()` (`proc->sid` starts all zeros); src/occtl/unix.c
+`handle_terminate_id_cmd()`; maintainer decision recorded with this
+requirement.
+**Acceptance:** positive, CI — `tests/terminate-commands` section 2
+(`terminate id` then `assert_cookie_rejected`) and section 5 (`terminate
+session`, then `terminate id` of the same connection still exits 0) and
+section 7 (`terminate id` while the connect-script runs exits 0, and the
+cookie is then rejected). Negative, CI — `tests/terminate-commands` section 6 (`occtl terminate id
+999999` exits non-zero). The unreachable-instance case has no automated
+test: it needs a sec-mod instance that fails to answer.
 **Links:** REQ-IPC-072, REQ-SECMOD-SESSION-005
 
 ### REQ-OCCTL-SESSION-005 — terminate session resolves a prefix to exactly one full safe_id

@@ -31,6 +31,9 @@ PIDFILE=ocserv-pid.$$.tmp
 CLIPID=oc-pid.$$.tmp
 OUTFILE=occtl-terminate.$$.tmp
 OCCTL_SOCKET=./occtl-$$.socket
+SCRIPT=$(pwd)/terminate-connect-script.$$.tmp
+HOLD=$(pwd)/terminate-hold.$$.tmp
+SCRIPT_ID=$(pwd)/terminate-script-id.$$.tmp
 
 . `dirname $0`/common.sh
 
@@ -46,6 +49,7 @@ function finish {
   cleanup_client_server
   test -n "${TMPFILE}" && rm -f ${TMPFILE} >/dev/null 2>&1
   test -n "${OUTFILE}" && rm -f ${OUTFILE} >/dev/null 2>&1
+  rm -f ${SCRIPT} ${HOLD} ${SCRIPT_ID} >/dev/null 2>&1
 }
 trap finish EXIT
 
@@ -199,5 +203,90 @@ sleep 3
 reset_client_routes
 
 assert_cookie_rejected "${COOKIE_FULL}"
+
+# 5) terminate id of a connection whose cookie is already invalidated:
+# no valid cookie remains, so it succeeds (REQ-OCCTL-SESSION-004)
+get_cookie
+COOKIE_BOTH="${COOKIE}"
+connect_with_cookie "${COOKIE_BOTH}"
+
+FULL_SID=$(${OCCTL} -s ${OCCTL_SOCKET} --json show sessions valid | jq -r '.[] | select((.Username // "") == "test") | ."Full session"' | head -n 1)
+ID=$(${OCCTL} -s ${OCCTL_SOCKET} --json show user test 2>${OUTFILE} | jq -r '.[0].ID // empty')
+if test -z "${FULL_SID}" || test -z "${ID}";then
+	fail $PID "Could not extract session ID and connection ID from occtl output"
+fi
+
+${OCCTL} -s ${OCCTL_SOCKET} terminate session ${FULL_SID}
+if test $? != 0;then
+	fail $PID "terminate session before terminate id failed"
+fi
+
+${OCCTL} -s ${OCCTL_SOCKET} terminate id ${ID}
+if test $? != 0;then
+	fail $PID "FAIL: expected terminate id to succeed for a connection whose cookie was already invalidated, got failure"
+fi
+
+kill "$(cat ${CLIPID})" 2>/dev/null || true
+rm -f "${CLIPID}"
+sleep 3
+reset_client_routes
+
+assert_cookie_rejected "${COOKIE_BOTH}"
+
+# 6) terminate id of an unknown connection fails
+${OCCTL} -s ${OCCTL_SOCKET} terminate id 999999
+if test $? = 0;then
+	fail $PID "FAIL: expected terminate id 999999 to fail, got success"
+fi
+
+# 7) terminate id while the connect-script runs: the connection is not yet
+# PS_AUTH_COMPLETED, but main holds its SID and sec-mod an open session, so
+# the cookie must be invalidated (REQ-OCCTL-SESSION-004)
+cat >${SCRIPT} <<EOF
+#!/bin/sh
+if test "\$REASON" = "connect" && test -f ${HOLD};then
+	echo "\$ID" >${SCRIPT_ID}
+	for i in \$(seq 1 30);do
+		test -f ${HOLD} || break
+		sleep 1
+	done
+fi
+exit 0
+EOF
+chmod 755 ${SCRIPT}
+echo "connect-script = ${SCRIPT}" >>${CONFIG}
+kill -HUP ${PID}
+sleep 3
+
+get_cookie
+COOKIE_SCRIPT="${COOKIE}"
+touch ${HOLD}
+rm -f ${SCRIPT_ID} ${CLIPID}
+echo " * Connecting while the connect-script is held..."
+timeout 60 ${CMDNS1} ${OPENCONNECT} -q ${ADDRESS}:${PORT} -u test --servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8= -s ${srcdir}/scripts/vpnc-script -C "${COOKIE_SCRIPT}" --pid-file=${CLIPID} -b >/dev/null 2>&1 &
+CLIBG=$!
+for i in $(seq 1 20);do
+	test -s ${SCRIPT_ID} && break
+	sleep 1
+done
+if ! test -s ${SCRIPT_ID};then
+	rm -f ${HOLD}
+	fail $PID "The connect-script did not run"
+fi
+
+${OCCTL} -s ${OCCTL_SOCKET} terminate id $(cat ${SCRIPT_ID})
+RET=$?
+rm -f ${HOLD}
+wait ${CLIBG}
+test -f "${CLIPID}" && kill "$(cat ${CLIPID})" 2>/dev/null
+rm -f "${CLIPID}"
+sleep 3
+reset_client_routes
+
+if test ${RET} != 0;then
+	fail $PID "FAIL: expected terminate id during the connect-script to exit 0, got ${RET}"
+fi
+
+assert_cookie_rejected "${COOKIE_SCRIPT}"
 
 exit 0
