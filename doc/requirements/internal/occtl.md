@@ -587,9 +587,10 @@ The detail view MUST show the 6-character short ID and the full `safe_id`
 printed: JSON output of every session and user listing, and the text
 detail view of `show session`; text listings show only the short ID.
 **Strength:** MUST
-**Status:** REVIEW
+**Status:** DERIVED
 **Source:** src/occtl/unix.c `session_list()`,
-`handle_list_sessions_cmd()`, `handle_show_session_cmd()`,
+`handle_list_sessions_cmd()`, `handle_show_session_cmd()` (returns
+`session_info_cmd()`'s result),
 `session_info_cmd()`; doc/occtl.8.md (`show sessions`, `show session`);
 maintainer decision recorded with this requirement.
 **Acceptance:** positive, local — `tests/test-occtl-local` (fake server,
@@ -597,12 +598,8 @@ scenario `sessions`): `show session` with the 6-character ID and with the
 full 27-character ID each show only the matching session, and `show
 sessions valid` prints its header first although the first session
 returned is still authenticating. Positive, CI — `tests/test-occtl-commands`
-Section 6 (short SID). Negative — `occtl show session zzzzzz` prints
-`Session ID not found or expired` and exits 2.
-`[REVIEW: decided 2026-11-08 — match the full ID, fail when none matches;
-exiting 2 is a bug fix. The matching and the header conform. Code does not
-yet conform: handle_show_session_cmd() ignores session_info_cmd()'s "not
-found" result and exits 0.]`
+Section 6 (short SID). Negative, local — `tests/test-occtl-local`: `occtl
+show session zzzzzz` prints `Session ID not found or expired` and exits 2.
 **Links:** REQ-SECMOD-SESSION-006, REQ-OCCTL-ERR-002
 
 ### REQ-OCCTL-SESSION-008 — show events: initial list then one update per connect/disconnect
@@ -953,20 +950,14 @@ all three. occtl MUST print `could not send message; possibly insufficient
 permissions or server is offline.` on stderr when the request/reply
 exchange itself fails.
 **Strength:** MUST
-**Status:** REVIEW
+**Status:** DERIVED
 **Source:** src/occtl/occtl.c `single_cmd()`, `main()` (`exit(ret)`);
 src/occtl/occtl.h `ERR_SERVER_UNREACHABLE`; doc/occtl.8.md (EXIT STATUS);
 maintainer decision recorded with this requirement.
 **Acceptance:** positive/negative, CI — every occtl call in
 `tests/test-occtl-commands` and `tests/terminate-commands` checks `$?`;
-`show user nosuchuser` exits 2; `occtl -x` exits 1.
-`[REVIEW: decided 2026-11-08 — document 2 as "not found", collapse every
-other failure to 1; making `show session` exit 2 and an invalid option
-exit 1 is a bug fix. Conform: doc/occtl.8.md documents 0, 1 and 2 (for
-`show user`/`show id`), `show events` exits 1 on failure, and an
-invalid option exits 1. Do not conform yet: `show
-session` exits 0 when nothing matches (REQ-OCCTL-SESSION-007), and
-doc/occtl.8.md does not list it under exit status 2.]`
+`show user nosuchuser` exits 2. Local — `tests/test-occtl-local`: `show
+session zzzzzz` exits 2, `occtl -x` exits 1.
 **Links:** REQ-OCCTL-ERR-002, REQ-OCCTL-CLI-001
 
 ### REQ-OCCTL-ERR-002 — Not-found is a failure for show user / show id / show session
@@ -978,7 +969,8 @@ exit 2 when no session matches (REQ-OCCTL-SESSION-007).
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/occtl/unix.c `common_info_cmd()` (`ret = 2`),
-`handle_show_user_cmd()`, `handle_show_id_cmd()`
+`handle_show_user_cmd()`, `handle_show_id_cmd()`, `session_info_cmd()`,
+`handle_show_session_cmd()`
 **Acceptance:** negative, CI — `tests/disconnect-user`,
 `tests/disconnect-user2`, `tests/test-occtl-commands` Section 4 rely on
 `occtl show user test` failing after disconnect.
@@ -1100,9 +1092,10 @@ REQ-OCCTL-IPC-004
 - **`OCSERV_0_11_6_COMPAT`** JSON fields (`Raw cookie`, `Cookie`, `Last
   Modified`) are compiled out (`#undef OCSERV_0_11_6_COMPAT` in src/occtl/unix.c) and not
   covered.
-- **`tests/json`** runs `show session all` (singular, so `all` is treated as
-  a session-ID prefix) where `show sessions all` was probably meant; it
-  validates JSON syntax only.
+- **`tests/json`** validates JSON syntax only; it ran `show session all`
+  (singular, so `all` was taken as a session-ID prefix and matched
+  nothing) until `show session` started exiting 2 on no match, and now
+  runs `show sessions all` as intended.
 - **Blocking reads in main**: main reads each occtl request synchronously
   in its event loop (`ctl_cmd_wacher_cb()` → `recv_msg_data()`), so a root
   client that stalls mid-request blocks main for up to

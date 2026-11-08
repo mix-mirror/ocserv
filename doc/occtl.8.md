@@ -154,7 +154,8 @@ at the prompt when occtl is run without a command argument.
     The operation failed or the command syntax was not valid.
 
   * **2**:
-    **show user** or **show id** found no matching connection.
+    **show user** or **show id** found no matching connection, or
+    **show session** found no matching session.
 
 ## IMPLEMENTATION NOTES
 This tool uses unix domain sockets to connect to ocserv.

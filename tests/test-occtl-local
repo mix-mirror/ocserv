@@ -114,6 +114,11 @@ start_server sessions
 FULL=XyZ987AbCdEfGhIjKlMnOpQrStu
 for sid in XyZ987 ${FULL};do
 	${OCCTL} -n -s ${SOCKET} show session ${sid} >${OUT} 2>&1
+	RET=$?
+	if test ${RET} != 0;then
+		echo "FAIL: expected 'show session ${sid}' to exit 0, got ${RET}"
+		exit 1
+	fi
 	if ! grep -q "Username: alice" ${OUT};then
 		echo "FAIL: expected 'show session ${sid}' to show user alice, got: $(cat ${OUT})"
 		exit 1
@@ -123,6 +128,14 @@ for sid in XyZ987 ${FULL};do
 		exit 1
 	fi
 done
+
+echo " * show session exits 2 when nothing matches..."
+${OCCTL} -n -s ${SOCKET} show session zzzzzz >${OUT} 2>&1
+RET=$?
+if test ${RET} != 2 || ! grep -q "Session ID not found or expired" ${OUT};then
+	echo "FAIL: expected 'show session zzzzzz' to report not found and exit 2, got ${RET}: $(cat ${OUT})"
+	exit 1
+fi
 
 echo " * show sessions valid prints its header..."
 ${OCCTL} -n -s ${SOCKET} show sessions valid >${OUT} 2>&1

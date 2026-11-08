@@ -153,27 +153,27 @@ if test $? != 0;then
 	exit 1
 fi
 
-${OCCTL} -s ${OCCTL_SOCKET} --json show session all >${OUTFILE}
+${OCCTL} -s ${OCCTL_SOCKET} --json show sessions all >${OUTFILE}
 if test $? != 0;then
-	echo "occtl show session all failed!"
+	echo "occtl show sessions all failed!"
 	exit 1
 fi
 
 jq . ${OUTFILE}
 if test $? != 0;then
-	echo "occtl show session all json invalid"
+	echo "occtl show sessions all json invalid"
 	exit 1
 fi
 
-${OCCTL} -s ${OCCTL_SOCKET} --json --debug show session all >${OUTFILE}
+${OCCTL} -s ${OCCTL_SOCKET} --json --debug show sessions all >${OUTFILE}
 if test $? != 0;then
-	echo "occtl show session all --debug failed!"
+	echo "occtl show sessions all --debug failed!"
 	exit 1
 fi
 
 jq . ${OUTFILE}
 if test $? != 0;then
-	echo "occtl show session all --debug json invalid"
+	echo "occtl show sessions all --debug json invalid"
 	exit 1
 fi
 

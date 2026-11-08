@@ -1236,9 +1236,8 @@ int handle_show_session_cmd(struct unix_ctx *ctx, const char *arg,
 	if (rep == NULL)
 		goto error;
 
-	session_info_cmd(ctx, rep, out, params, sid, 0);
-
-	ret = 0;
+	/* 2 when no session matches, as for show user / show id */
+	ret = session_info_cmd(ctx, rep, out, params, sid, 0);
 	goto cleanup;
 
 error:
