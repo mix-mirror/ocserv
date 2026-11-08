@@ -644,8 +644,8 @@ restored on every exit path, empty updates are ignored, end of input ends
 polling of stdin but not the command, and failures exit 1. Do not conform
 yet: (1) a second listener gets the initial list and then silently nothing — on hold, how it
 is told (a new reply, a flag in `ctl.proto`, or closing its connection)
-changes what `show events` prints and needs a design decision; (2) the
-one-listener limit is not in doc/occtl.8.md.]`
+changes what `show events` prints and needs a design decision. The
+one-listener limit is documented in doc/occtl.8.md.]`
 **Links:** REQ-OCCTL-IPC-001, REQ-OCCTL-SEC-004
 
 ---
@@ -771,16 +771,14 @@ connection, not a VPN session (a session can span several connections).
 doc/occtl.8.md MUST call it a connection ID, following the README
 glossary's session/connection distinction.
 **Strength:** MUST
-**Status:** REVIEW
+**Status:** DERIVED
 **Source:** src/main-ctl-unix.c `append_user_info()` (`rep->id =
 ctmp->pid`), `single_info_common()`, `method_disconnect_user_id()`,
 `method_terminate_id()`; doc/occtl.8.md (`show id`, `disconnect id`:
-"numeric session ID")
+"numeric connection ID")
 **Acceptance:** positive, CI — the `ID` from `occtl --json show users`
 equals the pid of a running `ocserv-worker` process
 (`tests/test-occtl-commands` Section 4/5).
-`[REVIEW: the code conforms; doc/occtl.8.md does not yet — it calls the ID
-a "numeric session ID".]`
 **Links:** REQ-OCCTL-SESSION-002, REQ-OCCTL-SESSION-004
 
 ### REQ-OCCTL-CLI-005 — show status reports main's and sec-mod's counters
@@ -855,16 +853,13 @@ customary `now` included) MUST be ignored. On `CTL_CMD_STOP` main MUST feed
 `Server scheduled to stop` (exit 0), or `Error scheduling server stop`
 (exit 1).
 **Strength:** MUST
-**Status:** REVIEW
+**Status:** DERIVED
 **Source:** src/main-ctl-unix.c `method_stop()`; src/occtl/unix.c
 `handle_stop_cmd()`; src/occtl/occtl.c `commands[]` (`ENTRY("stop", "now",
-...)`); doc/occtl.8.md (`stop now`); maintainer decision recorded with this
+...)`); doc/occtl.8.md (`stop [now]`); maintainer decision recorded with this
 requirement.
 **Acceptance:** positive, CI — `occtl stop` and `occtl stop now` each make
 the server exit, and REQ-OCCTL-INIT-002 holds.
-`[REVIEW: decided 2026-11-08 — keep `stop`; "now" is not a confirmation
-word. The code conforms; doc/occtl.8.md does not yet — it documents the
-command as `stop now`.]`
 **Links:** REQ-OCCTL-INIT-002
 
 ### REQ-OCCTL-CLI-009 — JSON output is valid JSON
@@ -957,16 +952,16 @@ exchange itself fails.
 **Strength:** MUST
 **Status:** REVIEW
 **Source:** src/occtl/occtl.c `single_cmd()`, `main()` (`exit(ret)`);
-src/occtl/occtl.h `ERR_SERVER_UNREACHABLE`; doc/occtl.8.md (EXIT STATUS: 0
-or 1); maintainer decision recorded with this requirement.
+src/occtl/occtl.h `ERR_SERVER_UNREACHABLE`; doc/occtl.8.md (EXIT STATUS);
+maintainer decision recorded with this requirement.
 **Acceptance:** positive/negative, CI — every occtl call in
 `tests/test-occtl-commands` and `tests/terminate-commands` checks `$?`;
 `show user nosuchuser` exits 2; `occtl -x` exits 1.
 `[REVIEW: decided 2026-11-08 — document 2 as "not found", collapse every
-other failure to 1. Code and doc do not yet conform: doc/occtl.8.md lists
-only 0 and 1; `show events` can exit 255 (returns -1); an invalid option
-exits 0 (REQ-OCCTL-CLI-001); `show session` exits 0 when nothing matches
-(REQ-OCCTL-SESSION-007). Left open: the last two change an exit status from
+other failure to 1. Conform: doc/occtl.8.md documents 0, 1 and 2 (for
+`show user`/`show id`), and `show events` exits 1 on failure. Do not
+conform yet: an invalid option exits 0 (REQ-OCCTL-CLI-001); `show
+session` exits 0 when nothing matches (REQ-OCCTL-SESSION-007). Left open: the last two change an exit status from
 0, which conflicts with REQ-OCCTL-CLI-011.]`
 **Links:** REQ-OCCTL-ERR-002, REQ-OCCTL-CLI-001
 

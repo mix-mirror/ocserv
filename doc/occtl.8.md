@@ -49,7 +49,7 @@ at the prompt when occtl is run without a command argument.
     number of banned IPs, and other aggregate counters.
 
   * **show users**:
-    List all currently connected users together with their session ID,
+    List all currently connected users together with their connection ID,
     assigned VPN IP address, and connection duration.
 
   * **show user** _NAME_:
@@ -58,7 +58,9 @@ at the prompt when occtl is run without a command argument.
 
   * **show id** _ID_:
     Display detailed information about the connection identified by its
-    numeric session ID.
+    numeric connection ID.  The connection ID is the process ID of the
+    worker serving the connection; a session can span several connections
+    when the client reconnects.
 
   * **show iroutes**:
     List the internal routes that connected clients have advertised to the
@@ -67,7 +69,9 @@ at the prompt when occtl is run without a command argument.
     **expose-iroutes** is enabled.
 
   * **show events**:
-    Display a live log of connection and disconnection events.
+    Display a live log of connection and disconnection events.  The server
+    sends events to a single listener at a time; a second concurrent
+    **show events** displays the connected users but no further events.
 
 ### Session management
 
@@ -77,9 +81,9 @@ at the prompt when occtl is run without a command argument.
     the same cookie (subject to cookie-timeout).
 
   * **disconnect id** _ID_:
-    Terminate the VPN connection identified by its numeric session ID.
-    The session ID is shown by **show users** and **show id**.
-    The cookie associated with that session remains valid.
+    Terminate the VPN connection identified by its numeric connection ID.
+    The connection ID is shown by **show users** and **show id**.
+    The cookie associated with that connection's session remains valid.
 
   * **terminate user** _NAME_:
     Disconnect the named user and permanently invalidate all of their session
@@ -87,7 +91,7 @@ at the prompt when occtl is run without a command argument.
     connection attempt.
 
   * **terminate id** _ID_:
-    Disconnect the connection identified by its numeric session ID and
+    Disconnect the connection identified by its numeric connection ID and
     invalidate the associated cookie.
 
   * **terminate session** _SID_:
@@ -109,6 +113,9 @@ at the prompt when occtl is run without a command argument.
   * **show session** _SID_:
     Display detailed information about the session identified by its session
     ID (SID) string, as shown in **show sessions all** or **show sessions valid**.
+    Either the short ID or the full one (the **Full session** value of the
+    JSON output), or any prefix of it, is accepted; every matching session is
+    shown.
 
 ### IP ban management
 
@@ -134,9 +141,9 @@ at the prompt when occtl is run without a command argument.
     sending SIGHUP to the main ocserv process.  Options marked as
     non-reloadable in ocserv.conf(8) are not affected.
 
-  * **stop now**:
+  * **stop** \[now\]:
     Gracefully shut down the server.  Active VPN sessions are terminated
-    before the process exits.
+    before the process exits.  The optional word **now** has no effect.
 
 ## EXIT STATUS
 
@@ -145,6 +152,9 @@ at the prompt when occtl is run without a command argument.
 
   * **1**:
     The operation failed or the command syntax was not valid.
+
+  * **2**:
+    **show user** or **show id** found no matching connection.
 
 ## IMPLEMENTATION NOTES
 This tool uses unix domain sockets to connect to ocserv.
