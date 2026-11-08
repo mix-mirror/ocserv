@@ -35,8 +35,8 @@
 #   cleanly before pam_end() and the server survives.
 #
 # Trigger (PAM_S_WAIT_FOR_PASS):
-#   curl sends POST /auth with only "username=testuser" (no password
-#   field).  The worker parses the username, sends SEC_AUTH_INIT to
+#   oc-client.py sends POST /auth with only "username=testuser" (no
+#   password field).  The worker parses the username, sends SEC_AUTH_INIT to
 #   sec-mod which starts the PAM coroutine; the coroutine calls the
 #   conversation function and suspends.  The worker then fails to
 #   extract a password from the POST body, returns 401, and exits.
@@ -54,6 +54,8 @@ srcdir=${srcdir:-.}
 NO_NEED_ROOT=1
 
 . "$(dirname "$0")"/common.sh
+
+require_oc_client
 
 eval "${GETPORT}"
 
@@ -73,10 +75,13 @@ echo "Sending username-only POST to trigger PAM_S_WAIT_FOR_PASS..."
 # Worker sends SEC_AUTH_INIT → PAM coroutine starts, calls conv(), suspends.
 # Worker fails to extract password from body → 401 → exits.
 # The pre-auth entry remains in sec-mod (in_use=0, expires in 15 s).
-LD_PRELOAD=libsocket_wrapper.so curl -sk \
-	--max-time 10 \
-	--data 'username=testuser' \
-	"https://$ADDRESS:$PORT/auth" >/dev/null 2>&1 || true
+# The rejection shows the request reached the worker, so that the check
+# below is not passed by a server that never saw it.
+oc_run --client none username-only --user testuser
+ret=$?
+if test $ret != 1; then
+	oc_fail "Username-only POST: expected the login to be rejected (exit 1), got exit $ret"
+fi
 
 # exptime ≈ now + 15 s; maintenance fires every 3 s → cleanup within 18 s.
 echo ""

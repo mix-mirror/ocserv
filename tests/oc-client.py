@@ -337,6 +337,60 @@ def cmd_login(server, args):
                         "HTTP %d:\n%s" % (reply.status, reply.body))
 
 
+@command("username-only",
+         arg("--user", required=True))
+def cmd_username_only(server, args):
+    """Post a username without its password.
+
+    This is what a client that abandons a login after giving its username
+    sends: the server starts authenticating the user, then finds no
+    password. Succeeds if the server issues a session cookie anyway,
+    refuses if it rejects the login."""
+    reply = server.post_form({"username": args.user}, "/auth")
+    return login_result(server, reply)
+
+
+# A captured, generic GSSAPI/SPNEGO NTLMSSP Type1 (negotiate) token. Type1
+# carries only capability flags, no credentials, so it is not tied to any
+# particular username/password and is safe to reuse as a static fixture.
+NTLMSSP_TYPE1 = (
+    "YEgGBisGAQUFAqA+MDygDjAMBgorBgEEAYI3AgIKoioEKE5UTE1TU1AAAQAAABeCCOIA"
+    "AAAAAAAAAAAAAAAAAAAABgIAAAAAAA8="
+)
+
+
+@command("negotiate-fallback",
+         arg("--user", required=True),
+         arg("--password", required=True))
+def cmd_negotiate_fallback(server, args):
+    """Fail GSSAPI, then log in with a password on the same connection.
+
+    Sends an NTLMSSP Type1 token, which the server answers with a
+    challenge, then the same token again as the continuation, which
+    fails, and finally the username and password, all over one connection
+    and therefore to one worker. Succeeds if the password login completes,
+    refuses if it is rejected."""
+    negotiate = {"Authorization": "Negotiate " + NTLMSSP_TYPE1,
+                 "X-Support-HTTP-Auth": "1"}
+    server.request("GET", "/", headers=negotiate)
+    server.request("GET", "/", headers=negotiate)
+    reply = server.post_form({"username": args.user,
+                              "password": args.password}, "/auth")
+    return login_result(server, reply)
+
+
+def login_result(server, reply):
+    """The exit code for the reply that ends a login."""
+    if reply.status == 401:
+        server.report("login rejected")
+        return REFUSED
+    if reply.status == 200 and 'auth id="success"' in reply.body:
+        server.report("login completed")
+        return OK
+    raise ProtocolError("expected a completed or a rejected login, got "
+                        "HTTP %d:\n%s" % (reply.status, reply.body))
+
+
 # ---------------------------------------------------------------------------
 
 

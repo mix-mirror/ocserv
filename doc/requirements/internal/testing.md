@@ -550,8 +550,9 @@ sends to them; packet capture (`tcpdump`); capability probes
 **Strength:** MUST / MUST NOT
 **Status:** DERIVED
 **Source:** `tests/oc-client.py` (`Server`, `command`, `cmd_groups`,
-`cmd_init`, `cmd_login`, `main`); `tests/common.sh` (`require_oc_client`,
-`oc_client`, `oc_run`, `oc_fail`, `oc_expect`, `oc_expect_not`);
+`cmd_init`, `cmd_login`, `cmd_username_only`, `cmd_negotiate_fallback`,
+`main`); `tests/common.sh` (`require_oc_client`, `oc_client`, `oc_run`,
+`oc_fail`, `oc_expect`, `oc_expect_not`);
 `tests/test-vhost-select-group` as the reference consumer;
 maintainer decision recorded with this requirement.
 **Acceptance:** code-review — for each new or changed test that starts
