@@ -108,7 +108,7 @@ Every requirement carries a `Status`:
 <condition>, so that <rationale>.
 **Strength:** MUST | SHOULD | MAY | MUST NOT | SHOULD NOT
 **Status:** DERIVED | REVIEW | AMBIGUOUS | UNDOCUMENTED | WITHDRAWN
-**Source:** <file>:<line> [, ...] ; doc/design.md#<section>
+**Source:** <file> `<function>()` [, ...] ; doc/design.md#<section>
 **Acceptance:** <test path or description> — positive|negative|unit ;
   local | CI (root/full stack)
 **Links:** <other REQ-IDs this depends on or relates to>
@@ -116,6 +116,17 @@ Every requirement carries a `Status`:
 
 For `protocol/unified.md`, add **Class** and, for non-UNIVERSAL entries,
 **Divergence:** describing what differs between sources and why.
+
+**Source** cites code by file and function name (src/main-ctl-unix.c
+`method_status()`), never by line number: line numbers go stale with
+every unrelated edit, while a function name stays valid until the code it
+names is changed, and then the requirement has to be revisited anyway.
+Where the evidence is not inside a function, name the entity instead: a
+macro or constant (`DEFAULT_TIMEOUT`), a table or variable (`commands[]`),
+a struct field (`static_cfg_st.use_occtl`), a protobuf message or field
+(`cookie_int_msg`), or a configuration option (doc/sample.config
+`use-occtl`). Quote the relevant expression in parentheses when the
+function is long.
 
 ## Document frontmatter
 
