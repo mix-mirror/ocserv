@@ -21,12 +21,13 @@
 SERV="${SERV:-../src/ocserv}"
 srcdir=${srcdir:-.}
 NO_NEED_ROOT=1
-TMPFILE=test-cert-svc.$$.tmp
 
 CRLNAME=crl.pem.$$.tmp
 CRLTMPLNAME=crl.tmpl.$$.tmp
 
 . `dirname $0`/common.sh
+
+require_oc_client
 
 eval "${GETPORT}"
 
@@ -52,27 +53,28 @@ PID=$!
 wait_server $PID
 
 echo -n "Connecting to obtain cookie (without certificate)... "
-( LD_PRELOAD=libsocket_wrapper.so curl --user-agent "Cisco SVC IPPhone Client v1.0" --silent --insecure https://$ADDRESS:$PORT/svc --include --request POST --output $TMPFILE ) ||
-	fail $PID "POST request failed"
+oc_run svc || oc_fail "POST request failed"
 
-grep -q "Set-Cookie: webvpn=[^;]\+" $TMPFILE && fail $PID "Could connect without certificate"
+oc_expect_not 'Set-Cookie: webvpn=[^;]+' "Could connect without certificate"
 echo "ok (failed as expected)"
 
 echo -n "Connecting to obtain cookie (with invalid certificate)... "
-( LD_PRELOAD=libsocket_wrapper.so curl --user-agent "Cisco SVC IPPhone Client v1.0" --silent --insecure --key "${srcdir}/certs/user-key.pem" --cert "${srcdir}/certs/user-cert-invalid.pem" https://$ADDRESS:$PORT/svc --include --request POST --output $TMPFILE ) ||
-	echo "" >$TMPFILE
+# The server may refuse the certificate during the TLS handshake, which
+# also leaves the client without a cookie.
+oc_run --key "${srcdir}/certs/user-key.pem" \
+	--cert "${srcdir}/certs/user-cert-invalid.pem" svc
 
-grep -q "Set-Cookie: webvpn=[^;]\+" $TMPFILE && fail $PID "Could connect with invalid certificate"
+oc_expect_not 'Set-Cookie: webvpn=[^;]+' "Could connect with invalid certificate"
 echo "ok (failed as expected)"
 
 echo -n "Connecting to obtain cookie (with certificate)... "
-( LD_PRELOAD=libsocket_wrapper.so curl --user-agent "Cisco SVC IPPhone Client v1.0" --silent --insecure --key "${srcdir}/certs/user-key.pem" --cert "${srcdir}/certs/user-cert.pem" https://$ADDRESS:$PORT/svc --include --request POST --output $TMPFILE ) ||
-	fail $PID "POST request failed"
+oc_run --key "${srcdir}/certs/user-key.pem" \
+	--cert "${srcdir}/certs/user-cert.pem" svc || oc_fail "POST request failed"
 
-grep -q "Set-Cookie: webvpn=[^;]\+" $TMPFILE || fail $PID "Could not connect with certificate"
+oc_expect 'Set-Cookie: webvpn=[^;]+' "Could not connect with certificate"
 echo ok
 
-rm -f "${CRLNAME}" "${CRLTMPLNAME}" "${TMPFILE}"
+rm -f "${CRLNAME}" "${CRLTMPLNAME}"
 
 cleanup
 

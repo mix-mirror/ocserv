@@ -22,10 +22,11 @@ SERV="${SERV:-../src/ocserv}"
 srcdir=${srcdir:-.}
 NO_NEED_ROOT=1
 PIDFILE=ocserv-pid.$$.tmp
-TMPFILE=test-pass-svc.$$.tmp
 
 . `dirname $0`/common.sh
 . `dirname $0`/random-vpnnet.sh
+
+require_oc_client
 
 eval "${GETPORT}"
 
@@ -39,42 +40,35 @@ PID=$!
 wait_server $PID
 
 echo "Connecting to obtain non-auth cookies... "
-( LD_PRELOAD=libsocket_wrapper.so curl --user-agent "Cisco SVC IPPhone Client v1.0" --silent --insecure https://$ADDRESS:$PORT/svc --include --request GET --output $TMPFILE ) ||
-	fail $PID "GET request failed"
+oc_run svc --method GET || oc_fail "GET request failed"
 
-grep -q "^Set-Cookie: webvpn=; expires=" $TMPFILE || fail $PID "Did not receive cookie"
-grep -q "^Set-Cookie: webvpnlogin=1" $TMPFILE || fail $PID "Did not receive non-auth cookie"
+oc_expect 'Set-Cookie: webvpn=; expires=' "Did not receive cookie"
+oc_expect 'Set-Cookie: webvpnlogin=1' "Did not receive non-auth cookie"
 
 echo "Connecting to obtain cookie... "
-( LD_PRELOAD=libsocket_wrapper.so curl --user-agent "Cisco SVC IPPhone Client v1.0" --silent --insecure https://$ADDRESS:$PORT/svc --include --request POST --data "username=test&password=test" --output $TMPFILE ) ||
-	fail $PID "POST request failed"
+oc_run svc --user test --password test || oc_fail "POST request failed"
 
-grep -q "^Set-Cookie: webvpn=[^;]\+" $TMPFILE || fail $PID "Did not receive cookie"
+oc_expect 'Set-Cookie: webvpn=[^;]+' "Did not receive cookie"
 
 echo "Connecting to obtain cookie with wrong password... "
-( LD_PRELOAD=libsocket_wrapper.so curl --user-agent "Cisco SVC IPPhone Client v1.0" --silent --insecure https://$ADDRESS:$PORT/svc --include --request POST --data "username=test&password=tost" --output $TMPFILE ) ||
-	fail $PID "POST request failed"
+oc_run svc --user test --password tost || oc_fail "POST request failed"
 
-grep -q "Set-Cookie: webvpn=[^;]\+" $TMPFILE && fail $PID "Received cookie when we shouldn't"
+oc_expect_not 'Set-Cookie: webvpn=[^;]+' "Received cookie when we shouldn't"
 
 echo "Connecting to obtain cookie with empty password... "
-( LD_PRELOAD=libsocket_wrapper.so curl --user-agent "Cisco SVC IPPhone Client v1.0" --silent --insecure https://$ADDRESS:$PORT/svc --include --request POST --data "username=test&password=" --output $TMPFILE ) ||
-	fail $PID "POST request failed"
+oc_run svc --user test --password '' || oc_fail "POST request failed"
 
-grep -q "Set-Cookie: webvpn=[^;]\+" $TMPFILE && fail $PID "Received cookie when we shouldn't"
+oc_expect_not 'Set-Cookie: webvpn=[^;]+' "Received cookie when we shouldn't"
 
 echo "Connecting to obtain cookie with wrong username... "
-( LD_PRELOAD=libsocket_wrapper.so curl --user-agent "Cisco SVC IPPhone Client v1.0" --silent --insecure https://$ADDRESS:$PORT/svc --include --request POST --data "username=tost&password=test" --output $TMPFILE ) ||
-	fail $PID "POST request failed"
+oc_run svc --user tost --password test || oc_fail "POST request failed"
 
-grep -q "Set-Cookie: webvpn=[^;]\+" $TMPFILE && fail $PID "Received cookie when we shouldn't"
+oc_expect_not 'Set-Cookie: webvpn=[^;]+' "Received cookie when we shouldn't"
 
 if ! test -f ${PIDFILE};then
 	fail $PID "Could not find pid file ${PIDFILE}"
 fi
 
 cleanup
-
-rm -f "$TMPFILE"
 
 exit 0

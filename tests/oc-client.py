@@ -307,8 +307,35 @@ def cmd_init(server, args):
         server.report('Group: value="%s" label="%s"' % (value, label))
     for auth_id in auth_ids(reply.body):
         server.report("Auth: %s" % auth_id)
+    report_cookies(server, reply)
+    return OK
+
+
+def report_cookies(server, reply):
     for cookie in reply.set_cookies:
         server.report("Set-Cookie: %s" % cookie)
+
+
+@command("svc",
+         arg("--method", choices=["GET", "POST"], default="POST"),
+         arg("--user", help="username to post"),
+         arg("--password", help="password to post"))
+def cmd_svc(server, args):
+    """Send a request to /svc as a Cisco SVC IP phone does.
+
+    Always presents the Cisco SVC client's User-Agent. The username and
+    password, those given, are posted as HTML form fields. Prints each
+    Set-Cookie header as 'Set-Cookie: HEADER'."""
+    fields = {name: value for name, value in
+              (("username", args.user), ("password", args.password))
+              if value is not None}
+    headers = {"User-Agent": CLIENTS["svc"]}
+    body = None
+    if fields:
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+        body = urlencode(fields)
+    reply = server.request(args.method, "/svc", body, headers)
+    report_cookies(server, reply)
     return OK
 
 
