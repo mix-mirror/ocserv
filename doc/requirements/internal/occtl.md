@@ -592,18 +592,18 @@ detail view of `show session`; text listings show only the short ID.
 `handle_list_sessions_cmd()`, `handle_show_session_cmd()`,
 `session_info_cmd()`; doc/occtl.8.md (`show sessions`, `show session`);
 maintainer decision recorded with this requirement.
-**Acceptance:** positive, CI — `tests/test-occtl-commands` Section 6 (short
-SID); `occtl show session <Full session from --json show sessions valid>`
-shows the session. Negative — `occtl show session zzzzzz` prints `Session
-ID not found or expired` and exits 2.
+**Acceptance:** positive, local — `tests/test-occtl-local` (fake server,
+scenario `sessions`): `show session` with the 6-character ID and with the
+full 27-character ID each show only the matching session, and `show
+sessions valid` prints its header first although the first session
+returned is still authenticating. Positive, CI — `tests/test-occtl-commands`
+Section 6 (short SID). Negative — `occtl show session zzzzzz` prints
+`Session ID not found or expired` and exits 2.
 `[REVIEW: decided 2026-11-08 — match the full ID, fail when none matches.
-Code does not yet conform: the match is strncmp() against the shortened
-6-character ID, so any ARG longer than 6 characters never matches;
-handle_show_session_cmd ignores session_info_cmd's "not found" result and
-exits 0; and the text header is printed only when the first returned
-entry is listed, so `show sessions valid` loses it when that entry is not
-PS_AUTH_COMPLETED. Left open: exiting 2 when nothing matches changes an exit
-status from 0, which conflicts with REQ-OCCTL-CLI-011.]`
+The matching and the header conform. Left open: handle_show_session_cmd()
+ignores session_info_cmd()'s "not found" result and exits 0; exiting 2
+instead changes an exit status from 0, which conflicts with
+REQ-OCCTL-CLI-011.]`
 **Links:** REQ-SECMOD-SESSION-006, REQ-OCCTL-ERR-002
 
 ### REQ-OCCTL-SESSION-008 — show events: initial list then one update per connect/disconnect

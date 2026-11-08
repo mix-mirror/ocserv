@@ -1117,6 +1117,7 @@ static void session_list(struct unix_ctx *ctx, SecmListCookiesReplyMsg *rep,
 	struct tm *tm, _tm;
 	char str_since[65];
 	const char *sid;
+	bool header_printed = false;
 
 	session_entries_clear();
 
@@ -1132,8 +1133,8 @@ static void session_list(struct unix_ctx *ctx, SecmListCookiesReplyMsg *rep,
 			if (username == NULL || username[0] == 0)
 				username = NO_USER;
 
-			/* add header */
-			if (i == 0) {
+			if (!header_printed) {
+				header_printed = true;
 				fprintf(out, "%6s %8s %8s %14s %24s %8s %8s\n",
 					"session", "user", "vhost", "ip",
 					"user agent", "created", "status");
@@ -1788,7 +1789,11 @@ static int session_info_cmd(void *ctx, SecmListCookiesReplyMsg *args, FILE *out,
 			      args->cookies[i]->safe_id.len, 1);
 		session_entries_add(ctx, sid);
 
-		if (lsid && strncmp(sid, lsid, match_len) != 0)
+		/* match against the full ID, so that both the short ID and
+		 * the full one printed by --json select the session */
+		if (lsid && (args->cookies[i]->safe_id.len < match_len ||
+			     memcmp(args->cookies[i]->safe_id.data, lsid,
+				    match_len) != 0))
 			continue;
 
 		vis[n_visible++] = i;

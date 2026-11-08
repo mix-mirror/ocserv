@@ -106,4 +106,34 @@ for cmd in "show user" "disconnect user" "terminate user";do
 done
 stop_server
 
+# REQ-OCCTL-SESSION-007: 'show session' matches the full session ID as
+# well as the short one, and 'show sessions valid' prints its header even
+# when the first session returned is not listed.
+echo " * show session matches the full and the short session ID..."
+start_server sessions
+FULL=XyZ987AbCdEfGhIjKlMnOpQrStu
+for sid in XyZ987 ${FULL};do
+	${OCCTL} -n -s ${SOCKET} show session ${sid} >${OUT} 2>&1
+	if ! grep -q "Username: alice" ${OUT};then
+		echo "FAIL: expected 'show session ${sid}' to show user alice, got: $(cat ${OUT})"
+		exit 1
+	fi
+	if grep -q "pending" ${OUT};then
+		echo "FAIL: expected 'show session ${sid}' to show only the matching session, got: $(cat ${OUT})"
+		exit 1
+	fi
+done
+
+echo " * show sessions valid prints its header..."
+${OCCTL} -n -s ${SOCKET} show sessions valid >${OUT} 2>&1
+if ! head -n 1 ${OUT} | grep -q "session.*user.*status";then
+	echo "FAIL: expected the column header on the first line, got: $(cat ${OUT})"
+	exit 1
+fi
+if ! grep -q "^XyZ987 .*alice" ${OUT} || grep -q "pending" ${OUT};then
+	echo "FAIL: expected only the authenticated session listed, got: $(cat ${OUT})"
+	exit 1
+fi
+stop_server
+
 exit 0

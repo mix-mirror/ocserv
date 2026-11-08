@@ -44,6 +44,44 @@ CTL_CMD_TOP_UPDATE_REP = 109
 CTL_CMD_LIST_COOKIES_REP = 110
 
 
+# src/defs.h, PS_AUTH_*
+PS_AUTH_INIT = 2
+PS_AUTH_COMPLETED = 4
+
+# A safe_id as main sends it: SAFE_ID_SIZE bytes including the final NUL
+SAFE_ID_INIT = b"AbCdEf0123456789abcdefghijk\0"
+SAFE_ID_DONE = b"XyZ987AbCdEfGhIjKlMnOpQrStu\0"
+
+
+def varint(n):
+    out = b""
+    while True:
+        b = n & 0x7F
+        n >>= 7
+        if n:
+            out += bytes([b | 0x80])
+        else:
+            return out + bytes([b])
+
+
+def field_int(num, value):
+    return varint(num << 3) + varint(value)
+
+
+def field_bytes(num, value):
+    if isinstance(value, str):
+        value = value.encode()
+    return varint((num << 3) | 2) + varint(len(value)) + value
+
+
+def cookie_int_msg(safe_id, username, status):
+    return (field_bytes(1, safe_id) + field_int(2, 1) + field_int(3, 0) +
+            field_int(4, 1700000000) + field_bytes(5, username) +
+            field_bytes(7, "fake-agent") + field_bytes(8, "192.0.2.10") +
+            field_int(9, 0) + field_int(10, status) + field_int(11, 0) +
+            field_bytes(12, "default"))
+
+
 def frame(cmd, payload=b""):
     """The framing of send_msg(): command byte, host-order length, body."""
     return struct.pack("=BI", cmd, len(payload)) + payload
@@ -73,8 +111,19 @@ def silent(conn, cmd):
         pass
 
 
+def sessions(conn, cmd):
+    """Answers CTL_CMD_LIST_COOKIES with an authenticating session listed
+    before an authenticated one."""
+    reply = (field_bytes(1, cookie_int_msg(SAFE_ID_INIT, "pending",
+                                           PS_AUTH_INIT)) +
+             field_bytes(1, cookie_int_msg(SAFE_ID_DONE, "alice",
+                                           PS_AUTH_COMPLETED)))
+    conn.sendall(frame(CTL_CMD_LIST_COOKIES_REP, reply))
+
+
 SCENARIOS = {
     "silent": silent,
+    "sessions": sessions,
 }
 
 
