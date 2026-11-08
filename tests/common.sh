@@ -299,6 +299,22 @@ cleanup_client_server() {
 	test -n "${CONFIG}" && rm -f "${CONFIG}" >/dev/null 2>&1
 }
 
+# require_oc_client: skips the test when python3, which tests/oc-client.py
+# needs, is missing
+require_oc_client() {
+	if ! test -x "$(command -v python3)"; then
+		echo "python3 is needed to run this test"
+		exit 77
+	fi
+}
+
+# oc_client [OPTIONS] COMMAND [ARGS]: runs tests/oc-client.py
+# (REQ-GEN-TEST-014) against the server at ADDRESS:PORT
+oc_client() {
+	LD_PRELOAD=libsocket_wrapper.so python3 "${srcdir}/oc-client.py" \
+		--address ${ADDRESS} --port ${PORT} "$@"
+}
+
 # Check for a utility to list ports.  Both ss and netstat will list
 # ports for normal users, and have similar semantics, so put the
 # command in the caller's PFCMD, or exit, indicating an unsupported

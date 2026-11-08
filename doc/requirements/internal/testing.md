@@ -507,7 +507,9 @@ requests with one of:
       Cisco SVC), or oversized or malformed HTTP. A test that needs such
       a request MUST add a command to `oc-client.py`; it MUST NOT build
       the request itself with curl, an inline script or a new helper
-      program.
+      program. A test MUST run the tool through `oc_client` of
+      `tests/common.sh`, after calling `require_oc_client`, which skips
+      the test (`REQ-GEN-TEST-005`) when python3 is missing.
   (c) **curl**, only for a request whose checked result is its HTTP
       status code or response headers alone, that carries no
       AnyConnect/OpenConnect message body and no credentials other than
@@ -545,8 +547,9 @@ sends to them; packet capture (`tcpdump`); capability probes
 `ocpasswd`).
 **Strength:** MUST / MUST NOT
 **Status:** DERIVED
-**Source:** `tests/oc-client.py` (`command`, `cmd_groups`, `cmd_login`,
-`main`); `tests/test-vhost-select-group` as the reference consumer;
+**Source:** `tests/oc-client.py` (`Server`, `command`, `cmd_groups`,
+`cmd_login`, `main`); `tests/common.sh` (`require_oc_client`,
+`oc_client`); `tests/test-vhost-select-group` as the reference consumer;
 maintainer decision recorded with this requirement.
 **Acceptance:** code-review — for each new or changed test that starts
 ocserv, confirm every request it sends to ocserv goes through

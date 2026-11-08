@@ -24,10 +24,7 @@ NO_NEED_ROOT=1
 . `dirname $0`/common.sh
 . `dirname $0`/random-vpnnet.sh
 
-if ! test -x "$(command -v python3)"; then
-	echo "python3 is needed to run this test"
-	exit 77
-fi
+require_oc_client
 
 eval "${GETPORT}"
 
@@ -57,9 +54,7 @@ wait_server $PID
 client() {
 	host=$1
 	shift
-	LD_PRELOAD=libsocket_wrapper.so python3 "${srcdir}/oc-client.py" \
-		--address $ADDRESS --port $PORT --host $host \
-		--output ${CLIENT_OUT} --log ${CLIENT_LOG} "$@"
+	oc_client --host $host --output ${CLIENT_OUT} --log ${CLIENT_LOG} "$@"
 }
 
 # failure WHAT: prints the client's output and exchange and the server's log,

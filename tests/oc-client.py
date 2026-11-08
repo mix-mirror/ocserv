@@ -49,6 +49,7 @@ import re
 import socket
 import ssl
 import sys
+from urllib.parse import urlencode
 from xml.sax.saxutils import escape
 
 OK = 0
@@ -56,6 +57,14 @@ REFUSED = 1
 ERROR = 2
 
 CLIENT_VERSION = "4.8.03036"
+# The User-Agent of each class of client ocserv tells apart; it acts on the
+# class, not on the exact string
+CLIENTS = {
+    "anyconnect": "AnyConnect Darwin_i386 " + CLIENT_VERSION,
+    "openconnect": "Open AnyConnect VPN Agent v9.12",
+    "svc": "Cisco SVC IPPhone Client v1.0",
+    "none": None,
+}
 TIMEOUT = 10
 
 
@@ -71,12 +80,14 @@ class ProtocolError(Exception):
 class _VhostConnection(http.client.HTTPSConnection):
     """Connects to an address but names the virtual host in SNI and in the
     Host header, like curl --resolve. The tests' server certificates are
-    not verified."""
+    not verified; a client certificate is presented when one is given."""
 
-    def __init__(self, address, port, vhost):
+    def __init__(self, address, port, vhost, cert=None, key=None):
         self.tls = ssl.create_default_context()
         self.tls.check_hostname = False
         self.tls.verify_mode = ssl.CERT_NONE
+        if cert is not None:
+            self.tls.load_cert_chain(cert, key)
         super().__init__(vhost, port, timeout=TIMEOUT, context=self.tls)
         self.address = address
 
@@ -93,11 +104,14 @@ class Reply:
 
 
 class Server:
-    """Sends requests the way an AnyConnect client does and keeps the
-    cookies the server sets, as a client must to continue a login."""
+    """Sends requests to one virtual host as the client named by its
+    User-Agent, and keeps the cookies the server sets, as a client must to
+    continue a login."""
 
-    def __init__(self, address, port, vhost, output, log):
-        self.conn = _VhostConnection(address, port, vhost)
+    def __init__(self, address, port, vhost, user_agent, output, log,
+                 cert=None, key=None):
+        self.conn = _VhostConnection(address, port, vhost, cert, key)
+        self.user_agent = user_agent
         self.cookies = {}
         self.output = output
         self.log = log
@@ -112,17 +126,28 @@ class Server:
         for line in body.splitlines():
             print("%s   %s" % (direction, line), file=self.log)
 
-    def post(self, body, path="/"):
-        headers = {
-            "User-Agent": "AnyConnect Darwin_i386 " + CLIENT_VERSION,
-            "X-Transcend-Version": "1",
-            "X-Aggregate-Auth": "1",
-        }
+    def post_xml(self, body, path="/"):
+        """Posts an AnyConnect aggregate authentication message."""
+        return self.request("POST", path, body,
+                            {"X-Transcend-Version": "1",
+                             "X-Aggregate-Auth": "1"})
+
+    def post_form(self, fields, path):
+        """Posts HTML form fields, as the Cisco SVC client does."""
+        return self.request(
+            "POST", path, urlencode(fields),
+            {"Content-Type": "application/x-www-form-urlencoded"})
+
+    def request(self, method, path, body=None, headers=None):
+        headers = dict(headers or {})
+        if self.user_agent and "User-Agent" not in headers:
+            headers["User-Agent"] = self.user_agent
         if self.cookies:
             headers["Cookie"] = "; ".join(
                 "%s=%s" % c for c in self.cookies.items())
-        self.trace(">", "POST %s" % path, body)
-        self.conn.request("POST", path, body.encode(), headers)
+        self.trace(">", "%s %s" % (method, path), body or "")
+        self.conn.request(method, path,
+                          None if body is None else body.encode(), headers)
         resp = self.conn.getresponse()
         reply = Reply(resp.status, resp.read().decode(errors="replace"))
         set_cookies = resp.msg.get_all("Set-Cookie") or []
@@ -227,7 +252,7 @@ def command(name, *arguments):
 def cmd_groups(server, args):
     """Print the groups the login form offers, in the order offered, as
     'value<TAB>label' lines."""
-    reply = server.post(init_request(group=args.group))
+    reply = server.post_xml(init_request(group=args.group))
     if reply.status != 200:
         raise ProtocolError("expected the login form, got HTTP %d"
                             % reply.status)
@@ -248,11 +273,11 @@ def cmd_groups(server, args):
 def cmd_login(server, args):
     """Log in with a username and password; succeed if the server issues
     a session cookie, refuse if it rejects the login."""
-    reply = server.post(init_request(group=args.group))
+    reply = server.post_xml(init_request(group=args.group))
     if reply.status != 200 or not asks_for_password(reply.body):
         raise ProtocolError("expected the login form, got HTTP %d"
                             % reply.status)
-    reply = server.post(auth_reply(args.user, args.password, args.group))
+    reply = server.post_xml(auth_reply(args.user, args.password, args.group))
     if reply.status == 401:
         server.report("login rejected")
         return REFUSED
@@ -275,6 +300,15 @@ def main():
     parser.add_argument("--host",
                         help="virtual host named in SNI and the Host header "
                         "(default: the address)")
+    parser.add_argument("--client", choices=CLIENTS, default="anyconnect",
+                        help="class of client to present as, by its "
+                        "User-Agent; none sends no User-Agent (default: "
+                        "%(default)s)")
+    parser.add_argument("--user-agent",
+                        help="exact User-Agent to send instead of the "
+                        "--client one")
+    parser.add_argument("--cert", help="client certificate file")
+    parser.add_argument("--key", help="client certificate's key file")
     parser.add_argument("--output", type=argparse.FileType("w"),
                         default=sys.stdout,
                         help="file to print what was observed to "
@@ -292,10 +326,14 @@ def main():
             sub.add_argument(*flags, **options)
         sub.set_defaults(func=func)
     args = parser.parse_args()
+    user_agent = args.user_agent
+    if user_agent is None:
+        user_agent = CLIENTS[args.client]
 
-    server = Server(args.address, args.port, args.host or args.address,
-                    args.output, args.log)
     try:
+        server = Server(args.address, args.port, args.host or args.address,
+                        user_agent, args.output, args.log, args.cert,
+                        args.key)
         return args.func(server, args)
     except (ProtocolError, OSError, http.client.HTTPException) as e:
         print("ERROR: %s" % e, file=sys.stderr)
