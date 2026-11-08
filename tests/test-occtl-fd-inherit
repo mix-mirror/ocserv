@@ -1,0 +1,112 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# This test validates that a worker never holds the occtl listening socket
+# (REQ-OCCTL-SEC-004), including after a reload that sets use-occtl to
+# false. Rather than looking for that one socket, it checks that no worker
+# shares any socket with main: main closes its copy of every socket it hands
+# to a worker, so a socket open in both was leaked across fork() and exec().
+
+OCCTL="${OCCTL:-../src/occtl/occtl}"
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+TMPFILE=ocfile.$$.tmp
+PIDFILE=ocserv-pid.$$.tmp
+CLIPID=oc-pid.$$.tmp
+OCCTL_SOCKET=./occtl-fd-$$.socket
+PIN=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8=
+
+. `dirname $0`/common.sh
+
+eval "${GETPORT}"
+
+if test "$(id -u)" != "0";then
+	echo "This test must be run as root"
+	exit 77
+fi
+
+function finish {
+  echo " * Cleaning up..."
+  cleanup_client_server
+  test -n "${TMPFILE}" && rm -f ${TMPFILE} >/dev/null 2>&1
+}
+trap finish EXIT
+
+. `dirname $0`/random-net.sh
+. `dirname $0`/ns.sh
+
+update_config test-occtl-commands.config
+if test "$VERBOSE" = 1;then
+	DEBUG="-d 3"
+fi
+
+${CMDNS2} ${SERV} -p ${PIDFILE} -f -c ${CONFIG} ${DEBUG} & PID=$!
+
+sleep 4
+
+# sockets PID: the sockets the process holds, one per line, sorted
+sockets() {
+	ls -l /proc/$1/fd 2>/dev/null | grep -o 'socket:\[[0-9]*\]' | sort -u
+}
+
+# check_workers: fails if any worker holds a socket that main also holds
+check_workers() {
+	rm -f ${CLIPID}
+	echo "test" | ${CMDNS1} ${OPENCONNECT} -q ${ADDRESS}:${PORT} -u test \
+		--servercert=${PIN} -s /bin/true --passwd-on-stdin \
+		--pid-file=${CLIPID} -b
+	if test $? != 0;then
+		fail $PID "Could not connect to server"
+	fi
+	sleep 2
+
+	WORKERS=$(pgrep -P ${PID} ocserv-worker)
+	if test -z "${WORKERS}";then
+		fail $PID "No worker process found"
+	fi
+	MAIN_SOCKS=$(sockets ${PID})
+	if test -z "${MAIN_SOCKS}";then
+		fail $PID "Could not list the sockets of main (${PID})"
+	fi
+	for w in ${WORKERS};do
+		SHARED=$(comm -12 <(sockets ${w}) <(echo "${MAIN_SOCKS}"))
+		if test -n "${SHARED}";then
+			fail $PID "FAIL: expected worker ${w} to share no socket with main, got $(echo ${SHARED})"
+		fi
+	done
+
+	kill $(cat ${CLIPID}) >/dev/null 2>&1
+	rm -f ${CLIPID}
+	sleep 2
+	reset_client_routes
+}
+
+echo " * Checking workers with use-occtl = true..."
+check_workers
+
+echo " * Reloading with use-occtl = false..."
+sed -i 's/^use-occtl = true/use-occtl = false/' ${CONFIG}
+kill -HUP ${PID}
+sleep 3
+
+echo " * Checking workers after the reload..."
+check_workers
+
+exit 0

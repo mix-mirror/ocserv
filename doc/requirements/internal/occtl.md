@@ -166,25 +166,19 @@ main MUST mark `ctl_fd` close-on-exec when creating it, in addition to
 closing it in `clear_lists()`, so the guarantee does not depend on the
 `use-occtl` value at fork time.
 **Strength:** MUST NOT
-**Status:** REVIEW
+**Status:** DERIVED
 **Source:** src/main.c `listen_watcher_cb()` (`execv(worker_path, ...)`);
 src/main-ctl-unix.c `ctl_handle_commands()` (accepted connections,
 including `top_fd`, are `set_cloexec_flag`ed and so close at exec);
-src/main-ctl-unix.c `ctl_handler_init()` (`ctl_fd` is created by plain
-`socket()`, not close-on-exec); src/main.c `clear_lists()` (calls
-`ctl_handler_deinit()`); src/main-ctl-unix.c `ctl_handler_deinit()`
-(returns without closing `ctl_fd` when `use_occtl == 0`); maintainer
-decision recorded with this requirement.
-**Acceptance:** [SEC] negative, CI — with a worker running, list
-`/proc/<worker-pid>/fd` and confirm no socket whose inode matches the occtl
-listening socket or an open occtl connection; repeat while an `occtl show
-events` connection is open. Unit/inspection — `fcntl(ctl_fd, F_GETFD)`
-has `FD_CLOEXEC` after `ctl_handler_init()`.
-`[REVIEW: decided 2026-11-08 — a plain bug, not a security issue (seccomp
-worker, root-only occtl peers). Code does not yet conform: `ctl_fd` lacks
-close-on-exec, so after a `use-occtl` true→false reload it survives exec
-into every later worker. Making `use-occtl` non-reloadable
-(REQ-OCCTL-CFG-004) removes that path; close-on-exec is required as well.]`
+src/main-ctl-unix.c `ctl_handler_init()` (`ctl_fd` is marked
+close-on-exec); src/main.c `clear_lists()` (calls
+`ctl_handler_deinit()`); maintainer decision recorded with this
+requirement.
+**Acceptance:** [SEC] negative, CI — `tests/test-occtl-fd-inherit`: with a
+worker running, no socket in `/proc/<worker-pid>/fd` is also open in main
+(`/proc/<main-pid>/fd`); main closes its copy of every socket it hands to a
+worker, so this covers the occtl listening socket without naming it. Checked
+both at startup and after a reload that sets `use-occtl = false`.
 **Links:** REQ-MAIN-INIT-001, REQ-GEN-SEC-002, REQ-OCCTL-CFG-004
 
 ---

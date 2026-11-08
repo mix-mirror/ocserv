@@ -156,6 +156,7 @@ int ctl_handler_init(main_server_st *s)
 		      GETSCONFIG(s)->occtl_socket_file, strerror(e));
 		return -1;
 	}
+	set_cloexec_flag(sd, 1);
 
 	umask(066);
 	ret = bind(sd, (struct sockaddr *)&sa, SUN_LEN(&sa));
