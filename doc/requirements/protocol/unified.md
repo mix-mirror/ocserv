@@ -378,11 +378,11 @@ scope for `internal/worker.md`).
 **Links**: `internal/sec-mod.md` GSSAPI module
 
 ### REQ-PROTO-AUTH-010
-**Requirement**: When `n_group_list > 0` is configured, the server's
+**Requirement**: When `n_select_groups > 0` is configured, the server's
 `auth-request` form MUST present a `<select name="group_list">` element
-enumerating the configured groups (using `friendly_group_list` display names
-where present), and the server MUST, on `auth-reply`, resolve the submitted
-group value back to its canonical `group_list[i]` entry (matching either the
+enumerating the configured groups (using `select_groups[i]->label` display
+names where present), and the server MUST, on `auth-reply`, resolve the submitted
+group value back to its canonical `select_groups[i]->name` (matching either the
 canonical name or the friendly name) before proceeding; an unresolvable group
 value MUST NOT be silently accepted.
 **Class**: EXTENSION
@@ -397,7 +397,7 @@ resolving the client's selection.
 form contains one `<option value="...">...</option>` per configured group
 (friendly name as label if configured); submitting a value matching either a
 canonical or friendly group name resolves (`resolve_selected_group` returns 1);
-submitting an unrecognized value when `n_group_list > 0` returns 0 (caller must
+submitting an unrecognized value when `n_select_groups > 0` returns 0 (caller must
 reject — `[REVIEW]`: confirm the caller of `resolve_selected_group` actually
 rejects a 0 return rather than proceeding with an empty/default group, as this
 is a SEC-relevant negative path per the README's "negative requirements are

@@ -223,25 +223,31 @@ int complete_vpn_info(worker_st *ws, struct vpn_st *vinfo)
 	return 0;
 }
 
+/* The kernel refuses a signal stack that cannot hold the signal frame of the
+ * CPU, which with AMX state exceeds the constant 8 KiB SIGSTKSZ of musl.
+ */
+#define MIN_SIGNAL_STACK_SIZE (64 * 1024)
+
 void ocsigaltstack(struct worker_st *ws)
 {
 #if defined(HAVE_SIGALTSTACK) && defined(HAVE_POSIX_MEMALIGN)
+	size_t size = MAX((size_t)SIGSTKSZ, MIN_SIGNAL_STACK_SIZE);
 	stack_t ss;
 	int e;
 
 	/* setup the stack for signal handlers */
-	if (posix_memalign((void **)&ss.ss_sp, getpagesize(), SIGSTKSZ) != 0) {
+	if (posix_memalign((void **)&ss.ss_sp, getpagesize(), size) != 0) {
 		oclog(ws, LOG_ERR,
 		      "could not allocate memory for signal stack");
 		exit(EXIT_FAILURE);
 	}
-	if (mprotect(ss.ss_sp, SIGSTKSZ, PROT_READ | PROT_WRITE) == -1) {
+	if (mprotect(ss.ss_sp, size, PROT_READ | PROT_WRITE) == -1) {
 		e = errno;
 		free(ss.ss_sp);
 		oclog(ws, LOG_ERR, "mprotect: %s", strerror(e));
 		exit(EXIT_FAILURE);
 	}
-	ss.ss_size = SIGSTKSZ;
+	ss.ss_size = size;
 	ss.ss_flags = 0;
 	if (sigaltstack(&ss, NULL) == -1) {
 		e = errno;

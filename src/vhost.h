@@ -76,6 +76,8 @@ typedef struct vhost_cfg_st {
 	size_t eauth_size;
 	/* set after cfg_copy_from_default() populates this vhost from default */
 	unsigned int cfg_inherited;
+	/* set once this vhost's section replaced the inherited select-group */
+	unsigned int select_group_set;
 #ifdef HAVE_GSSAPI
 	char **urlfw;
 	size_t urlfw_size;

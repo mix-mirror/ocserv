@@ -9,6 +9,7 @@ sources:
   - src/worker-auth.c
   - src/worker-resume.c
   - src/worker-privs.c
+  - src/worker-misc.c
   - src/isolate.c
   - src/tlslib.c
   - src/worker.h
@@ -147,6 +148,21 @@ src/worker-vpn.c:881): every other `ADD_SYSCALL(...)` invocation in that
 function is unconditional — `SOCKET_WRAPPER_DIR` is the only `getenv()` check
 in the file, gating exactly the `readlink`/`readlinkat` pair.
 **Links:** REQ-WORKER-INIT-005
+
+### REQ-WORKER-INIT-007 — The worker's signal stack is large enough for the host CPU's signal frame
+
+**Requirement:** `ocsigaltstack()` MUST allocate a signal stack of at least
+64 KiB, or `SIGSTKSZ` if that is larger, whichever C library the worker is
+built with. `SIGSTKSZ` alone is insufficient: musl defines it as a constant
+8 KiB, which the kernel can reject with `ENOMEM` on CPUs with large extended
+state (e.g. AMX), and the worker then exits before serving the client.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/worker-misc.c:ocsigaltstack()
+**Acceptance:** CI — the `seccomp/Alpine` job (musl) passes its tests on hosts
+where an 8 KiB signal stack is rejected, with no `sigaltstack: Out of memory`
+in the worker's log.
+**Links:** —
 
 ---
 

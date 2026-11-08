@@ -837,20 +837,29 @@ static void clear_unneeded_mem(struct list_head *vconfig)
  * expect a reply immediately.
  */
 void run_sec_mod(sec_mod_instance_st *sec_mod_instance,
-		 unsigned int instance_index)
+		 unsigned int sec_mod_instance_index)
 {
 	int e, fd[2], ret;
 	int sfd[2];
 	pid_t pid;
 	const char *p;
+	struct sockaddr_un addr;
+	socklen_t addr_len;
 
 	main_server_st *s = sec_mod_instance->server;
 
 	/* fills sec_mod_instance->socket_file */
 
-	snprintf(sec_mod_instance->socket_file,
-		 sizeof(sec_mod_instance->socket_file), "%s.%d",
-		 secmod_socket_file_name(GETSCONFIG(s)), instance_index);
+	if (sec_mod_instance_addr(secmod_socket_file_name(GETSCONFIG(s)),
+				  sec_mod_instance_index, &addr,
+				  &addr_len) < 0) {
+		mslog(s, NULL, LOG_ERR,
+		      "too long socket-file; cannot create socket: %s",
+		      secmod_socket_file_name(GETSCONFIG(s)));
+		exit(EXIT_FAILURE);
+	}
+	strlcpy(sec_mod_instance->socket_file, addr.sun_path,
+		sizeof(sec_mod_instance->socket_file));
 	mslog(s, NULL, LOG_DEBUG, "created sec-mod socket file (%s)",
 	      sec_mod_instance->socket_file);
 
@@ -905,7 +914,7 @@ void run_sec_mod(sec_mod_instance_st *sec_mod_instance,
 		clear_unneeded_mem(s->vconfig);
 		sec_mod_server(s->main_pool, s->config_pool, s->vconfig, p,
 			       fd[0], sfd[0], sizeof(s->hmac_key), s->hmac_key,
-			       s->sso_key, instance_index);
+			       s->sso_key, sec_mod_instance_index);
 		exit(EXIT_SUCCESS);
 	} else if (pid > 0) { /* parent */
 		close(fd[0]);

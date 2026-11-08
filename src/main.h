@@ -310,6 +310,10 @@ typedef struct main_server_st {
 	 * login), which come back to it through a worker */
 	const uint8_t sso_key[HMAC_DIGEST_SIZE];
 
+	/* the base name of the sockets of the sec-mod instances, as the
+	 * workers reach them (relative to the chroot, if any) */
+	const char *secmod_socket_base;
+
 	/* used as temporary buffer (currently by forward_udp_to_owner) */
 	uint8_t msg_buffer[MAX_MSG_SIZE];
 
@@ -355,7 +359,7 @@ int check_multiple_users(main_server_st *s, struct proc_st *proc);
 int handle_script_exit(main_server_st *s, struct proc_st *proc, int code);
 
 void run_sec_mod(sec_mod_instance_st *sec_mod_instance,
-		 unsigned int instance_index);
+		 unsigned int sec_mod_instance_index);
 
 struct proc_st *new_proc(main_server_st *s, pid_t pid, int cmd_fd,
 			 struct sockaddr_storage *remote_addr,

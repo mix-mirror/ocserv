@@ -611,14 +611,23 @@ for iface in 5 6 7 8 9 10; do
 done
 echo "OK"
 
-echo "Checking that a sec-mod-scale above 255 is rejected"
+echo "Checking the limit of sec-mod-scale"
+for scale in 300 65535; do
+	cp ${CONFIG} ${CONFIG}.scale
+	printf '\nsec-mod-scale = %s\n' ${scale} >>${CONFIG}.scale
+	if ! ${SERV} -t -c ${CONFIG}.scale >${CONFIG}.scale.out 2>&1; then
+		cat ${CONFIG}.scale.out
+		fail $PID "FAIL: expected sec-mod-scale = ${scale} to be accepted, got it rejected"
+	fi
+done
 cp ${CONFIG} ${CONFIG}.scale
-printf '\nsec-mod-scale = 300\n' >>${CONFIG}.scale
+printf '\nsec-mod-scale = 65536\n' >>${CONFIG}.scale
 if ${SERV} -t -c ${CONFIG}.scale >${CONFIG}.scale.out 2>&1; then
-	fail $PID "A sec-mod-scale above 255 was accepted"
+	fail $PID "FAIL: expected sec-mod-scale = 65536 to be rejected, got it accepted"
 fi
-if ! grep -q "'sec-mod-scale' must not exceed 255" ${CONFIG}.scale.out; then
-	fail $PID "A sec-mod-scale above 255 was rejected for another reason"
+if ! grep -q "'sec-mod-scale' must not exceed 65535" ${CONFIG}.scale.out; then
+	cat ${CONFIG}.scale.out
+	fail $PID "FAIL: expected sec-mod-scale = 65536 to be rejected for the limit, got another reason"
 fi
 rm -f ${CONFIG}.scale.out
 rm -f ${CONFIG}.scale
@@ -644,22 +653,28 @@ if echo "${RESULT}" | grep -q 'id="success"'; then
 	fail $PID "A token with an altered tag was accepted"
 fi
 
-# the instance altered, to another one which exists
-FIRST=$(echo "${TOKEN}" | cut -c1-2)
-if test "${FIRST}" = "00"; then OTHER=01; else OTHER=00; fi
-RESULT=$(claim_session Developers "${OTHER}${TOKEN#??}")
+# the instance, in the first two bytes, altered to another one which exists
+FIRST=$(echo "${TOKEN}" | cut -c1-4)
+case "${FIRST}" in
+0000 | 0001 | 0002 | 0003) ;;
+*) fail $PID "FAIL: expected an instance index below 4 in the token, got ${FIRST}" ;;
+esac
+if test "${FIRST}" = "0000"; then OTHER=0001; else OTHER=0000; fi
+RESULT=$(claim_session Developers "${OTHER}${TOKEN#????}")
 if echo "${RESULT}" | grep -q 'id="success"'; then
 	fail $PID "A token with an altered instance was accepted"
 fi
 
-# an instance which does not exist
-RESULT=$(claim_session Developers "ff${TOKEN#??}")
-if echo "${RESULT}" | grep -q 'id="success"'; then
-	fail $PID "A token naming no instance was accepted"
-fi
+# an instance which does not exist, including above the one byte limit
+for idx in 0004 0100 ffff; do
+	RESULT=$(claim_session Developers "${idx}${TOKEN#????}")
+	if echo "${RESULT}" | grep -q 'id="success"'; then
+		fail $PID "A token naming no instance (${idx}) was accepted"
+	fi
+done
 
 # a value which only looks like a token
-RESULT=$(claim_session Developers "ff$(printf '%064d' 0)")
+RESULT=$(claim_session Developers "ffff$(printf '%064d' 0)")
 if echo "${RESULT}" | grep -q 'id="success"'; then
 	fail $PID "A forged token was accepted"
 fi

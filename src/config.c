@@ -112,32 +112,6 @@ static void vhost_inherit_static_config(vhost_cfg_st *vhost,
 		}                                                           \
 	}
 
-#define READ_MULTI_BRACKET_LINE(varname, varname2, num)                    \
-	{                                                                  \
-		if (varname == NULL || varname2 == NULL) {                 \
-			num = 0;                                           \
-			varname = talloc_array(pool, char *,               \
-					       DEFAULT_CONFIG_ENTRIES);    \
-			varname2 = talloc_array(pool, char *,              \
-						DEFAULT_CONFIG_ENTRIES);   \
-			if (varname == NULL || varname2 == NULL) {         \
-				fprintf(stderr, ERRSTR "memory\n");        \
-				exit(EXIT_FAILURE);                        \
-			}                                                  \
-		}                                                          \
-		if (num < DEFAULT_CONFIG_ENTRIES) {                        \
-			char *xp;                                          \
-			varname[num] = talloc_strdup(pool, value);         \
-			xp = strchr(varname[num], '[');                    \
-			if (xp != NULL)                                    \
-				*xp = 0;                                   \
-			varname2[num] = get_brackets_string1(pool, value); \
-			num++;                                             \
-			varname[num] = NULL;                               \
-			varname2[num] = NULL;                              \
-		}                                                          \
-	}
-
 #define PREAD_STRING(pool, varname)                         \
 	{                                                   \
 		unsigned int len = strlen(value);           \
@@ -596,6 +570,70 @@ static ReloadableConfig *cfg_copy_from_default(const ReloadableConfig *def,
 		exit(EXIT_FAILURE);
 	}
 	return copy;
+}
+
+static void clear_select_groups(ReloadableConfig *config)
+{
+	talloc_free(config->select_groups);
+	config->select_groups = NULL;
+	config->n_select_groups = 0;
+}
+
+static void add_select_group(ReloadableConfig *config, const char *name,
+			     const char *label)
+{
+	SelectGroup **groups;
+	SelectGroup *group;
+
+	groups = talloc_realloc(config, config->select_groups, SelectGroup *,
+				config->n_select_groups + 1);
+	if (groups == NULL)
+		goto fail;
+	config->select_groups = groups;
+
+	group = talloc(config, SelectGroup);
+	if (group == NULL)
+		goto fail;
+	select_group__init(group);
+
+	group->name = talloc_strdup(group, name);
+	if (group->name == NULL)
+		goto fail;
+
+	if (label != NULL && label[0] != 0) {
+		group->label = talloc_strdup(group, label);
+		if (group->label == NULL)
+			goto fail;
+	}
+
+	groups[config->n_select_groups++] = group;
+	return;
+
+fail:
+	fprintf(stderr, ERRSTR "memory\n");
+	exit(EXIT_FAILURE);
+}
+
+/* Parses the "name[label]" value of the select-group option */
+static void read_select_group(ReloadableConfig *config, const char *value)
+{
+	char *name, *label, *p;
+
+	name = talloc_strdup(config, value);
+	if (name == NULL) {
+		fprintf(stderr, ERRSTR "memory\n");
+		exit(EXIT_FAILURE);
+	}
+
+	p = strchr(name, '[');
+	if (p != NULL)
+		*p = 0;
+	label = get_brackets_string1(config, value);
+
+	add_select_group(config, name, label);
+
+	talloc_free(name);
+	talloc_free(label);
 }
 
 #ifdef HAVE_GSSAPI
@@ -1198,7 +1236,7 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 			    MAX_SEC_MOD_INSTANCES) {
 				fprintf(stderr,
 					ERRSTR
-					"'sec-mod-scale' must not exceed %d\n",
+					"'sec-mod-scale' must not exceed %u\n",
 					MAX_SEC_MOD_INSTANCES);
 				return 0;
 			}
@@ -1540,9 +1578,12 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 	} else if (strcmp(name, "auto-select-group") == 0) {
 		READ_TF_VC(auto_select_group);
 	} else if (strcmp(name, "select-group") == 0) {
-		READ_MULTI_BRACKET_LINE(config->group_list,
-					config->friendly_group_list,
-					config->n_group_list);
+		/* A vhost's list replaces the inherited one, so that it can
+		 * offer fewer groups than the default vhost. */
+		if (vhost->cfg_inherited && !vhost->select_group_set)
+			clear_select_groups(config);
+		vhost->select_group_set = 1;
+		read_select_group(config, value);
 	} else if (strcmp(name, "dns") == 0) {
 		_add_multi_line_val(config->network, &config->network->dns,
 				    &config->network->n_dns, value);
@@ -1797,23 +1838,28 @@ static void parse_cfg_file(void *pool, const char *file, struct list_head *head,
 		if (config->auto_select_group != 0 &&
 		    vhost->static_config.auth[0].amod != NULL &&
 		    vhost->static_config.auth[0].amod->group_list != NULL) {
-			unsigned int grp_sz = 0;
+			unsigned int grp_sz = 0, grp;
+			char **groups = NULL;
 
 			vhost->static_config.auth[0].amod->group_list(
 				config, vhost->static_config.auth[0].additional,
-				&config->group_list, &grp_sz);
-			config->n_group_list = grp_sz;
+				&groups, &grp_sz);
+
+			clear_select_groups(config);
+			for (grp = 0; grp < grp_sz; grp++)
+				add_select_group(config, groups[grp], NULL);
+
 			switch (vhost->static_config.auth[0].amod->type) {
 			case AUTH_TYPE_PAM | AUTH_TYPE_USERNAME_PASS:
-				pam_auth_group_list = config->group_list;
+				pam_auth_group_list = groups;
 				pam_auth_group_list_size = grp_sz;
 				break;
 			case AUTH_TYPE_GSSAPI:
-				gssapi_auth_group_list = config->group_list;
+				gssapi_auth_group_list = groups;
 				gssapi_auth_group_list_size = grp_sz;
 				break;
 			case AUTH_TYPE_PLAIN | AUTH_TYPE_USERNAME_PASS:
-				plain_auth_group_list = config->group_list;
+				plain_auth_group_list = groups;
 				plain_auth_group_list_size = grp_sz;
 				break;
 			}
@@ -2210,15 +2256,15 @@ static void check_cfg(vhost_cfg_st *vhost, vhost_cfg_st *defvhost,
 	/* select-group entries are matched against group names that are
 	 * stored in fixed-size (MAX_GROUPNAME_SIZE) worker buffers; an entry
 	 * that does not fit can never be selected by a client. */
-	for (j = 0; j < config->n_group_list; j++) {
-		if (config->group_list[j] != NULL &&
-		    strlen(config->group_list[j]) >= MAX_GROUPNAME_SIZE &&
-		    !silent) {
+	for (j = 0; j < config->n_select_groups; j++) {
+		const char *group = config->select_groups[j]->name;
+
+		if (strlen(group) >= MAX_GROUPNAME_SIZE && !silent) {
 			fprintf(stderr,
 				WARNSTR
 				"%s'select-group' entry '%s' is %u bytes or longer and exceeds the maximum supported group name length (%u); it can never be selected\n",
-				PREFIX_VHOST(vhost), config->group_list[j],
-				(unsigned int)strlen(config->group_list[j]),
+				PREFIX_VHOST(vhost), group,
+				(unsigned int)strlen(group),
 				(unsigned int)MAX_GROUPNAME_SIZE - 1);
 		}
 	}
@@ -2507,6 +2553,7 @@ static void archive_cfg(struct list_head *head)
 
 		/* reset so the next reload re-inherits from the new default */
 		vhost->cfg_inherited = 0;
+		vhost->select_group_set = 0;
 
 		if (e->usage_count == NULL || *e->usage_count == 0) {
 			talloc_free(e);
@@ -2527,6 +2574,7 @@ static void clear_cfg(struct list_head *head)
 		cpos->config = NULL;
 		/* reset so the next reload re-inherits from the new default */
 		cpos->cfg_inherited = 0;
+		cpos->select_group_set = 0;
 	}
 }
 
@@ -2651,27 +2699,24 @@ void remove_pid_file(void)
 int _add_multi_line_val(void *pool, char ***varname, size_t *num,
 			const char *value)
 {
-	unsigned int _max = DEFAULT_CONFIG_ENTRIES;
-	void *tmp;
+	char **tmp;
+	char *str;
 
-	if (*varname == NULL) {
+	if (*varname == NULL)
 		*num = 0;
-		*varname = talloc_array(pool, char *, _max);
-		if (*varname == NULL)
-			return -1;
-	}
 
-	if (*num >= _max - 1) {
-		tmp = talloc_realloc(pool, *varname, char *, (*num) + 2);
-		if (tmp == NULL)
-			return -1;
-		*varname = tmp;
-	}
+	tmp = talloc_realloc(pool, *varname, char *, *num + 1);
+	if (tmp == NULL)
+		return -1;
+	*varname = tmp;
 
-	(*varname)[*num] = talloc_strdup(*varname, value);
+	str = talloc_strdup(*varname, value);
+	if (str == NULL)
+		return -1;
+
+	(*varname)[*num] = str;
 	(*num)++;
 
-	(*varname)[*num] = NULL;
 	return 0;
 }
 
