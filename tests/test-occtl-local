@@ -183,4 +183,20 @@ for key, value in expected.items():
 PYEOF
 test $? = 0 || exit 1
 
+# REQ-OCCTL-CLI-005: show status copes with a reply that lists no sec-mod
+# PID.
+echo " * show status without sec-mod PIDs..."
+start_server status-nopids
+${OCCTL} -n -s ${SOCKET} show status >${OUT} 2>&1
+RET=$?
+stop_server
+if test ${RET} != 0;then
+	echo "FAIL: expected show status to exit 0, got ${RET}: $(cat ${OUT})"
+	exit 1
+fi
+if ! grep -q "Server PID: 4242" ${OUT} || grep -q "Sec-mod PID" ${OUT};then
+	echo "FAIL: expected the server PID and no sec-mod PID, got: $(cat ${OUT})"
+	exit 1
+fi
+
 exit 0

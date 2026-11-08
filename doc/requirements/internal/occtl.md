@@ -791,20 +791,20 @@ sessions, total sessions, total authentication failures, banned IP count,
 and the current-period statistics from `status_rep`; `--debug` MUST add
 `Sec-mod client entries` and `TLS DB entries`. main MUST sum
 `secmod_client_entries`/`tlsdb_entries` and average `avg_auth_time` across
-all sec-mod instances. If the server cannot be reached occtl MUST print
-`Status: offline` and exit 1.
+all sec-mod instances. occtl MUST NOT read a sec-mod PID that the reply
+does not carry (`n_sec_mod_pids` is 0 when main could not allocate the
+list); it then omits the `Sec-mod PID` line. If the server cannot be
+reached occtl MUST print `Status: offline` and exit 1.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/main-ctl-unix.c `method_status()`; src/occtl/unix.c
-`handle_status_cmd()`
+`handle_status_cmd()` (`rep->n_sec_mod_pids > 0`)
 **Acceptance:** positive, CI — `tests/test-occtl-commands` Section 1
 (`Active sessions: 1`, `Server PID:`, `IPs in ban list: 0`); `tests/json`
 (`--json [--debug] show status`). Negative, local — `occtl -s /nonexistent
-show status` prints `Status: offline`, exit 1.
-occtl MUST NOT read a sec-mod PID that the reply does not carry.
-`[REVIEW: code does not yet conform — occtl reads rep->sec_mod_pids[0]
-without checking n_sec_mod_pids, which is 0 if main's talloc_array
-failed.]`
+show status` prints `Status: offline`, exit 1; `tests/test-occtl-local`
+(fake server, scenario `status-nopids`): a reply without sec-mod PIDs
+prints the server PID, no `Sec-mod PID` line, and exits 0.
 **Links:** REQ-OCCTL-ERR-001
 
 ### REQ-OCCTL-CLI-006 — show users / show iroutes list every worker

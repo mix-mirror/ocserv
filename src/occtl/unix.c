@@ -241,8 +241,9 @@ int handle_status_cmd(struct unix_ctx *ctx, const char *arg,
 				   rep->status != 0 ? "online" : "error", 1);
 		print_single_value_int(stdout, params, "Server PID", rep->pid,
 				       1);
-		print_single_value_int(stdout, params, "Sec-mod PID",
-				       rep->sec_mod_pids[0], 1);
+		if (rep->n_sec_mod_pids > 0)
+			print_single_value_int(stdout, params, "Sec-mod PID",
+					       rep->sec_mod_pids[0], 1);
 		print_single_value_int(stdout, params, "Sec-mod instance count",
 				       rep->n_sec_mod_pids, 1);
 

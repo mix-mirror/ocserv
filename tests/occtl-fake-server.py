@@ -162,8 +162,19 @@ def users(conn, cmd):
     conn.sendall(frame(CTL_CMD_LIST_REP, field_bytes(1, user_info_rep())))
 
 
+def status_nopids(conn, cmd):
+    """Answers CTL_CMD_STATUS with a status_rep that lists no sec-mod
+    PIDs, as main sends when it cannot allocate the list."""
+    msg = field_int(1, 1) + field_int(2, 4242)
+    for num in (4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+                20, 21, 22, 23, 24, 25):
+        msg += field_int(num, 0)
+    conn.sendall(frame(CTL_CMD_STATUS_REP, msg))
+
+
 SCENARIOS = {
     "silent": silent,
+    "status-nopids": status_nopids,
     "sessions": sessions,
     "events": events,
     "users": users,
