@@ -82,4 +82,28 @@ if test ${ELAPSED} -lt 8 || test ${ELAPSED} -gt 20;then
 	exit 1
 fi
 
+# REQ-OCCTL-IPC-003: occtl refuses, without contacting the server, a user
+# name too long for main's request buffer, and says so.
+echo " * occtl rejects an over-long user name locally..."
+LONGNAME=$(printf 'a%.0s' $(seq 1 300))
+start_server silent
+for cmd in "show user" "disconnect user" "terminate user";do
+	rm -f ${LOG}
+	timeout 30 ${OCCTL} -n -s ${SOCKET} ${cmd} ${LONGNAME} >${OUT} 2>&1
+	RET=$?
+	if test ${RET} != 1;then
+		echo "FAIL: expected '${cmd} <300 chars>' to exit 1, got ${RET}"
+		exit 1
+	fi
+	if test -s ${LOG};then
+		echo "FAIL: expected '${cmd} <300 chars>' not to send a request, got: $(cat ${LOG})"
+		exit 1
+	fi
+	if ! grep -q "too long" ${OUT};then
+		echo "FAIL: expected '${cmd}' to report the user name as too long, got: $(cat ${OUT})"
+		exit 1
+	fi
+done
+stop_server
+
 exit 0

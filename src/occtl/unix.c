@@ -564,6 +564,19 @@ cleanup:
 	return ret;
 }
 
+static bool username_req_fits(const UsernameReq *req)
+{
+	size_t size = username_req__get_packed_size(req);
+
+	if (size <= CTL_MAX_REQUEST_SIZE)
+		return true;
+
+	fprintf(stderr,
+		"the user name is too long: the request would be %zu bytes, the server accepts at most %u\n",
+		size, (unsigned int)CTL_MAX_REQUEST_SIZE);
+	return false;
+}
+
 int handle_disconnect_user_cmd(struct unix_ctx *ctx, const char *arg,
 			       cmd_params_st *params)
 {
@@ -580,9 +593,11 @@ int handle_disconnect_user_cmd(struct unix_ctx *ctx, const char *arg,
 		return 1;
 	}
 
-	init_reply(&raw);
-
 	req.username = (void *)arg;
+	if (!username_req_fits(&req))
+		return 1;
+
+	init_reply(&raw);
 
 	ret = send_cmd(ctx, CTL_CMD_DISCONNECT_NAME, &req,
 		       (pack_size_func)username_req__get_packed_size,
@@ -690,9 +705,11 @@ int handle_terminate_user_cmd(struct unix_ctx *ctx, const char *arg,
 		return 1;
 	}
 
-	init_reply(&raw);
-
 	req.username = (void *)arg;
+	if (!username_req_fits(&req))
+		return 1;
+
+	init_reply(&raw);
 
 	ret = send_cmd(ctx, CTL_CMD_TERMINATE_USER, &req,
 		       (pack_size_func)username_req__get_packed_size,
@@ -1934,9 +1951,11 @@ int handle_show_user_cmd(struct unix_ctx *ctx, const char *arg,
 		return 1;
 	}
 
-	init_reply(&raw);
-
 	req.username = (void *)arg;
+	if (!username_req_fits(&req))
+		return 1;
+
+	init_reply(&raw);
 
 	ret = send_cmd(ctx, CTL_CMD_USER_INFO, &req,
 		       (pack_size_func)username_req__get_packed_size,

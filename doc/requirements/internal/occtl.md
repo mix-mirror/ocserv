@@ -362,34 +362,35 @@ message 'N', expected 'M'` and failing the command.
 status` prints the `Unexpected message` line and exits 1.
 **Links:** REQ-IPC-001, REQ-GEN-TECH-003
 
-### REQ-OCCTL-IPC-003 — main drops malformed, oversized or unknown requests without a reply
+### REQ-OCCTL-IPC-003 — main drops malformed, oversized or unknown requests without a reply; occtl does not send oversized ones
 
 **Requirement:** main MUST close an occtl connection without sending a
-reply when the request body exceeds 256 bytes, does not arrive within
-`MAIN_SEC_MOD_TIMEOUT`, fails to unpack as the message its command expects,
-or carries an unknown command code (logged as `unknown unix ctl message`);
-it MUST NOT act on a partially parsed request.
-**Strength:** MUST
-**Status:** DERIVED
-**Source:** src/main-ctl-unix.c `ctl_cmd_wacher_cb()` (`buffer[256]`,
-`recv_msg_data()`); `method_user_info()`, `method_id_info()`,
-`method_unban_ip()`, `method_disconnect_user_name()`,
-`method_disconnect_user_id()`, `method_terminate_user()`,
-`method_terminate_id()`, `method_terminate_session()` (unpack failure →
-`return` with no reply); src/common/common.c `recv_msg_data()` (`l32 >
-data_size` → `ERR_BAD_COMMAND`)
-**Acceptance:** negative, local — `occtl show user $(printf 'a%.0s' {1..300})`
-against a running server: main logs `received more data than expected`, no
-user is disconnected, occtl exits 1.
+reply when the request body exceeds `CTL_MAX_REQUEST_SIZE` (256 bytes),
+does not arrive within `MAIN_SEC_MOD_TIMEOUT`, fails to unpack as the
+message its command expects, or carries an unknown command code (logged as
+`unknown unix ctl message`); it MUST NOT act on a partially parsed request.
 occtl MUST NOT send a request it can tell main will drop: it MUST reject
 locally, with a message naming the over-long argument and exit 1, any
-argument whose packed request would exceed main's 256-byte limit.
-`[REVIEW: decided 2026-11-08 — occtl validates the length; main's
-behavior is unchanged. Code does not yet conform: occtl sends the request
-and reports ERR_SERVER_UNREACHABLE ("possibly insufficient permissions or
-server is offline"). Not decided: main reads the request synchronously in
-its event loop, so a root client that stalls mid-request blocks main for
-up to MAIN_SEC_MOD_TIMEOUT (120 s).]`
+argument whose packed request would exceed `CTL_MAX_REQUEST_SIZE`.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/occtl/ctl.h `CTL_MAX_REQUEST_SIZE`; src/main-ctl-unix.c
+`ctl_cmd_wacher_cb()` (`buffer[CTL_MAX_REQUEST_SIZE]`, `recv_msg_data()`);
+`method_user_info()`, `method_id_info()`, `method_unban_ip()`,
+`method_disconnect_user_name()`, `method_disconnect_user_id()`,
+`method_terminate_user()`, `method_terminate_id()`,
+`method_terminate_session()` (unpack failure → `return` with no reply);
+src/common/common.c `recv_msg_data()` (`l32 > data_size` →
+`ERR_BAD_COMMAND`); src/occtl/unix.c `username_req_fits()` (used by
+`handle_show_user_cmd()`, `handle_disconnect_user_cmd()`,
+`handle_terminate_user_cmd()`, the only commands whose argument can exceed
+the limit); maintainer decision recorded with this requirement.
+**Acceptance:** negative, local — `tests/test-occtl-local`: `show user`,
+`disconnect user` and `terminate user` with a 300-character name exit 1,
+print that the user name is too long, and send no request to the fake
+server. Negative, CI — a raw client sends a `CTL_CMD_USER_INFO` request
+with a 300-byte body to a running server: main logs `received more data
+than expected`, sends no reply, and disconnects no user.
 **Links:** REQ-IPC-002, REQ-OCCTL-ERR-001
 
 ### REQ-OCCTL-IPC-004 — occtl reply timeout
@@ -1081,6 +1082,12 @@ REQ-OCCTL-IPC-004
 - **`tests/json`** runs `show session all` (singular, so `all` is treated as
   a session-ID prefix) where `show sessions all` was probably meant; it
   validates JSON syntax only.
+- **Blocking reads in main**: main reads each occtl request synchronously
+  in its event loop (`ctl_cmd_wacher_cb()` → `recv_msg_data()`), so a root
+  client that stalls mid-request blocks main for up to
+  `MAIN_SEC_MOD_TIMEOUT` (120 s). `[UNDOCUMENTED: not decided whether this
+  needs a requirement; only uid 0 peers reach this point
+  (REQ-OCCTL-SEC-001).]`
 - **Tests that cannot run locally**: every acceptance above that starts the
   server needs root (CI), because main accepts only uid 0 occtl peers
   (REQ-OCCTL-SEC-001) and `uid_wrapper` does not reach occtl as a separate

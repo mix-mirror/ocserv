@@ -1125,7 +1125,7 @@ static void ctl_cmd_wacher_cb(EV_P_ ev_io *w, int revents)
 	int ret;
 	size_t length;
 	uint8_t cmd;
-	uint8_t buffer[256];
+	uint8_t buffer[CTL_MAX_REQUEST_SIZE];
 	method_ctx ctx;
 	struct ctl_watcher_st *wst =
 		container_of(w, struct ctl_watcher_st, ctl_cmd_io);

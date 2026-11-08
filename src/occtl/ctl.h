@@ -3,6 +3,9 @@
 
 #define OCCTL_UNIX_SOCKET "/var/run/occtl.socket"
 
+/* main drops a request whose body is larger than this */
+#define CTL_MAX_REQUEST_SIZE 256
+
 enum {
 	CTL_CMD_STATUS = 1,
 	CTL_CMD_RELOAD,
