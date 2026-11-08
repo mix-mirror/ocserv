@@ -173,6 +173,16 @@ unsigned int check_cmd_help(const char *line)
 	return status;
 }
 
+#define SOCKET_FILE_EQ "--socket-file="
+
+/* Options are matched exactly, in the forms doc/occtl.8.md documents */
+static bool is_option(const char *arg, const char *short_name,
+		      const char *long_name)
+{
+	return (short_name != NULL && strcmp(arg, short_name) == 0) ||
+	       (long_name != NULL && strcmp(arg, long_name) == 0);
+}
+
 static void usage(void)
 {
 	printf("occtl: [OPTIONS...] [COMMAND]\n\n");
@@ -181,6 +191,7 @@ static void usage(void)
 	printf("     --debug             Enable more verbose information in some commands\n");
 	printf("  -v --version           Show the program's version\n");
 	printf("  -j --json              Use JSON formatting for output\n");
+	printf("  -n --no-pager          Do not use a pager for the output\n");
 	printf("\n");
 	print_commands(0);
 	printf("\n");
@@ -571,49 +582,52 @@ int main(int argc, char *argv[])
 	ocsignal(SIGPIPE, SIG_IGN);
 
 	if (argc > 1) {
+		bool interactive_opt = false;
+
 		while (argc > 1 && argv[1][0] == '-') {
-			if (argv[1][1] == 'j' ||
-			    (argv[1][1] == '-' && argv[1][2] == 'j')) {
+			const char *opt = argv[1];
+			int consumed = 1;
+
+			interactive_opt = false;
+			if (is_option(opt, "-j", "--json")) {
 				params.json = 1;
-
-				argv += 1;
-				argc -= 1;
-			} else if (argv[1][1] == 'n' ||
-				   (argv[1][1] == '-' && argv[1][2] == 'n')) {
+			} else if (is_option(opt, "-n", "--no-pager")) {
 				params.no_pager = 1;
-
-				argv += 1;
-				argc -= 1;
-			} else if (argv[1][1] == '-' && argv[1][2] == 'd') {
+			} else if (is_option(opt, NULL, "--debug")) {
 				params.debug = 1;
-
-				argv += 1;
-				argc -= 1;
-
-				if (argc == 1) {
-					params.json = 0;
-					goto interactive;
-				}
-			} else if (argv[1][1] == 'v' ||
-				   (argv[1][1] == '-' && argv[1][2] == 'v')) {
+				interactive_opt = true;
+			} else if (is_option(opt, "-v", "--version")) {
 				version();
 				exit(EXIT_SUCCESS);
-			} else if (argc > 2 &&
-				   (argv[1][1] == 's' ||
-				    (argv[1][1] == '-' && argv[1][2] == 's'))) {
-				file = talloc_strdup(gl_pool, argv[2]);
-
-				if (argc == 3) {
-					params.json = 0;
-					goto interactive;
-				}
-
-				argv += 2;
-				argc -= 2;
-			} else {
+			} else if (is_option(opt, "-h", "--help")) {
 				usage();
 				exit(EXIT_SUCCESS);
+			} else if (strncmp(opt, SOCKET_FILE_EQ,
+					   sizeof(SOCKET_FILE_EQ) - 1) == 0 &&
+				   opt[sizeof(SOCKET_FILE_EQ) - 1] != 0) {
+				file = talloc_strdup(
+					gl_pool,
+					opt + sizeof(SOCKET_FILE_EQ) - 1);
+				interactive_opt = true;
+			} else if (is_option(opt, "-s", "--socket-file") &&
+				   argc > 2) {
+				file = talloc_strdup(gl_pool, argv[2]);
+				consumed = 2;
+				interactive_opt = true;
+			} else {
+				usage();
+				exit(EXIT_FAILURE);
 			}
+
+			argv += consumed;
+			argc -= consumed;
+		}
+
+		/* only the socket file or --debug, as the last option, ask for
+		 * interactive mode */
+		if (argc == 1 && interactive_opt) {
+			params.json = 0;
+			goto interactive;
 		}
 
 		/* handle all arguments as a command */

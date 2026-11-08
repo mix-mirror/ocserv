@@ -711,8 +711,8 @@ rejected: occtl prints usage and exits 1. With no command left (`occtl`,
 `occtl -s FILE`, `occtl --debug`) occtl MUST start interactive mode, where
 JSON output is disabled.
 **Strength:** MUST
-**Status:** REVIEW
-**Source:** src/occtl/occtl.c `main()`; doc/occtl.8.md (OPTIONS, EXAMPLES:
+**Status:** DERIVED
+**Source:** src/occtl/occtl.c `main()`, `is_option()`, `usage()`; doc/occtl.8.md (OPTIONS, EXAMPLES:
 "options must precede the command"; EXIT STATUS: 1 when "the command syntax
 was not valid"); maintainer decision recorded with this requirement.
 **Acceptance:** positive, local — `tests/test-occtl-local`: each
@@ -720,13 +720,8 @@ documented form (`-s`, `--socket-file FILE`, `--socket-file=FILE`, `-j`,
 `--json`, `-n`, `--no-pager`, `--debug`) is accepted; `-h`, `--help`,
 `-v`, `--version` exit 0. Negative, local — `-x`, `--j`, `-json`,
 `--jxyz`, `-d` print usage and exit 1.
-`[REVIEW: decided 2026-11-08 — the documented forms are the interface
-(REQ-OCCTL-CLI-011); undocumented spellings are rejected and exit 1. Code
-does not yet conform: options are recognised by their second/third
-character only (`--jxyz` is `--json`), `--socket-file=FILE` is not
-accepted, and an unrecognised option prints usage and exits 0. Left as is
-(not decided to change): `occtl -j` / `occtl -n` with no command runs an
-empty command and exits 1 instead of starting interactive mode.]`
+`occtl -j` / `occtl -n` with no command still runs an empty command and
+exits 1 instead of starting interactive mode (not decided to change).
 **Links:** REQ-OCCTL-ERR-001, REQ-OCCTL-CLI-011
 
 ### REQ-OCCTL-CLI-002 — Command matching
@@ -968,8 +963,8 @@ maintainer decision recorded with this requirement.
 `[REVIEW: decided 2026-11-08 — document 2 as "not found", collapse every
 other failure to 1; making `show session` exit 2 and an invalid option
 exit 1 is a bug fix. Conform: doc/occtl.8.md documents 0, 1 and 2 (for
-`show user`/`show id`), and `show events` exits 1 on failure. Do not
-conform yet: an invalid option exits 0 (REQ-OCCTL-CLI-001); `show
+`show user`/`show id`), `show events` exits 1 on failure, and an
+invalid option exits 1. Do not conform yet: `show
 session` exits 0 when nothing matches (REQ-OCCTL-SESSION-007), and
 doc/occtl.8.md does not list it under exit status 2.]`
 **Links:** REQ-OCCTL-ERR-002, REQ-OCCTL-CLI-001

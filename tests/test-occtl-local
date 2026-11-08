@@ -199,4 +199,43 @@ if ! grep -q "Server PID: 4242" ${OUT} || grep -q "Sec-mod PID" ${OUT};then
 	exit 1
 fi
 
+# REQ-OCCTL-CLI-001: the documented option forms are accepted; anything
+# else prints usage and exits 1.
+echo " * documented options are accepted..."
+start_server status-nopids
+for opts in "-s ${SOCKET}" "--socket-file ${SOCKET}" "--socket-file=${SOCKET}" \
+	    "-j -s ${SOCKET}" "--json -s ${SOCKET}" "-n -s ${SOCKET}" \
+	    "--no-pager -s ${SOCKET}" "--debug -s ${SOCKET}";do
+	${OCCTL} ${opts} show status >${OUT} 2>&1
+	RET=$?
+	if test ${RET} != 0 || grep -q "OPTIONS" ${OUT};then
+		echo "FAIL: expected 'occtl ${opts} show status' to succeed, got ${RET}: $(cat ${OUT})"
+		exit 1
+	fi
+done
+stop_server
+for opt in -h --help -v --version;do
+	${OCCTL} ${opt} >${OUT} 2>&1
+	if test $? != 0;then
+		echo "FAIL: expected 'occtl ${opt}' to exit 0, got $?"
+		exit 1
+	fi
+done
+
+echo " * undocumented options are rejected..."
+for opt in -x --j -json --jxyz -d --no-pagerx;do
+	${OCCTL} ${opt} show status >${OUT} 2>&1
+	RET=$?
+	if test ${RET} != 1 || ! grep -q "OPTIONS" ${OUT};then
+		echo "FAIL: expected 'occtl ${opt} show status' to print usage and exit 1, got ${RET}: $(cat ${OUT})"
+		exit 1
+	fi
+done
+${OCCTL} -s >${OUT} 2>&1
+RET=$?
+if test ${RET} != 1 || ! grep -q "OPTIONS" ${OUT};then
+	echo "FAIL: expected 'occtl -s' without a file to print usage and exit 1, got ${RET}: $(cat ${OUT})"
+	exit 1
+fi
+
 exit 0
