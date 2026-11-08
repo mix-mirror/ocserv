@@ -478,10 +478,9 @@ if any worker was disconnected or any instance reported `result = true`.
 occtl MUST print `user 'NAME' was terminated (session invalidated)` (exit 0)
 or `could not terminate user 'NAME'` (exit 1).
 **Strength:** MUST
-**Status:** REVIEW
-**Source:** src/main-ctl-unix.c `terminate_user_sessions_in_secmod()`
-(`if (result == 1) break;` after the first instance that reports a
-match), `method_terminate_user()`; src/main.c `main()` (`sec_mod_instance_count`
+**Status:** DERIVED
+**Source:** src/main-ctl-unix.c `terminate_user_sessions_in_secmod()`,
+`method_terminate_user()`; src/main.c `main()` (`sec_mod_instance_count`
 defaults to `MIN(processor_count, ...)`, so >1 on multi-core hosts);
 src/main.c `listen_watcher_cb()` (a new login's instance is `hash(client
 IP) % sec_mod_instance_count`, REQ-MAIN-INIT-003); src/main-worker-cmd.c
@@ -494,19 +493,13 @@ copied or moved, even when the client roams. A user with several separate
 logins from client IPs that hash differently has those sessions in
 different instances, so invalidating all of the user's cookies requires
 asking every instance.
-**Acceptance:** [SEC] negative, CI — with `sec-mod-scale` (or CPU count)
-≥ 2, log the same user in separately from two client addresses that hash to
-different instances, so that the two sessions are in different instances;
-`occtl terminate user test`; confirm **both** cookies are rejected on
-reconnect (`assert_cookie_rejected` in `tests/test-occtl-commands`).
-Positive, CI — `tests/test-occtl-commands` Section 7,
+**Acceptance:** [SEC] negative, CI — `tests/terminate-user-multi-secmod`:
+with `sec-mod-scale = 16`, the same user logs in from two client addresses;
+the test reads each session's instance from its cookie (the first two SID
+bytes) and skips if both are in the same instance; otherwise, after
+`occtl terminate user test`, **both** cookies MUST be rejected on
+reconnect. Positive, CI — `tests/test-occtl-commands` Section 7,
 `tests/terminate-commands`.
-`[REVIEW: decided 2026-11-08 — a plain bug, not a security issue; the
-requirement stands. Code does not yet conform (contradicts
-doc/occtl.8.md): the implementation asks the instances in order and stops
-at the first one that terminated something, so the user's sessions held
-by later instances keep valid cookies (their live connections are still
-dropped, from main's process list).]`
 **Links:** REQ-IPC-071, REQ-IPC-072, REQ-SECMOD-SESSION-004,
 REQ-MAIN-INIT-003
 

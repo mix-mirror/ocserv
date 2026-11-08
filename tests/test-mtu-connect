@@ -130,18 +130,9 @@ sleep 2
 check_mtu_headers "--base-mtu=1400" 1400 800
 
 # cookie_header: build a "Cookie: webvpn=VALUE" string from the output of
-# openconnect --cookieonly.  openconnect >= 9 prefixes the token with
-# "openconnect_strapkey=...; webvpn="; older versions print the raw token.
-# In both cases extract the webvpn value and prefix it consistently.
+# openconnect --cookieonly.
 cookie_header() {
-	local raw="$1"
-	local token
-	if echo "${raw}" | grep -q "webvpn="; then
-		token=$(echo "${raw}" | sed 's/.*webvpn=\([^;]*\).*/\1/' | tr -d ' \r\n')
-	else
-		token="${raw}"
-	fi
-	printf 'Cookie: webvpn=%s' "${token}"
+	printf 'Cookie: webvpn=%s' "$(cookie_token "$1")"
 }
 
 # --- 2. Sub-MIN_MTU via raw CONNECT (the actual regression) ---------------

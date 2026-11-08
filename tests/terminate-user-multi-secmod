@@ -1,0 +1,152 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# This test validates that 'occtl terminate user' invalidates the user's
+# cookies in every sec-mod instance (REQ-OCCTL-SESSION-003): the same user
+# logs in from two client addresses whose sessions are held by different
+# sec-mod instances, and both cookies must be rejected afterwards.
+
+OCCTL="${OCCTL:-../src/occtl/occtl}"
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+PIDFILE=ocserv-pid.$$.tmp
+CLIPID=oc-pid.$$.tmp
+CLIPID2=oc-pid.2.$$.tmp
+TMPFILE=ocfile.$$.tmp
+PATH=${PATH}:/usr/sbin
+OCCTL_SOCKET=./occtl-multi-secmod-$$.socket
+USERNAME=test
+PIN=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8=
+
+. `dirname $0`/common.sh
+
+eval "${GETPORT}"
+
+if test "$(id -u)" != "0";then
+	echo "This test must be run as root"
+	exit 77
+fi
+
+function finish {
+  set +e
+  echo " * Cleaning up..."
+  test -f "${CLIPID2}" && kill $(cat ${CLIPID2}) >/dev/null 2>&1
+  rm -f ${CLIPID2} ${TMPFILE} >/dev/null 2>&1
+  cleanup_client_server
+}
+trap finish EXIT
+
+. `dirname $0`/random-net.sh
+. `dirname $0`/random-net2.sh
+. `dirname $0`/ns.sh
+
+update_config terminate-user-multi-secmod.config
+if test "$VERBOSE" = 1;then
+	DEBUG="-d 3"
+fi
+
+${CMDNS2} ${SERV} -p ${PIDFILE} -f -c ${CONFIG} ${DEBUG} & PID=$!
+
+sleep 4
+
+# get_cookie NS-COMMAND: sets COOKIE to a cookie obtained from that namespace
+get_cookie() {
+	unset COOKIE
+	echo "test" | $1 ${OPENCONNECT} ${ADDRESS}:${PORT} -u ${USERNAME} \
+		--servercert=${PIN} --authenticate >${TMPFILE}
+	if test $? != 0;then
+		fail $PID "Could not get cookie from server"
+	fi
+	eval $(cat ${TMPFILE})
+	if test -z "${COOKIE}";then
+		fail $PID "Cookie was not returned by server"
+	fi
+}
+
+# The first two bytes of the SID carry the sec-mod instance index
+# (sec_mod_instance_index_put()), and the cookie's webvpn token is the
+# base64 SID.
+secmod_index() {
+	local token=$(cookie_token "$1")
+
+	set -- $(printf '%s' "${token:0:4}" | base64 -d | od -An -tu1)
+	echo $(( $1 * 256 + $2 ))
+}
+
+# connect NS-COMMAND COOKIE PIDFILE
+connect() {
+	rm -f $3
+	$1 ${OPENCONNECT} -q ${ADDRESS}:${PORT} -u ${USERNAME} \
+		--servercert=${PIN} -s /bin/true -C "$2" --pid-file=$3 -b
+	if test $? != 0;then
+		fail $PID "Could not connect to server"
+	fi
+	sleep 2
+	if test ! -f "$3";then
+		fail $PID "Connection did not create pid file"
+	fi
+}
+
+# assert_cookie_rejected NS-COMMAND COOKIE
+assert_cookie_rejected() {
+	rm -f ${CLIPID}
+	$1 ${OPENCONNECT} -q ${ADDRESS}:${PORT} -u ${USERNAME} \
+		--servercert=${PIN} -s /bin/true -C "$2" --pid-file=${CLIPID} -b
+	if test $? = 0;then
+		fail $PID "Succeeded using a cookie invalidated by 'terminate user'"
+	fi
+	sleep 2
+	if test -f "${CLIPID}";then
+		fail $PID "Reconnection with an invalidated cookie left a client running"
+	fi
+}
+
+echo " * Getting cookies from ${CLI_ADDRESS} and ${CLI_ADDRESS2}..."
+get_cookie "${CMDNS1}"
+COOKIE1="${COOKIE}"
+get_cookie "${CMDNS3}"
+COOKIE2="${COOKIE}"
+IDX1=$(secmod_index "${COOKIE1}")
+IDX2=$(secmod_index "${COOKIE2}")
+echo " * Sessions are in sec-mod instances ${IDX1} and ${IDX2}"
+
+if test "${IDX1}" = "${IDX2}";then
+	echo "Both client addresses hash to the same sec-mod instance; nothing to test"
+	exit 77
+fi
+
+connect "${CMDNS1}" "${COOKIE1}" ${CLIPID}
+connect "${CMDNS3}" "${COOKIE2}" ${CLIPID2}
+
+${OCCTL} -s ${OCCTL_SOCKET} terminate user ${USERNAME}
+if test $? != 0;then
+	fail $PID "occtl terminate user failed"
+fi
+
+sleep 2
+kill $(cat ${CLIPID}) $(cat ${CLIPID2}) >/dev/null 2>&1
+rm -f ${CLIPID} ${CLIPID2}
+sleep 2
+
+echo " * Re-connecting with both old cookies (must fail)..."
+assert_cookie_rejected "${CMDNS1}" "${COOKIE1}"
+assert_cookie_rejected "${CMDNS3}" "${COOKIE2}"
+
+exit 0

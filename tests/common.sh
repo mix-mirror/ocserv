@@ -156,6 +156,18 @@ update_raddb() {
 	RADDB_DIR="$(pwd)/raddb.$$.tmp"
 }
 
+# cookie_token COOKIE: prints the webvpn token of a cookie printed by
+# openconnect --authenticate or --cookieonly. openconnect >= 9 prefixes the
+# token with "openconnect_strapkey=...; webvpn="; older versions print the
+# raw token.
+cookie_token() {
+	if echo "$1" | grep -q "webvpn=";then
+		echo "$1" | sed 's/.*webvpn=\([^;]*\).*/\1/' | tr -d ' \r\n'
+	else
+		printf '%s' "$1"
+	fi
+}
+
 fail() {
    PID=$1
    shift;

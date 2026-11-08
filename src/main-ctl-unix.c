@@ -878,7 +878,9 @@ static void method_disconnect_user_id(method_ctx *ctx, int cfd, uint8_t *msg,
 	}
 }
 
-/* Invalidate all session cookies for a given username in sec-mod */
+/* Invalidate all session cookies for a given username in sec-mod. Each
+ * instance holds the sessions of the client addresses that hash to it,
+ * so every instance must be asked. */
 static int terminate_user_sessions_in_secmod(method_ctx *ctx,
 					     const char *username)
 {
@@ -922,8 +924,6 @@ static int terminate_user_sessions_in_secmod(method_ctx *ctx,
 			secm_terminate_session_reply_msg__free_unpacked(reply,
 									&pa);
 		reply = NULL;
-		if (result == 1)
-			break;
 	}
 
 	return result;
