@@ -226,12 +226,16 @@ Coverity:
     paths:
       - cov-int/*.txt
 
-# Test building with musl
+# Test building with musl, and occtl against libedit instead of GNU
+# readline (REQ-GEN-COMPAT-002)
 musl/Alpine:
   stage: testing
   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$ALPINE_BUILD
   script:
+  - apk del readline-dev
+  - apk add --no-cache libedit-dev
   - meson setup build -Dwith-werror=true -Dassume-glibc=false
+  - 'grep -q "#undef HAVE_ORIG_READLINE" build/config.h || (echo "FAIL: expected occtl to be built against libedit, got GNU readline"; exit 1)'
   - ninja -C build -j$JOBS
   tags:
   - saas-linux-small-amd64

@@ -584,3 +584,25 @@ any new `#include <linux/...>` or Linux-specific `ioctl`/syscall is inside
 `#ifdef __linux__`. REQ-CONFIG-SEC-001's `[Divergence]` note documents the
 accepted procfs gap as a model for how to document platform differences.
 **Links:** REQ-CONFIG-SEC-001, REQ-GEN-STYLE-002
+
+---
+
+### REQ-GEN-COMPAT-002 — occtl MUST build against libedit as well as against GNU readline
+
+**Requirement:** occtl MUST compile and link against libedit, which the build
+selects when it does not find GNU readline, as it does against GNU readline,
+so that systems that provide libedit but not GNU readline keep occtl.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** `meson.build` (`readline_dep`: `dependency('libedit')` when
+`readline/readline.h` is not found); `src/occtl/meson.build`
+(`subdir_done()` only when neither library is found); `src/occtl/occtl.h`
+(`HAVE_ORIG_READLINE` header selection); `src/occtl/occtl.c`
+(`HAVE_ORIG_READLINE` conditionals, `whitespace`)
+**Acceptance:** CI — the musl/Alpine job removes the GNU readline headers,
+installs libedit's, fails unless `config.h` shows a libedit build
+(`#undef HAVE_ORIG_READLINE`), and builds the tree with
+`-Dwith-werror=true`; no other job compiles the code under
+`#ifndef HAVE_ORIG_READLINE`. The other build jobs build occtl against GNU
+readline.
+**Links:** REQ-GEN-COMPAT-001

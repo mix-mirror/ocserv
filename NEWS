@@ -18,6 +18,8 @@
   is now specified rather than a side effect, and an entry with an empty
   label is shown by its group name (#773)
 - The bundled llhttp was updated to 9.4.3.
+- Fixed building occtl against libedit, which is used when GNU readline is
+  not found; since 1.2.0 it failed on an undeclared c_isspace().
 
 
 * Version 1.6.0 (released 2026-10-16)
