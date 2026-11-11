@@ -17,6 +17,8 @@ sources:
   - src/occtl/nl.c
   - src/occtl/geoip.c
   - src/occtl/maxmind.c
+  - src/occtl/meson.build
+  - meson.build (readline_dep)
   - src/main-ctl-unix.c
   - src/ctl.proto
   - src/common/system.c (check_upeer_id)
@@ -80,11 +82,37 @@ Command-line options (`src/occtl/occtl.c` `main()`): `-s/--socket-file`,
 (CLI-001). Environment: `OCCTL_PAGER`, `PAGER`, `LESS` (CFG-002). Build
 options: `-Dpager` (default pager), `-Dlibnl` (interface statistics),
 maxmind/GeoIP (location lookup); occtl is not built without readline/libedit
+(REQ-OCCTL-COMPAT-001)
 (`src/occtl/meson.build`).
 
 Error space: occtl reports failures as text on stdout/stderr and through its
 exit status (ERR-001); main reports nothing to occtl on a malformed request —
 it logs and closes the connection (IPC-003).
+
+---
+
+## COMPAT
+
+### REQ-OCCTL-COMPAT-001 — occtl MUST build against libedit as well as against GNU readline
+
+**Requirement:** occtl MUST compile and link against libedit, which the build
+selects when it does not find GNU readline, as it does against GNU readline,
+so that systems that provide libedit but not GNU readline keep occtl.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** `meson.build` (`readline_dep`: `dependency('libedit')` when
+`readline/readline.h` is not found); `src/occtl/meson.build`
+(`subdir_done()` only when neither library is found); `src/occtl/occtl.h`
+(`HAVE_ORIG_READLINE` header selection); `src/occtl/occtl.c`
+(`HAVE_ORIG_READLINE` conditionals, `whitespace`). Relocated from
+`internal/general.md`, where it was REQ-GEN-COMPAT-002.
+**Acceptance:** CI — the musl/Alpine job removes the GNU readline headers,
+installs libedit's, fails unless `config.h` shows a libedit build
+(`#undef HAVE_ORIG_READLINE`), and builds the tree with
+`-Dwith-werror=true`; no other job compiles the code under
+`#ifndef HAVE_ORIG_READLINE`. The other build jobs build occtl against GNU
+readline.
+**Links:** REQ-GEN-COMPAT-001, REQ-OCCTL-CLI-010
 
 ---
 

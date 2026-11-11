@@ -72,7 +72,8 @@ REQ-<PREFIX><CATEGORY>-<NNN>
   `SESSION`, `CFG`, `NET`, `SEC`, `ERR`, `TEARDOWN`.
   `internal/occtl.md` additionally uses `IPC` (ctl-socket framing),
   `CLI` (the administrator-facing command-line, output and exit-status
-  contract, which has no daemon-process equivalent), and `TEST` (how
+  contract, which has no daemon-process equivalent), `COMPAT`
+  (building occtl on different platforms and libraries), and `TEST` (how
   occtl tests stand in for main).
 - `<CATEGORY>` for `protocol/unified.md` uses the tags from
   `requirements-reconciliation.md`: `CONN`, `AUTH`, `SESSION`, `DATA`,

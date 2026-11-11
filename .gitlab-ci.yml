@@ -227,7 +227,7 @@ Coverity:
       - cov-int/*.txt
 
 # Test building with musl, and occtl against libedit instead of GNU
-# readline (REQ-GEN-COMPAT-002)
+# readline (REQ-OCCTL-COMPAT-001)
 musl/Alpine:
   stage: testing
   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$ALPINE_BUILD
