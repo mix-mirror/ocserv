@@ -20,7 +20,14 @@
 - The bundled llhttp was updated to 9.4.3.
 - Fixed building occtl against libedit, which is used when GNU readline is
   not found; since 1.2.0 it failed on an undeclared c_isspace().
-- occtl: preserve UTF-8 string values in JSON output.
+- occtl: 'terminate user' invalidates the user's cookies in every sec-mod
+  instance; 'terminate id' fails if the cookie could not be invalidated.
+- occtl accepts only its documented options, and '--socket-file=FILE';
+  any other option prints the usage and exits 1 (it exited 0).
+- occtl: JSON output is always valid, preserves UTF-8 string values, and
+  no longer replaces long values with "(invalid)".
+- occtl gives up after 10 seconds on a server that does not reply, rejects
+  over-long user names locally, and no longer crashes on unexpected replies.
 
 
 * Version 1.6.0 (released 2026-10-16)
