@@ -127,7 +127,7 @@ static void print_commands(unsigned int interactive)
 }
 
 #ifndef HAVE_ORIG_READLINE
-#define whitespace(x) c_isspace(x)
+#define whitespace(x) isspace((unsigned char)(x))
 #endif
 
 unsigned int need_help(const char *arg)
