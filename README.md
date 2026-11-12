@@ -31,7 +31,7 @@ configuration while ocserv-main will use the previous configuration.
 ## Debian/Ubuntu:
 ```
 # Basic build tools
-apt-get install -y build-essential meson ninja-build pkg-config
+apt-get install -y build-essential meson pkg-config
 # Required
 apt-get install -y libgnutls28-dev libev-dev libreadline-dev libtasn1-bin
 # Optional functionality and testing
