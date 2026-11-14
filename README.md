@@ -34,12 +34,14 @@ configuration while ocserv-main will use the previous configuration.
 apt-get install -y build-essential meson ninja-build pkg-config
 # Required
 apt-get install -y libgnutls28-dev libev-dev libreadline-dev libtasn1-bin
+# Required when building from git (see "Building from git" below)
+apt-get install -y protobuf-c-compiler gperf
 # Optional functionality and testing
 apt-get install -y libpam0g-dev liblz4-dev libseccomp-dev \
 	libnl-route-3-dev libkrb5-dev libradcli-dev \
 	libcurl4-gnutls-dev libcjose-dev libjansson-dev liboath-dev \
-	libprotobuf-c-dev libtalloc-dev libllhttp-dev protobuf-c-compiler \
-	gperf iperf3 lcov libuid-wrapper libpam-wrapper libnss-wrapper \
+	libprotobuf-c-dev libtalloc-dev libllhttp-dev \
+	iperf3 lcov libuid-wrapper libpam-wrapper libnss-wrapper \
 	libsocket-wrapper gss-ntlmssp haproxy iputils-ping freeradius \
 	gawk gnutls-bin iproute2 procps jq tcpdump ipcalc-ng faketime
 # For manpages
@@ -52,11 +54,13 @@ apt-get install -y ronn
 yum install -y meson ninja-build gcc pkgconf-pkg-config
 # Required
 yum install -y gnutls-devel libev-devel readline-devel libtasn1-tools
+# Required when building from git (see "Building from git" below)
+yum install -y protobuf-c-compiler gperf
 # Optional functionality and testing
 yum install -y pam-devel lz4-devel libseccomp-devel \
 	libnl3-devel krb5-devel radcli-devel libcurl-devel cjose-devel \
 	jansson-devel liboath-devel protobuf-c-devel libtalloc-devel \
-	llhttp-devel protobuf-c gperf iperf3 lcov uid_wrapper \
+	llhttp-devel iperf3 lcov uid_wrapper \
 	pam_wrapper nss_wrapper socket_wrapper gssntlmssp haproxy iputils \
 	freeradius gawk gnutls-utils iproute procps-ng jq tcpdump ipcalc faketime
 # For manpages
@@ -137,7 +141,14 @@ The HTML report is written to `build/meson-logs/coveragereport/index.html`.
 
 ## Building from git
 
-Building from git requires the same tools as a release build. After cloning:
+Building from git requires, in addition to the dependencies of a release
+build, `protoc-c` (package `protobuf-c-compiler`) and `gperf`, to generate
+source files that are not stored in the repository. Prepared release tarballs
+ship these generated files, so the tools are optional there. The
+automatically generated GitLab source archives are not release tarballs and
+also require the tools.
+
+After cloning:
 ```
 $ git submodule update --init
 $ meson setup build
