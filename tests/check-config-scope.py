@@ -26,6 +26,11 @@ Checks performed:
       [scope: ...] inline comment.
   (h) Every [scope: vhost (non-reloadable)] field in static_cfg_st is referenced
       in vhost_inherit_static_config() or listed in STATIC_VHOST_INHERIT_EXCEPTIONS.
+  (i) Every option cfg_ini_handler() in config.c reads is documented in
+      sample.config, or listed in UNDOCUMENTED_CONFIG_OPTIONS.
+  (j) Every option in src/sup-config/file.c is named in the list of options
+      allowed in per-user and per-group files, above config-per-user in
+      sample.config.
 
 Exit code: 0 on success, 1 if any errors are found.
 """
@@ -124,6 +129,48 @@ def extract_sup_config_options(text):
     """Return set of option names handled in the per-user/group file parser."""
     pattern = re.compile(r'strcmp\s*\(\s*name\s*,\s*"([^"]+)"')
     return set(pattern.findall(text))
+
+
+# Alternative spellings of an option, accepted wherever the option is
+SPELLINGS = {
+    "ipv4-dns": "dns", "ipv6-dns": "dns",
+    "ipv4-nbns": "nbns", "ipv6-nbns": "nbns",
+}
+
+
+# ---------------------------------------------------------------------------
+# Step 3b: Parse src/config.c — options read by cfg_ini_handler()
+# ---------------------------------------------------------------------------
+def extract_config_options(text):
+    """Return set of option names cfg_ini_handler() reads."""
+    start = text.index("static int cfg_ini_handler(")
+    end = text.index("\n}\n", start)
+    pattern = re.compile(r'strcmp\s*\(\s*name\s*,\s*"([^"]+)"')
+    return set(pattern.findall(text[start:end]))
+
+
+# ---------------------------------------------------------------------------
+# Step 3c: Parse doc/sample.config — the options it lists as allowed in
+#          per-user and per-group files
+# ---------------------------------------------------------------------------
+def extract_per_user_list(text):
+    """Return the option names in the list that precedes config-per-user,
+    with 'ipv?-network' and 'rx/tx-data-per-sec' expanded, or None if the
+    list is not found."""
+    m = re.search(r'^# The options allowed in the configuration files are'
+                  r'(.*?)^#\s*$', text, re.M | re.S)
+    if m is None:
+        return None
+    names = set()
+    for word in re.findall(r'[a-z0-9?/][a-z0-9?/-]*', m.group(1)):
+        if "?" in word:
+            names |= {word.replace("?", "4"), word.replace("?", "6")}
+        elif "/" in word:
+            heads, tail = word.split("-", 1)
+            names |= {f"{head}-{tail}" for head in heads.split("/")}
+        else:
+            names.add(word)
+    return names
 
 
 # ---------------------------------------------------------------------------
@@ -375,6 +422,43 @@ def main():
                 f"vhost_inherit_static_config() — add inheritance or add to "
                 f"STATIC_VHOST_INHERIT_EXCEPTIONS"
             )
+
+    # (i) Every option cfg_ini_handler() reads is documented in sample.config.
+    # Exceptions: alternative spellings of documented options, and options
+    # kept only to be rejected, warned about or mapped to their replacement,
+    # or for debugging.
+    UNDOCUMENTED_CONFIG_OPTIONS = set(SPELLINGS) | DEPRECATED_GLOBAL_ALIASES | {
+        "always-require-cert",    # replaced by cisco-client-compat
+        "ipv6-prefix",            # replaced by the prefix of ipv6-network
+        "listen-clear-file",      # removed in 1.1.2; rejected
+        "session-control",        # deprecated; ignored with a warning
+        "debug-no-secmod-stats",  # debugging only
+    }
+    for opt in sorted(extract_config_options(config_c_text)):
+        if opt in UNDOCUMENTED_CONFIG_OPTIONS:
+            continue
+        if opt not in sample_scopes:
+            errors.append(
+                f"config.c: cfg_ini_handler() reads '{opt}' but option is "
+                f"missing from sample.config (or add it to "
+                f"UNDOCUMENTED_CONFIG_OPTIONS)"
+            )
+
+    # (j) Every option in sup-config/file.c is in the per-user list
+    per_user_list = extract_per_user_list(sample_text)
+    if per_user_list is None:
+        errors.append(
+            "sample.config: the list of options allowed in per-user and "
+            "per-group files was not found"
+        )
+    else:
+        for opt in sorted(user_in_code):
+            if SPELLINGS.get(opt, opt) not in per_user_list:
+                errors.append(
+                    f"sup-config/file.c: handles '{opt}' but it is missing "
+                    f"from the per-user/per-group option list in "
+                    f"sample.config"
+                )
 
     # Report
     if errors:

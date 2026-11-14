@@ -47,6 +47,14 @@
 - Added the listen-mptcp option: the TCP listening sockets accept Multipath
   TCP (MPTCP) connections, falling back to TCP with a warning when the
   kernel does not provide MPTCP.
+- With append-routes, a user without routes of its own receives each route
+  of the server once; it was sent twice. The option is now documented, and
+  a user's own routes are followed by the server's and then by the exposed
+  iroutes, which came before the server's routes.
+- With expose-iroutes, a user with no routes (full tunnel) no longer
+  receives the other users' iroutes as its only routes, which made it a
+  split tunnel limited to them and, with restrict-user-to-routes, blocked
+  its other traffic.
 
 * Version 1.6.0 (released 2026-10-16)
 - Send the RADIUS session ID as Acct-Session-Id in the Access-Request (#751)

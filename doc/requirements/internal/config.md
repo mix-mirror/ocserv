@@ -153,7 +153,7 @@ report that the name is too long.
 `vhost user`. Every field of `struct cfg_st`/`struct static_cfg_st` in
 `src/vpn.h` MUST carry a matching inline `[scope: ...]` comment.
 `tests/check-config-scope.py` MUST pass, enforcing the following
-cross-references (its checks a–h):
+cross-references (its checks a–j):
   - (a) every `sample.config` option has a scope annotation;
   - (b) every reloadable `[... global]` option has a matching
     `error_on_vhost()` call in `config.c` (REQ-CONFIG-CFG-004);
@@ -168,7 +168,15 @@ cross-references (its checks a–h):
     `[scope:]` comment;
   - (h) every `[scope: vhost (non-reloadable)]` field in `static_cfg_st` is
     referenced in `vhost_inherit_static_config()` or listed in
-    `STATIC_VHOST_INHERIT_EXCEPTIONS` (REQ-CONFIG-CFG-003).
+    `STATIC_VHOST_INHERIT_EXCEPTIONS` (REQ-CONFIG-CFG-003);
+  - (i) every option `cfg_ini_handler()` in `config.c` reads is documented
+    in `sample.config`, unless it is an alternative spelling of a documented
+    option or is deprecated, removed or for debugging only, and listed as
+    such in `UNDOCUMENTED_CONFIG_OPTIONS`;
+  - (j) every option `src/sup-config/file.c` reads is named, or is an
+    alternative spelling of an option named, in the list of options allowed
+    in per-user and per-group files that precedes `config-per-user` in
+    `sample.config`.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** tests/check-config-scope.py (full file); src/vpn.h:224-275
@@ -178,7 +186,10 @@ cross-references (its checks a–h):
 option to `sample.config` without a `[scope:]` line, or a new
 `static_cfg_st` field without a `[scope:]` comment, MUST fail check (a) or
 (g) respectively — this is the project's primary safeguard against
-config/doc/code drift for scope semantics.
+config/doc/code drift for scope semantics. Negative: a new option read by
+`cfg_ini_handler()` and absent from `sample.config` MUST fail check (i), and
+a new option read by `src/sup-config/file.c` and absent from the per-user
+list MUST fail check (j).
 **Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-003, REQ-CONFIG-CFG-004,
 REQ-CONFIG-CFG-006
 
@@ -348,7 +359,8 @@ mechanism as REQ-CONFIG-CFG-005, not a distinct `is_set` convention: a
 actually overrides. `iroute` directives are additionally collected across
 all per-user config files into `config->known_iroutes` via
 `load_iroutes()`/`append_iroutes_from_file()` when `expose_iroutes` is set,
-for `occtl show iroutes`.
+for `occtl show iroutes` and for the routes of other sessions
+(REQ-CONFIG-CFG-012).
 
 The populated `GroupCfgSt` travels from sec-mod to main as
 `SecmSessionReplyMsg.config` over `CMD_SECM_SESSION_REPLY`
@@ -365,8 +377,10 @@ and then calls `apply_default_config(sec_mod_instance, proc, proc->config)`
 was found — it copies the vhost-level value (`vhost->config->...`) into
 `gc` and, for the `has_*` cases, sets `has_<field> = 1`. If the field was
 already set by `get_sup_config()`, the per-user/group value is left
-untouched. The resulting merged `GroupCfgSt` (`proc->config`) is what main
-forwards to the worker as the session's effective configuration.
+untouched. `route` and `no-route` are combined with the vhost's values as
+REQ-CONFIG-CFG-012 specifies. The resulting merged `GroupCfgSt`
+(`proc->config`) is what main forwards to the worker as the session's
+effective configuration.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/sup-config/file.c:44-80 (`READ_RAW_*`/`READ_TF` macros),
@@ -392,7 +406,7 @@ attribute mapping (REQ-AUTH-AUTH-026) are the only contributors to
 `GroupCfgSt`. gitlab!154 (closed, unmerged) sketched a `per-radius-class-dir`
 source for this; see the related limitation note on REQ-AUTH-AUTH-029.]`
 **Links:** REQ-CONFIG-CFG-001, REQ-CONFIG-CFG-005, REQ-AUTH-AUTH-026,
-REQ-AUTH-AUTH-029, REQ-CONFIG-SEC-002
+REQ-AUTH-AUTH-029, REQ-CONFIG-SEC-002, REQ-CONFIG-CFG-012
 
 ### REQ-CONFIG-CFG-007 — SIGHUP reload replaces each vhost's `ReloadableConfig` via archive-and-reparse (main) or immediate-free-and-reparse (sec-mod); in-flight references are kept alive via an attic + usage-count until drained
 
@@ -514,8 +528,8 @@ all the inherited values of that option. Setting an option in the default
 vhost MUST NOT change any named vhost's own values. The same rule applies one
 level down: a per-user or per-group file that sets a `[scope: vhost user]`
 option replaces the vhost's values for that session (REQ-CONFIG-CFG-006),
-except for `route` and `no-route` when `append-routes` is enabled, which is
-not yet specified.
+except for `route` and `no-route` when `append-routes` is enabled
+(REQ-CONFIG-CFG-012).
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/config-copy.c; src/config.c (`cfg_ini_handler`,
@@ -545,7 +559,8 @@ all vhosts share the listening sockets and a client chooses its vhost, an
 inherited endpoint is no more reachable than the default vhost's own. A named
 vhost cannot turn off an inherited `kkdcp`, as with any inherited option.
 **Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-003, REQ-CONFIG-CFG-006,
-REQ-CONFIG-CFG-008, REQ-CONFIG-CFG-009, REQ-CONFIG-CFG-011
+REQ-CONFIG-CFG-008, REQ-CONFIG-CFG-009, REQ-CONFIG-CFG-011,
+REQ-CONFIG-CFG-012
 
 ### REQ-CONFIG-CFG-011 — `auth`, `enable-auth` and `acct` are inherited together: a vhost that sets `auth` inherits none of them
 
@@ -598,6 +613,63 @@ startup only, a reload that makes a section invalid under this requirement
 is accepted and the restart rejects it, like any other non-reloadable option.
 **Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-003, REQ-CONFIG-CFG-004,
 REQ-CONFIG-CFG-010
+
+### REQ-CONFIG-CFG-012 — A session receives its own routes, the vhost's when it has none or `append-routes` is set, then the exposed iroutes unless it is a full tunnel
+
+**Requirement:** When main opens a session, it MUST build the session's
+`route` and `no-route` values from the *user routes* — the values that the
+session's `config-per-user` or `config-per-group` file sets for it, and the
+`route` values RADIUS sets for it (REQ-CONFIG-CFG-006) — and the *vhost
+routes* — the values of the vhost the user connected to, set in its section
+or inherited (REQ-CONFIG-CFG-010).
+`append-routes` (`[scope: vhost]`, default `false`, not settable per user)
+decides how the two combine, separately for `route` and for `no-route`:
+  - A session with no user routes for an option MUST receive the vhost routes
+    for it, each exactly once, whatever the value of `append-routes`.
+  - With `append-routes = false`, a session's user routes for an option MUST
+    replace the vhost routes for it.
+  - With `append-routes = true`, a session MUST receive its user routes for an
+    option followed by the vhost routes for it. A value listed in both is not
+    merged and is sent twice, as the administrator gave it twice.
+When `expose-iroutes` is set, the session's `route` values MUST then be
+followed by every `iroute` of another user's or group's configuration file
+(`known_iroutes`), leaving out those its own `iroute` values list, so that
+it reaches the networks behind the other clients; `no-route` is not
+affected. The resulting `route` order is: user routes, vhost routes,
+known iroutes. A session whose `route` values are empty at that point is a
+full tunnel, which already reaches these networks: it MUST NOT receive the
+known iroutes, which would make it a split tunnel limited to them. The vhost
+has no routes when it sets `route = default` or `route = 0.0.0.0/0`, which
+`check_cfg()` turns into an empty list, or no `route` at all; the three are
+equivalent.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/main-sec-mod-cmd.c (`apply_default_config`,
+`append_routes`); src/config.c (`cfg_ini_handler` "append-routes",
+`load_iroutes`, `check_cfg`); doc/sample.config `append-routes`,
+`expose-iroutes`
+**Acceptance:** tests/test-append-routes (CI, root), with `expose-iroutes`
+set, a vhost `route` and `no-route`, and the user `test` declaring an
+`iroute`: (a) with `append-routes = true`, `testuser`, which has no user
+routes, MUST receive the vhost `route` exactly once followed by the iroute,
+and the vhost `no-route` exactly once; (b) with `append-routes = true`,
+`testipnet`, whose file sets a `route` and a `no-route`, MUST receive that
+route, then the vhost `route`, then the iroute, each once, and its own
+`no-route` followed by the vhost `no-route`; (c) negative: with
+`append-routes = false`, `testipnet` MUST receive its own `route` and the
+iroute, and not the vhost `route`, and only its own `no-route`; (d)
+negative: with `append-routes = false` and the vhost `route` replaced by
+`route = default`, `testuser` MUST receive no `route` (a full tunnel, not
+the iroute) and the vhost `no-route` exactly once.
+**Note:** before this requirement, with `append-routes = true` a session
+without user routes for `route` received each vhost route twice, as main gave
+it the vhost routes as its own and then appended them, and the known iroutes
+came before the appended vhost routes; a session with no routes received
+the known iroutes as its only routes. A session whose user routes are
+appended to a vhost with no routes receives only its user routes and the
+known iroutes: `append-routes` does not keep a full tunnel for users that
+have routes of their own.
+**Links:** REQ-CONFIG-CFG-006, REQ-CONFIG-CFG-010
 
 ---
 
