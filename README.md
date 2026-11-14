@@ -147,19 +147,66 @@ $ ninja -C build
 
 # Basic installation instructions
 
-Now you need to generate a certificate. E.g.
+Distribution packages, where available, already perform these steps and are
+the recommended way to install ocserv.
+
+## Installing the binaries
+
+After building, install as root:
 ```
-$ certtool --generate-privkey > ./test-key.pem
-$ certtool --generate-self-signed --load-privkey test-key.pem --outfile test-cert.pem
+# meson install -C build
+```
+
+The prefix defaults to `/usr/local`; set another one at configure time with
+`meson setup build --prefix=/usr`. With the default prefix this installs
+`ocserv` and `ocserv-worker` in `/usr/local/sbin`, `occtl` and `ocpasswd` in
+`/usr/local/bin`, the `ocserv-fw` script in `/usr/local/libexec` and the
+manual pages. `ocserv` executes `ocserv-worker` from its own directory, so the
+two must be kept together; on systems without `/proc` (e.g., BSD) start
+`ocserv` by its absolute path. Use `ninja -C build uninstall` to remove the
+installed files.
+
+## Configuring the server
+
+Generate a certificate and key, e.g.:
+```
+$ certtool --generate-privkey > ./server-key.pem
+$ certtool --generate-self-signed --load-privkey server-key.pem --outfile server-cert.pem
 ```
 (make sure you enable encryption or signing)
 
-
-Create a dedicated user and group for the server unprivileged processes
-(e.g., 'ocserv'), and then edit the [sample.config](doc/sample.config)
-and set these users on run-as-user and run-as-group options. The run:
+The server reads `/etc/ocserv/ocserv.conf` unless `--config` is given. Start
+from the annotated [sample.config](doc/sample.config), which documents every
+option but references test files by relative paths:
 ```
-# cd doc && ../src/ocserv -f -c sample.config
+# install -d -m 0755 /etc/ocserv
+# install -m 0600 doc/sample.config /etc/ocserv/ocserv.conf
+```
+
+Create a dedicated user and group for the unprivileged worker processes
+(e.g., `ocserv`) and set them in the `run-as-user` and `run-as-group` options.
+Then at least select the authentication method (`auth`), set `server-cert` and
+`server-key` to the absolute paths of your certificate and key, configure the
+address pool, DNS and routes, and remove the example virtual hosts you do not
+use. Check the result with:
+```
+# /usr/local/sbin/ocserv --test-config --config /etc/ocserv/ocserv.conf
+```
+
+IP forwarding, firewall rules and NAT or return routes for the VPN address
+pool are not set up by the installation; see the networking considerations
+section of the ocserv(8) manual page.
+
+## Running as a systemd service
+
+Example units are provided in [doc/systemd/](doc/systemd/): `standalone`, where
+ocserv opens its own sockets, and `socket-activated`, where systemd opens them
+(requires building with libsystemd). Copy the chosen unit(s) to
+`/etc/systemd/system/` and, if ocserv was not installed under `/usr`, adjust
+the `/usr/sbin/ocserv` path in `ExecStart`. Then:
+```
+# systemctl daemon-reload
+# systemctl enable --now ocserv.service
 ```
 
 # Configuration
