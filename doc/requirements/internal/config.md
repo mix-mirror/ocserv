@@ -153,7 +153,7 @@ report that the name is too long.
 `vhost user`. Every field of `struct cfg_st`/`struct static_cfg_st` in
 `src/vpn.h` MUST carry a matching inline `[scope: ...]` comment.
 `tests/check-config-scope.py` MUST pass, enforcing the following
-cross-references (its checks a–h):
+cross-references (its checks a–j):
   - (a) every `sample.config` option has a scope annotation;
   - (b) every reloadable `[... global]` option has a matching
     `error_on_vhost()` call in `config.c` (REQ-CONFIG-CFG-004);
@@ -168,7 +168,15 @@ cross-references (its checks a–h):
     `[scope:]` comment;
   - (h) every `[scope: vhost (non-reloadable)]` field in `static_cfg_st` is
     referenced in `vhost_inherit_static_config()` or listed in
-    `STATIC_VHOST_INHERIT_EXCEPTIONS` (REQ-CONFIG-CFG-003).
+    `STATIC_VHOST_INHERIT_EXCEPTIONS` (REQ-CONFIG-CFG-003);
+  - (i) every option `cfg_ini_handler()` in `config.c` reads is documented
+    in `sample.config`, unless it is an alternative spelling of a documented
+    option or is deprecated, removed or for debugging only, and listed as
+    such in `UNDOCUMENTED_CONFIG_OPTIONS`;
+  - (j) every option `src/sup-config/file.c` reads is named, or is an
+    alternative spelling of an option named, in the list of options allowed
+    in per-user and per-group files that precedes `config-per-user` in
+    `sample.config`.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** tests/check-config-scope.py (full file); src/vpn.h:224-275
@@ -178,7 +186,10 @@ cross-references (its checks a–h):
 option to `sample.config` without a `[scope:]` line, or a new
 `static_cfg_st` field without a `[scope:]` comment, MUST fail check (a) or
 (g) respectively — this is the project's primary safeguard against
-config/doc/code drift for scope semantics.
+config/doc/code drift for scope semantics. Negative: a new option read by
+`cfg_ini_handler()` and absent from `sample.config` MUST fail check (i), and
+a new option read by `src/sup-config/file.c` and absent from the per-user
+list MUST fail check (j).
 **Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-003, REQ-CONFIG-CFG-004,
 REQ-CONFIG-CFG-006
 
