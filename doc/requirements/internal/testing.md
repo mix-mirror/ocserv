@@ -550,9 +550,9 @@ sends to them; packet capture (`tcpdump`); capability probes
 **Strength:** MUST / MUST NOT
 **Status:** DERIVED
 **Source:** `tests/oc-client.py` (`Server`, `command`, `cmd_groups`,
-`cmd_init`, `cmd_svc`, `cmd_login`, `cmd_username_only`,
-`cmd_negotiate_fallback`, `cmd_oversized`, `Tunnel`, `cmd_cstp_echo`,
-`cmd_cstp_malformed`, `main`); `tests/common.sh`
+`cmd_init`, `cmd_form`, `cmd_login`, `cmd_negotiate_fallback`,
+`cmd_oversized`, `Tunnel`, `cmd_cstp_echo`, `cmd_cstp_malformed`, `main`);
+`tests/common.sh`
 (`require_oc_client`, `oc_client`, `oc_run`, `oc_fail`, `oc_expect`,
 `oc_expect_not`, `oc_value`);
 `tests/test-vhost-select-group` as the reference consumer;

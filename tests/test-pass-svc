@@ -39,29 +39,36 @@ launch_simple_sr_server -d 1 -p ${PIDFILE} -f -c ${CONFIG}
 PID=$!
 wait_server $PID
 
+# svc_login USER PASSWORD: logs in as the Cisco SVC client does
+svc_login() {
+	oc_run --client svc form --path /svc \
+		--field "username=$1" --field "password=$2"
+}
+
 echo "Connecting to obtain non-auth cookies... "
-oc_run svc --method GET || oc_fail "GET request failed"
+oc_run --client svc form --method GET --path /svc ||
+	oc_fail "GET request failed"
 
 oc_expect 'Set-Cookie: webvpn=; expires=' "Did not receive cookie"
 oc_expect 'Set-Cookie: webvpnlogin=1' "Did not receive non-auth cookie"
 
 echo "Connecting to obtain cookie... "
-oc_run svc --user test --password test || oc_fail "POST request failed"
+svc_login test test || oc_fail "POST request failed"
 
 oc_expect 'Set-Cookie: webvpn=[^;]+' "Did not receive cookie"
 
 echo "Connecting to obtain cookie with wrong password... "
-oc_run svc --user test --password tost || oc_fail "POST request failed"
+svc_login test tost || oc_fail "POST request failed"
 
 oc_expect_not 'Set-Cookie: webvpn=[^;]+' "Received cookie when we shouldn't"
 
 echo "Connecting to obtain cookie with empty password... "
-oc_run svc --user test --password '' || oc_fail "POST request failed"
+svc_login test '' || oc_fail "POST request failed"
 
 oc_expect_not 'Set-Cookie: webvpn=[^;]+' "Received cookie when we shouldn't"
 
 echo "Connecting to obtain cookie with wrong username... "
-oc_run svc --user tost --password test || oc_fail "POST request failed"
+svc_login tost test || oc_fail "POST request failed"
 
 oc_expect_not 'Set-Cookie: webvpn=[^;]+' "Received cookie when we shouldn't"
 

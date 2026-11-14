@@ -40,7 +40,10 @@ to the file given with --log, so that a failing test can show what was sent
 and what came back.
 
 To add a command, write a cmd_<name>(server, args) function returning one
-of the exit codes above and register it with @command.
+of the exit codes above and register it with @command. Before adding one,
+check whether an option of an existing command covers the request; a new
+command is for a request that needs knowledge no command has: a message
+format, connection handling, or a rule for judging the outcome.
 """
 
 import argparse
@@ -459,25 +462,26 @@ def report_cookies(server, reply):
         server.report("Set-Cookie: %s" % cookie)
 
 
-@command("svc",
+@command("form",
          arg("--method", choices=["GET", "POST"], default="POST"),
-         arg("--user", help="username to post"),
-         arg("--password", help="password to post"))
-def cmd_svc(server, args):
-    """Send a request to /svc as a Cisco SVC IP phone does.
+         arg("--path", default="/auth"),
+         arg("--field", action="append", default=[], metavar="NAME=VALUE",
+             help="HTML form field to post; repeat for more"))
+def cmd_form(server, args):
+    """Send HTML form fields, as the Cisco SVC client does.
 
-    Always presents the Cisco SVC client's User-Agent. The username and
-    password, those given, are posted as HTML form fields. Prints each
-    Set-Cookie header as 'Set-Cookie: HEADER'."""
-    fields = {name: value for name, value in
-              (("username", args.user), ("password", args.password))
-              if value is not None}
-    headers = {"User-Agent": CLIENTS["svc"]}
-    body = None
+    Posts the fields given, in order; a request without fields has no
+    body. Prints 'Status: CODE' and each Set-Cookie header as
+    'Set-Cookie: HEADER'. Succeeds whenever the server answers, so that
+    the test judges the answer from what was printed."""
+    fields = [field.partition("=")[::2] for field in args.field]
+    if fields and args.method != "POST":
+        raise ProtocolError("form fields can only be posted")
     if fields:
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
-        body = urlencode(fields)
-    reply = server.request(args.method, "/svc", body, headers)
+        reply = server.post_form(fields, args.path)
+    else:
+        reply = server.request(args.method, args.path)
+    server.report("Status: %d" % reply.status)
     report_cookies(server, reply)
     return OK
 
@@ -505,19 +509,6 @@ def cmd_login(server, args):
         return OK
     raise ProtocolError("expected a session cookie or a rejection, got "
                         "HTTP %d:\n%s" % (reply.status, reply.body))
-
-
-@command("username-only",
-         arg("--user", required=True))
-def cmd_username_only(server, args):
-    """Post a username without its password.
-
-    This is what a client that abandons a login after giving its username
-    sends: the server starts authenticating the user, then finds no
-    password. Succeeds if the server issues a session cookie anyway,
-    refuses if it rejects the login."""
-    reply = server.post_form({"username": args.user}, "/auth")
-    return login_result(server, reply)
 
 
 # A captured, generic GSSAPI/SPNEGO NTLMSSP Type1 (negotiate) token. Type1
