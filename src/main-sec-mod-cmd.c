@@ -224,6 +224,10 @@ static void append_routes(sec_mod_instance_st *sec_mod_instance, proc_st *proc,
 			  GroupCfgSt *gc)
 {
 	vhost_cfg_st *vhost = proc->vhost;
+	/* a user without routes of its own gets the vhost's; with
+	 * append-routes, a user with routes gets them as well */
+	unsigned int vhost_routes = vhost->config->append_routes ||
+				    gc->routes == NULL;
 
 	/* if we have known_iroutes, we must append them to the routes list */
 	if (vhost->config->n_known_iroutes > 0 ||
@@ -235,7 +239,7 @@ static void append_routes(sec_mod_instance_st *sec_mod_instance, proc_st *proc,
 		unsigned int to_append = 0;
 
 		to_append = vhost->config->n_known_iroutes;
-		if (vhost->config->append_routes)
+		if (vhost_routes)
 			to_append += vhost->config->network->n_routes;
 
 		gc->routes =
@@ -254,46 +258,40 @@ static void append_routes(sec_mod_instance_st *sec_mod_instance, proc_st *proc,
 			gc->n_routes++;
 		}
 
-		if (gc->routes) {
-			/* Append any iroutes that are known and don't match the client's */
-			for (i = 0; i < vhost->config->n_known_iroutes; i++) {
-				append = 1;
-				for (j = 0; j < gc->n_iroutes; j++) {
-					if (strcmp(gc->iroutes[j],
-						   vhost->config
-							   ->known_iroutes[i]) ==
-					    0) {
-						append = 0;
-						break;
-					}
-				}
+		if (vhost_routes) {
+			/* Append all global routes */
+			for (i = 0; i < vhost->config->network->n_routes; i++) {
+				gc->routes[gc->n_routes] = talloc_strdup(
+					proc,
+					vhost->config->network->routes[i]);
+				if (gc->routes[gc->n_routes] == NULL)
+					break;
+				gc->n_routes++;
+			}
+		}
 
-				if (append) {
-					gc->routes[gc->n_routes] = talloc_strdup(
-						proc,
-						vhost->config->known_iroutes[i]);
-					if (gc->routes[gc->n_routes] == NULL)
-						break;
-					gc->n_routes++;
+		/* Append any iroutes that are known and don't match the client's */
+		for (i = 0; i < vhost->config->n_known_iroutes; i++) {
+			append = 1;
+			for (j = 0; j < gc->n_iroutes; j++) {
+				if (strcmp(gc->iroutes[j],
+					   vhost->config->known_iroutes[i]) ==
+				    0) {
+					append = 0;
+					break;
 				}
+			}
+
+			if (append) {
+				gc->routes[gc->n_routes] = talloc_strdup(
+					proc, vhost->config->known_iroutes[i]);
+				if (gc->routes[gc->n_routes] == NULL)
+					break;
+				gc->n_routes++;
 			}
 		}
 
 		if (vhost->config->append_routes) {
-			/* Append all global routes */
-			if (gc->routes) {
-				for (i = 0;
-				     i < vhost->config->network->n_routes;
-				     i++) {
-					gc->routes[gc->n_routes] = talloc_strdup(
-						proc, vhost->config->network
-							      ->routes[i]);
-					if (gc->routes[gc->n_routes] == NULL)
-						break;
-					gc->n_routes++;
-				}
-			}
-
 			/* Append no-routes */
 			if (vhost->config->network->n_no_routes == 0)
 				return;
@@ -343,12 +341,12 @@ static void apply_default_config(sec_mod_instance_st *sec_mod_instance,
 		gc->has_no_udp = 1;
 	}
 
+	append_routes(sec_mod_instance, proc, gc);
+
 	if (gc->routes == NULL) {
 		gc->routes = vhost->config->network->routes;
 		gc->n_routes = vhost->config->network->n_routes;
 	}
-
-	append_routes(sec_mod_instance, proc, gc);
 
 	if (gc->no_routes == NULL) {
 		gc->no_routes = vhost->config->network->no_routes;

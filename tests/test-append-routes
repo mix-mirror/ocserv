@@ -21,61 +21,95 @@
 SERV="${SERV:-../src/ocserv}"
 srcdir=${srcdir:-.}
 
-# Test whether append-routes behaves as expected.
+# Test whether append-routes combines the routes of a session as
+# REQ-CONFIG-CFG-012 specifies.
 
 . `dirname $0`/common.sh
 . `dirname $0`/random-vpnnet.sh
 # the per-user network of testipnet in tests/data/user-config
 alloc_vpnnet4 VPNUSERNET
 
-eval "${GETPORT}"
-
-echo "Testing ocserv and user append-route application... "
+# the vhost's route and no-route (tests/data/test-user-config.config), the
+# iroute of the user test (tests/data/user-config/test), exposed to other
+# users, and a route and a no-route of testipnet's own
+VHOST_ROUTE="${VPNNET_BASE}.0/255.255.255.0"
+VHOST_NO_ROUTE="198.51.100.0/255.255.255.0"
+IROUTE="203.0.113.0/255.255.255.0"
+USER_ROUTE="192.0.2.128/255.255.255.128"
+USER_NO_ROUTE="192.0.2.64/255.255.255.192"
 
 TMPFILE1=test-append-routes.$$.tmp
 
-rm -f ${TMPFILE1}
-
 update_config_dir user-config
-update_config test-user-config.config
-echo "append-routes = true" >> ${CONFIG}
+echo "route = ${USER_ROUTE}" >> ${CONFIG_PER_USER_DIR}/testipnet
+echo "no-route = ${USER_NO_ROUTE}" >> ${CONFIG_PER_USER_DIR}/testipnet
 
-launch_simple_server -d 1 -f -c ${CONFIG}
-PID=$!
-wait_server $PID
+# start_server APPEND: starts the server with append-routes = APPEND
+start_server() {
+	eval "${GETPORT}"
+	update_config test-user-config.config
+	echo "append-routes = $1" >> ${CONFIG}
 
-echo "Checking if routes are appended... "
+	launch_simple_server -d 1 -f -c ${CONFIG}
+	PID=$!
+	wait_server $PID
+}
 
-timeout 15s $OPENCONNECT localhost:$PORT -v --sslkey ${srcdir}/certs/user-key.pem -c ${srcdir}/certs/user-cert-testuser.pem --servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8= -s /bin/true </dev/null >${TMPFILE1} 2>&1
+stop_server() {
+	kill $PID
+	wait
+	rm -f ${CONFIG}
+}
 
-echo "cat"
-cat ${TMPFILE1}
+# connect CERT: connects as the user of certs/CERT, saving the client's
+# output, which lists the routes the server sent, in TMPFILE1
+connect() {
+	timeout 15s $OPENCONNECT localhost:$PORT -v --sslkey ${srcdir}/certs/user-key.pem -c ${srcdir}/certs/$1 --servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8= -s /bin/true </dev/null >${TMPFILE1} 2>&1
+}
 
-echo -n "Checking if routes have been sent... "
+# check_routes LABEL HEADER VALUE...: the values of HEADER the server sent
+# must be exactly VALUE..., in that order
+check_routes() {
+	label=$1
+	header=$2
+	shift 2
+	got=`grep "${header}:" ${TMPFILE1}|sed 's/.*: //'|tr -d '\r'|tr '\n' ' '`
+	expected="$* "
+	if test "${got}" != "${expected}";then
+		cat ${TMPFILE1}
+		fail $PID "FAIL: ${label}: expected ${header} '${expected}', got '${got}'"
+	fi
+}
 
-CONTENTS=`cat ${TMPFILE1}|grep X-CSTP-Split-Include|grep -F "${VPNNET_BASE}.0/255.255.255.0"`
-if test -z "$CONTENTS";then
-	cat ${TMPFILE1}
-	fail $PID "Temporary file contents are not correct; route was not found"
-fi
+echo "Testing append-routes = true... "
+start_server true
 
+echo -n "Checking a user without routes of its own... "
+connect user-cert-testuser.pem
+check_routes "testuser" X-CSTP-Split-Include ${VHOST_ROUTE} ${IROUTE}
+check_routes "testuser" X-CSTP-Split-Exclude ${VHOST_NO_ROUTE}
 echo ok
 
-echo -n "Checking if no-routes have been sent... "
-
-CONTENTS=`cat ${TMPFILE1}|grep X-CSTP-Split-Exclude|grep -F "198.51.100.0/255.255.255.0"`
-if test -z "$CONTENTS";then
-	cat ${TMPFILE1}
-	fail $PID "Temporary file contents are not correct; no-route was not found"
-fi
-
+echo -n "Checking a user with a route and a no-route of its own... "
+connect user-cert-testipnet.pem
+check_routes "testipnet" X-CSTP-Split-Include ${USER_ROUTE} ${VHOST_ROUTE} ${IROUTE}
+check_routes "testipnet" X-CSTP-Split-Exclude ${USER_NO_ROUTE} ${VHOST_NO_ROUTE}
 echo ok
+
+stop_server
+
+echo "Testing append-routes = false... "
+start_server false
+
+echo -n "Checking that a user's route and no-route replace the vhost's... "
+connect user-cert-testipnet.pem
+check_routes "testipnet" X-CSTP-Split-Include ${USER_ROUTE} ${IROUTE}
+check_routes "testipnet" X-CSTP-Split-Exclude ${USER_NO_ROUTE}
+echo ok
+
+stop_server
 
 rm -f ${TMPFILE1}
-rm -f ${CONFIG}
 rm -rf ${CONFIG_PER_USER_DIR}
-
-kill $PID
-wait
 
 exit 0

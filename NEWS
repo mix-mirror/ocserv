@@ -44,6 +44,10 @@
 - A virtual host that does not set 'kkdcp' now inherits it from the
   top-level configuration, like other options; it previously was not
   inherited.
+- With append-routes, a user without routes of its own receives each route
+  of the server once; it was sent twice. The option is now documented, and
+  a user's own routes are followed by the server's and then by the exposed
+  iroutes, which came before the server's routes.
 
 * Version 1.6.0 (released 2026-10-16)
 - Send the RADIUS session ID as Acct-Session-Id in the Access-Request (#751)
