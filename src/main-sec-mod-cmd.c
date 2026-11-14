@@ -228,17 +228,22 @@ static void append_routes(sec_mod_instance_st *sec_mod_instance, proc_st *proc,
 	 * append-routes, a user with routes gets them as well */
 	unsigned int vhost_routes = vhost->config->append_routes ||
 				    gc->routes == NULL;
+	/* a session with no routes is a full tunnel, which already
+	 * reaches the networks behind the other clients */
+	unsigned int full_tunnel = gc->routes == NULL &&
+				   vhost->config->network->n_routes == 0;
+	unsigned int n_iroutes = full_tunnel ? 0 :
+					       vhost->config->n_known_iroutes;
 
 	/* if we have known_iroutes, we must append them to the routes list */
-	if (vhost->config->n_known_iroutes > 0 ||
-	    vhost->config->append_routes) {
+	if (n_iroutes > 0 || vhost->config->append_routes) {
 		main_server_st *s = sec_mod_instance->server;
 		char **old_routes = gc->routes;
 		unsigned int old_routes_size = gc->n_routes;
 		unsigned int i, j, append;
 		unsigned int to_append = 0;
 
-		to_append = vhost->config->n_known_iroutes;
+		to_append = n_iroutes;
 		if (vhost_routes)
 			to_append += vhost->config->network->n_routes;
 
@@ -271,7 +276,7 @@ static void append_routes(sec_mod_instance_st *sec_mod_instance, proc_st *proc,
 		}
 
 		/* Append any iroutes that are known and don't match the client's */
-		for (i = 0; i < vhost->config->n_known_iroutes; i++) {
+		for (i = 0; i < n_iroutes; i++) {
 			append = 1;
 			for (j = 0; j < gc->n_iroutes; j++) {
 				if (strcmp(gc->iroutes[j],

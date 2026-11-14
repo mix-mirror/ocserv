@@ -44,11 +44,15 @@ update_config_dir user-config
 echo "route = ${USER_ROUTE}" >> ${CONFIG_PER_USER_DIR}/testipnet
 echo "no-route = ${USER_NO_ROUTE}" >> ${CONFIG_PER_USER_DIR}/testipnet
 
-# start_server APPEND: starts the server with append-routes = APPEND
+# start_server APPEND [SED]: starts the server with append-routes = APPEND,
+# after applying the sed expression SED to its configuration
 start_server() {
 	eval "${GETPORT}"
 	update_config test-user-config.config
 	echo "append-routes = $1" >> ${CONFIG}
+	if test -n "$2";then
+		sed -i "$2" ${CONFIG}
+	fi
 
 	launch_simple_server -d 1 -f -c ${CONFIG}
 	PID=$!
@@ -73,8 +77,8 @@ check_routes() {
 	label=$1
 	header=$2
 	shift 2
-	got=`grep "${header}:" ${TMPFILE1}|sed 's/.*: //'|tr -d '\r'|tr '\n' ' '`
-	expected="$* "
+	got=`grep "${header}:" ${TMPFILE1}|sed 's/.*: //'|tr -d '\r'|tr '\n' ' '|sed 's/ $//'`
+	expected="$*"
 	if test "${got}" != "${expected}";then
 		cat ${TMPFILE1}
 		fail $PID "FAIL: ${label}: expected ${header} '${expected}', got '${got}'"
@@ -105,6 +109,17 @@ echo -n "Checking that a user's route and no-route replace the vhost's... "
 connect user-cert-testipnet.pem
 check_routes "testipnet" X-CSTP-Split-Include ${USER_ROUTE} ${IROUTE}
 check_routes "testipnet" X-CSTP-Split-Exclude ${USER_NO_ROUTE}
+echo ok
+
+stop_server
+
+echo "Testing a vhost with route = default... "
+start_server false "s|^route = .*|route = default|"
+
+echo -n "Checking that a user without routes is not given the iroute... "
+connect user-cert-testuser.pem
+check_routes "testuser (full tunnel)" X-CSTP-Split-Include
+check_routes "testuser (full tunnel)" X-CSTP-Split-Exclude ${VHOST_NO_ROUTE}
 echo ok
 
 stop_server

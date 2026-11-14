@@ -614,7 +614,7 @@ is accepted and the restart rejects it, like any other non-reloadable option.
 **Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-003, REQ-CONFIG-CFG-004,
 REQ-CONFIG-CFG-010
 
-### REQ-CONFIG-CFG-012 — A session receives its own routes, the vhost's when it has none or `append-routes` is set, then the exposed iroutes
+### REQ-CONFIG-CFG-012 — A session receives its own routes, the vhost's when it has none or `append-routes` is set, then the exposed iroutes unless it is a full tunnel
 
 **Requirement:** When main opens a session, it MUST build the session's
 `route` and `no-route` values from the *user routes* — the values that the
@@ -636,12 +636,18 @@ followed by every `iroute` of another user's or group's configuration file
 (`known_iroutes`), leaving out those its own `iroute` values list, so that
 it reaches the networks behind the other clients; `no-route` is not
 affected. The resulting `route` order is: user routes, vhost routes,
-known iroutes.
+known iroutes. A session whose `route` values are empty at that point is a
+full tunnel, which already reaches these networks: it MUST NOT receive the
+known iroutes, which would make it a split tunnel limited to them. The vhost
+has no routes when it sets `route = default` or `route = 0.0.0.0/0`, which
+`check_cfg()` turns into an empty list, or no `route` at all; the three are
+equivalent.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/main-sec-mod-cmd.c (`apply_default_config`,
 `append_routes`); src/config.c (`cfg_ini_handler` "append-routes",
-`load_iroutes`); doc/sample.config `append-routes`
+`load_iroutes`, `check_cfg`); doc/sample.config `append-routes`,
+`expose-iroutes`
 **Acceptance:** tests/test-append-routes (CI, root), with `expose-iroutes`
 set, a vhost `route` and `no-route`, and the user `test` declaring an
 `iroute`: (a) with `append-routes = true`, `testuser`, which has no user
@@ -651,13 +657,16 @@ and the vhost `no-route` exactly once; (b) with `append-routes = true`,
 route, then the vhost `route`, then the iroute, each once, and its own
 `no-route` followed by the vhost `no-route`; (c) negative: with
 `append-routes = false`, `testipnet` MUST receive its own `route` and the
-iroute, and not the vhost `route`, and only its own `no-route`.
+iroute, and not the vhost `route`, and only its own `no-route`; (d)
+negative: with `append-routes = false` and the vhost `route` replaced by
+`route = default`, `testuser` MUST receive no `route` (a full tunnel, not
+the iroute) and the vhost `no-route` exactly once.
 **Note:** before this requirement, with `append-routes = true` a session
 without user routes for `route` received each vhost route twice, as main gave
 it the vhost routes as its own and then appended them, and the known iroutes
-came before the appended vhost routes. A vhost `route = default` (or
-`0.0.0.0/0`) leaves the vhost with no routes (`check_cfg()`), so a session
-whose user routes are appended to it receives only its user routes and the
+came before the appended vhost routes; a session with no routes received
+the known iroutes as its only routes. A session whose user routes are
+appended to a vhost with no routes receives only its user routes and the
 known iroutes: `append-routes` does not keep a full tunnel for users that
 have routes of their own.
 **Links:** REQ-CONFIG-CFG-006, REQ-CONFIG-CFG-010
