@@ -350,7 +350,7 @@ defaults that change behavior. Every configurable behavior must be expressible i
 
 ### Code Style
 
-See **REQ-GEN-STYLE-001** through **REQ-GEN-STYLE-005** for the normative
+See **REQ-GEN-STYLE-001** through **REQ-GEN-STYLE-006** for the normative
 rules. In brief:
 
 - C99 standard; Linux kernel coding style (tabs, 8-space tab width, 80-column limit)
@@ -365,6 +365,9 @@ rules. In brief:
   and IPC encoding/decoding, untrusted-input parsing/validation, and auth checks
   are never re-implemented, at any size — call, generalize, or share the existing
   code
+- In new or modified code, parenthesize sub-expressions that use a different
+  operator than the one applied to them (`(a > (b / 2)) ? b : (a * 2)`); do not
+  reformat untouched code for this
 - **Comments:** Prefer self-documenting code. Add a comment only when the *why* is
   non-obvious: a hidden constraint, a protocol expectation, or a workaround. Do not
   comment what the code does; well-named identifiers already do that.
