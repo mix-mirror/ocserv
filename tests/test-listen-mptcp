@@ -1,0 +1,225 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Pierre-Yves Le Borgne
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# Test the listen-mptcp option (REQ-MAIN-INIT-007): the TCP listener is a
+# Multipath TCP socket. An MPTCP client completes the TLS handshake and the
+# authentication, occtl lists its session as connected, the session's worker
+# holds an MPTCP socket and the tunnel carries traffic; a plain TCP client
+# does the same over TCP. Without the option the listener stays TCP.
+#
+# Needs a kernel with MPTCP: without one the test is skipped, unless
+# OCSERV_TEST_REQUIRE_MPTCP=1 (set by the CI job that boots such a kernel),
+# which turns the skips below into failures. The fallback on kernels
+# without MPTCP is tested by test-listen-mptcp-fallback.
+
+OCCTL="${OCCTL:-../src/occtl/occtl}"
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+PIDFILE=ocserv-pid.$$.tmp
+CLIPID=oc-pid.$$.tmp
+OUTFILE=ss.$$.tmp
+LOGFILE=ocserv-log.$$.tmp
+OCCTL_SOCKET=./occtl-mptcp-$$.socket
+SS=$(command -v ss)
+PIN=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8=
+FALLBACK_MSG="listen-mptcp: cannot create an MPTCP socket"
+
+# mptcp_fail REASON: fails the test with OCSERV_TEST_REQUIRE_MPTCP=1, and
+# skips it otherwise
+mptcp_fail() {
+	if test "${OCSERV_TEST_REQUIRE_MPTCP}" = 1; then
+		echo "FAIL: $1, but OCSERV_TEST_REQUIRE_MPTCP=1"
+		exit 1
+	fi
+	echo "$1; skipping"
+	exit 77
+}
+
+if test "$(id -u)" != "0"; then
+	mptcp_fail "This test must be run as root"
+fi
+
+function finish {
+	echo " * Cleaning up..."
+	cleanup_client_server
+	rm -f ${OUTFILE} ${LOGFILE} ${CONFIG_NO_MPTCP}
+}
+trap finish EXIT
+
+. `dirname $0`/common.sh
+. `dirname $0`/random-net.sh
+. `dirname $0`/ns.sh
+
+if ! ${CMDNS2} test -e /proc/sys/net/mptcp/enabled; then
+	mptcp_fail "The kernel has no MPTCP support (CONFIG_MPTCP)"
+fi
+
+if ! ${SS} -H -M -l >/dev/null 2>&1; then
+	mptcp_fail "ss cannot list MPTCP sockets (-M)"
+fi
+
+# meson builds the shim if <netinet/in.h> defines IPPROTO_MPTCP
+if test -z "${MPTCP_SHIM}" || ! test -f "${MPTCP_SHIM}"; then
+	mptcp_fail "MPTCP_SHIM not set or not built"
+fi
+
+# the shim is built with the sanitizer flags, and openconnect is not
+if test "${DISABLE_ASAN_BROKEN_TESTS}" = 1; then
+	mptcp_fail "The MPTCP client needs LD_PRELOAD, which ASAN builds cannot use"
+fi
+
+if ! command -v jq >/dev/null; then
+	mptcp_fail "jq not found"
+fi
+
+eval "${GETPORT}"
+
+update_config test-listen-mptcp.config
+CONFIG_NO_MPTCP=${CONFIG}.no-mptcp
+grep -v '^listen-mptcp' ${CONFIG} >${CONFIG_NO_MPTCP}
+if test "$VERBOSE" = 1;then
+	DEBUG="-d 3"
+fi
+
+start_server() {
+	${CMDNS2} ${SERV} -p ${PIDFILE} -f -c $1 ${DEBUG} >${LOGFILE} 2>&1 & PID=$!
+	wait_ns_port t ${PORT}
+}
+
+stop_server() {
+	kill ${PID}
+	wait ${PID}
+	PID=""
+}
+
+# mptcp_listeners: prints the MPTCP listening sockets on PORT in the server
+# namespace
+mptcp_listeners() {
+	${SS} -N ${NSNAME2} -H -n -M -l "sport = :${PORT}"
+}
+
+# established SS_OPTION: prints the established sockets on PORT in the server
+# namespace, with the processes that hold them; -M lists MPTCP sockets, -t
+# TCP sockets
+established() {
+	${SS} -N ${NSNAME2} -H -n -p $1 state established "sport = :${PORT}"
+}
+
+# session_id: prints the ID (the worker's PID) of the connected session of
+# user test, as occtl lists it
+session_id() {
+	${CMDNS2} ${OCCTL} -s ${OCCTL_SOCKET} --json show users |
+		jq -r '.[] | select(.Username == "test" and .State == "connected") | .ID'
+}
+
+# connect_client NAME [VAR=VALUE...]: connects user test from the client
+# namespace, with the variables in openconnect's environment and without
+# DTLS, so that the tunnel uses the TLS connection; waits for occtl to list
+# the session and sets ID to it
+connect_client() {
+	name=$1
+	shift
+	if ! ( echo "test" | ${CMDNS1} env "$@" ${OPENCONNECT} ${ADDRESS}:${PORT} -u test --servercert=${PIN} -s ${srcdir}/scripts/vpnc-script --pid-file=${CLIPID} --passwd-on-stdin --no-dtls -b ); then
+		cat ${LOGFILE}
+		fail $PID "FAIL: ${name} client could not connect to the server"
+	fi
+
+	ID=""
+	for i in $(seq 1 10); do
+		ID=$(session_id)
+		test -n "${ID}" && break
+		sleep 1
+	done
+	if test -z "${ID}"; then
+		${CMDNS2} ${OCCTL} -s ${OCCTL_SOCKET} show users
+		fail $PID "FAIL: expected occtl to list the ${name} client's session as connected, it does not"
+	fi
+	echo " * occtl lists the ${name} client's session as connected (worker ${ID})"
+
+	${CMDNS1} ping -c 3 -w 10 ${VPNADDR} >/dev/null ||
+		fail $PID "FAIL: no reply to ping over the ${name} client's tunnel"
+}
+
+# disconnect_client: stops the client, and waits for it to exit and for occtl
+# to stop listing its session
+disconnect_client() {
+	clipid=$(cat ${CLIPID})
+	kill ${clipid}
+	for i in $(seq 1 10); do
+		kill -0 ${clipid} 2>/dev/null || test -n "$(session_id)" || break
+		sleep 1
+	done
+	if kill -0 ${clipid} 2>/dev/null || test -n "$(session_id)"; then
+		fail $PID "FAIL: expected the client to exit and its session to end within 10s, they did not"
+	fi
+	rm -f ${CLIPID}
+	reset_client_routes
+}
+
+echo "*** Test 1 - listen-mptcp = true"
+start_server ${CONFIG}
+
+mptcp_listeners >${OUTFILE}
+if ! grep -q ":${PORT}" ${OUTFILE}; then
+	cat ${LOGFILE}
+	fail $PID "FAIL: expected an MPTCP listener on port ${PORT}, ss -M lists none"
+fi
+
+echo " * Connecting with MPTCP"
+connect_client MPTCP LD_PRELOAD=${MPTCP_SHIM}
+echo " * Established MPTCP socket of worker ${ID}:"
+established -M >${OUTFILE}
+if ! grep "pid=${ID}," ${OUTFILE}; then
+	cat ${OUTFILE}
+	fail $PID "FAIL: expected worker ${ID} to hold an established MPTCP socket, ss -M lists none"
+fi
+disconnect_client
+
+echo " * Connecting with plain TCP"
+connect_client "plain TCP"
+echo " * Established TCP socket of worker ${ID}:"
+established -t >${OUTFILE}
+if ! grep "pid=${ID}," ${OUTFILE}; then
+	cat ${OUTFILE}
+	fail $PID "FAIL: expected worker ${ID} to hold an established TCP socket, ss -t lists none"
+fi
+established -M >${OUTFILE}
+if grep -q "pid=${ID}," ${OUTFILE}; then
+	cat ${OUTFILE}
+	fail $PID "FAIL: expected worker ${ID} of the plain TCP client to hold no MPTCP socket, ss -M lists one"
+fi
+disconnect_client
+stop_server
+
+echo "*** Test 2 - listen-mptcp not set"
+start_server ${CONFIG_NO_MPTCP}
+
+mptcp_listeners >${OUTFILE}
+if grep -q ":${PORT}" ${OUTFILE}; then
+	cat ${OUTFILE}
+	fail $PID "FAIL: expected no MPTCP listener on port ${PORT} without listen-mptcp, ss -M lists one"
+fi
+if grep -q "${FALLBACK_MSG}" ${LOGFILE}; then
+	cat ${LOGFILE}
+	fail $PID "FAIL: unexpected '${FALLBACK_MSG}' without listen-mptcp"
+fi
+stop_server
+
+exit 0

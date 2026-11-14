@@ -44,6 +44,9 @@
 - A virtual host that does not set 'kkdcp' now inherits it from the
   top-level configuration, like other options; it previously was not
   inherited.
+- Added the listen-mptcp option: the TCP listening sockets accept Multipath
+  TCP (MPTCP) connections, falling back to TCP with a warning when the
+  kernel does not provide MPTCP.
 - With append-routes, a user without routes of its own receives each route
   of the server once; it was sent twice. The option is now documented, and
   a user's own routes are followed by the server's and then by the exposed

@@ -7,6 +7,9 @@ ListenDatagram=443
 BindIPv6Only=default
 Accept=false
 ReusePort=true
+# Uncomment to accept Multipath TCP connections on the TCP socket (systemd
+# 257 or later); this replaces listen-mptcp in ocserv.conf.
+#SocketProtocol=mptcp
 
 [Install]
 WantedBy=sockets.target

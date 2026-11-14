@@ -166,6 +166,62 @@ set and the computed number exceeds it, main MUST cap the number at
 option. See tests/test-oidc-code-flow.
 **Links:** REQ-IPC-094, REQ-IPC-093
 
+### REQ-MAIN-INIT-007 — With `listen-mptcp`, TCP listeners are MPTCP sockets, falling back to TCP when the kernel refuses them
+
+**Requirement:** When `listen-mptcp` is true and main creates its own
+listening sockets (no systemd socket activation, see REQ-MAIN-INIT-008),
+main MUST create every `SOCK_STREAM` listener with protocol
+`IPPROTO_MPTCP`, so that clients supporting Multipath TCP can add subflows
+over other paths; clients without MPTCP support connect with plain TCP, as
+the kernel falls back per connection. If the kernel refuses the MPTCP
+socket (`EPROTONOSUPPORT`: no MPTCP support; `ENOPROTOOPT`:
+`net.mptcp.enabled = 0` in the listening network namespace; `EINVAL`:
+Linux older than 5.6) or the platform is not Linux, main MUST log a warning
+and create that listener with the protocol returned by `getaddrinfo()`, so
+that the option never prevents the server from starting. `SOCK_DGRAM`
+(DTLS) listeners MUST NOT be affected, and when `listen-mptcp` is false or
+unset, every listener MUST be created with the `getaddrinfo()` protocol.
+**Strength:** MUST / MUST NOT
+**Status:** DERIVED
+**Source:** src/main.c (`listen_socket()`, `socket_mptcp()`,
+`_listen_ports()`); src/config.c (`listen-mptcp`); doc/sample.config
+**Acceptance:** `tests/test-listen-mptcp` — positive, CI (root, kernel
+with MPTCP): with `listen-mptcp = true`, `ss -M` in the server namespace
+lists the TCP port as an MPTCP listener; an OpenConnect client that
+`tests/mptcp-shim.c` makes use MPTCP authenticates, `occtl show users`
+lists its session as connected, the session's worker holds an established
+MPTCP socket and a ping crosses the tunnel; a plain-TCP client does the same
+over a TCP socket. Without the option, `ss -M` lists no listener on the
+port. The hosted runners' kernels lack `CONFIG_MPTCP`, so the test skips in
+most jobs; the `mptcp/Fedora` job runs it in a virtme-ng guest booting
+Fedora's kernel, with `OCSERV_TEST_REQUIRE_MPTCP=1` so that it fails rather
+than skips there (REQ-GEN-TEST-006).
+`tests/test-listen-mptcp-fallback` — negative, CI (root/full stack): with
+MPTCP disabled in the server namespace (`net.mptcp.enabled = 0`) or absent
+from the kernel, ocserv logs the `listen-mptcp` warning, listens with TCP
+and the client connects.
+**Links:** REQ-MAIN-INIT-008, REQ-CONFIG-CFG-004, REQ-GEN-COMPAT-001
+
+### REQ-MAIN-INIT-008 — Socket-activated listeners keep the protocol chosen by systemd
+
+**Requirement:** When main receives its listening sockets from systemd
+(`sd_listen_fds() > 0`), it MUST use them as passed and MUST NOT re-create
+them, so `listen-mptcp` cannot change their protocol; systemd's
+`SocketProtocol=mptcp` does. If `listen-mptcp` is true and a received
+`SOCK_STREAM` socket is not an MPTCP socket (`SO_PROTOCOL` is not
+`IPPROTO_MPTCP`), main MUST log a warning naming `SocketProtocol=mptcp`, so
+that the ineffective setting is visible to the administrator.
+**Strength:** MUST / MUST NOT
+**Status:** DERIVED
+**Source:** src/main.c (`listen_ports()` systemd branch,
+`is_mptcp_socket()`); doc/systemd/socket-activated/ocserv.socket
+**Acceptance:** local, manual (CI images run no systemd) — with
+`listen-mptcp = true`, start ocserv with a TCP listening socket passed via
+`LISTEN_FDS`/`LISTEN_PID` (e.g. `systemd-socket-activate -l <port>`): the
+warning is logged and clients connect; pass an MPTCP listening socket
+instead: no warning, and `ss -M` lists the listener.
+**Links:** REQ-MAIN-INIT-007
+
 ---
 
 ## SESSION — Cookie resumption
@@ -629,7 +685,8 @@ partial reload.
 - **Listener setup** (`_listen_ports`, `listen_ports`,
   `set_udp_socket_options`, `set_common_socket_options`) is configuration
   plumbing with no MUST/MUST NOT contract beyond "bind what's configured in
-  `doc/sample.config` (`listen-host`, `tcp-port`, `udp-port`, etc.)" —
+  `doc/sample.config` (`listen-host`, `tcp-port`, `udp-port`, etc.)" and the
+  TCP listener protocol (REQ-MAIN-INIT-007, REQ-MAIN-INIT-008) —
   `[UNDOCUMENTED: candidate REQ-MAIN-INIT-* if specific socket-option
   requirements (e.g. SO_REUSEADDR, IPV6_V6ONLY) are found to matter for
   correctness rather than just performance.]`

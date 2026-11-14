@@ -165,6 +165,64 @@ static void set_common_socket_options(int fd)
 	set_cloexec_flag(fd, 1);
 }
 
+#ifdef __linux__
+/* Not in <netinet/in.h> before glibc 2.32 and musl 1.2.2 (e.g. Ubuntu 20.04);
+ * the value is fixed by the Linux UAPI (include/uapi/linux/in.h).
+ */
+#ifndef IPPROTO_MPTCP
+#define IPPROTO_MPTCP 262
+#endif /* IPPROTO_MPTCP */
+
+static int socket_mptcp(struct netns_fds *netns, int family)
+{
+	return socket_netns(netns, family, SOCK_STREAM, IPPROTO_MPTCP);
+}
+
+static inline bool is_mptcp_socket(int fd)
+{
+	int proto = 0;
+	socklen_t len = sizeof(proto);
+
+	return getsockopt(fd, SOL_SOCKET, SO_PROTOCOL, &proto, &len) == 0 &&
+	       proto == IPPROTO_MPTCP;
+}
+#else /* !__linux__ */
+static int socket_mptcp(struct netns_fds *netns, int family)
+{
+	errno = EPROTONOSUPPORT;
+	return -1;
+}
+
+static inline bool is_mptcp_socket(int fd)
+{
+	return false;
+}
+#endif /* __linux__ */
+
+/* With listen-mptcp, TCP listeners are MPTCP sockets. The kernel refuses them
+ * with EPROTONOSUPPORT (no MPTCP support), ENOPROTOOPT (net.mptcp.enabled=0)
+ * or EINVAL (Linux < 5.6); listen with TCP then, so that the option never
+ * prevents the server from starting.
+ */
+static int listen_socket(struct static_cfg_st *sconfig, struct netns_fds *netns,
+			 const struct addrinfo *ptr)
+{
+	int s;
+
+	if (ptr->ai_socktype == SOCK_STREAM && sconfig->listen_mptcp) {
+		s = socket_mptcp(netns, ptr->ai_family);
+		if (s >= 0)
+			return s;
+		oc_syslog(LOG_WARNING,
+			  "listen-mptcp: cannot create an MPTCP socket (%s), "
+			  "listening with TCP",
+			  strerror(errno));
+	}
+
+	return socket_netns(netns, ptr->ai_family, ptr->ai_socktype,
+			    ptr->ai_protocol);
+}
+
 static int _listen_ports(void *pool, struct static_cfg_st *sconfig,
 			 ReloadableConfig *rconfig, struct addrinfo *res,
 			 struct listen_list_st *list, struct netns_fds *netns)
@@ -190,8 +248,7 @@ static int _listen_ports(void *pool, struct static_cfg_st *sconfig,
 				human_addr(ptr->ai_addr, ptr->ai_addrlen, buf,
 					   sizeof(buf)));
 
-		s = socket_netns(netns, ptr->ai_family, ptr->ai_socktype,
-				 ptr->ai_protocol);
+		s = listen_socket(sconfig, netns, ptr);
 		if (s < 0) {
 			perror("socket() failed");
 			continue;
@@ -297,6 +354,13 @@ static int listen_ports(void *pool, struct static_cfg_st *sconfig,
 
 			if (type == SOCK_DGRAM)
 				set_udp_socket_options(rconfig, fd, family);
+
+			if (type == SOCK_STREAM && sconfig->listen_mptcp &&
+			    !is_mptcp_socket(fd))
+				oc_syslog(LOG_WARNING,
+					  "listen-mptcp has no effect on the "
+					  "socket passed by systemd; use "
+					  "SocketProtocol=mptcp in the unit");
 
 			/* obtain socket params */
 			tmp_sock_len = sizeof(tmp_sock);

@@ -1,0 +1,85 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Pierre-Yves Le Borgne
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# Test that listen-mptcp falls back to TCP when the kernel refuses MPTCP
+# sockets (REQ-MAIN-INIT-007): ocserv logs a warning, listens with TCP and
+# serves clients. Runs on any Linux kernel: with MPTCP support the test
+# disables it in the server namespace (net.mptcp.enabled = 0, ENOPROTOOPT);
+# without it the kernel refuses the socket (EPROTONOSUPPORT).
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+PIDFILE=ocserv-pid.$$.tmp
+CLIPID=oc-pid.$$.tmp
+LOGFILE=ocserv-log.$$.tmp
+OCCTL_SOCKET=./occtl-mptcp-fallback-$$.socket
+SS=$(command -v ss)
+PIN=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8=
+FALLBACK_MSG="listen-mptcp: cannot create an MPTCP socket"
+
+function finish {
+	echo " * Cleaning up..."
+	cleanup_client_server
+	rm -f ${LOGFILE}
+}
+trap finish EXIT
+
+. `dirname $0`/common.sh
+. `dirname $0`/random-net.sh
+. `dirname $0`/ns.sh
+
+if ${CMDNS2} test -e /proc/sys/net/mptcp/enabled; then
+	echo " * Disabling MPTCP in the server namespace"
+	# not with sysctl(8), which some CI images lack
+	${CMDNS2} sh -c 'echo 0 >/proc/sys/net/mptcp/enabled'
+	if test "$(${CMDNS2} cat /proc/sys/net/mptcp/enabled)" != 0; then
+		echo "FAIL: expected net.mptcp.enabled = 0 in the server namespace, got $(${CMDNS2} cat /proc/sys/net/mptcp/enabled)"
+		exit 1
+	fi
+else
+	echo " * The kernel has no MPTCP support"
+fi
+
+eval "${GETPORT}"
+
+update_config test-listen-mptcp.config
+if test "$VERBOSE" = 1;then
+	DEBUG="-d 3"
+fi
+
+${CMDNS2} ${SERV} -p ${PIDFILE} -f -c ${CONFIG} ${DEBUG} >${LOGFILE} 2>&1 & PID=$!
+wait_ns_port t ${PORT}
+
+if ! grep -q "${FALLBACK_MSG}" ${LOGFILE}; then
+	cat ${LOGFILE}
+	fail $PID "FAIL: expected '${FALLBACK_MSG}' in the server output"
+fi
+
+if ${SS} -N ${NSNAME2} -H -n -M -l "sport = :${PORT}" 2>/dev/null | grep -q ":${PORT}"; then
+	fail $PID "FAIL: expected a TCP listener on port ${PORT}, ss -M lists an MPTCP one"
+fi
+
+echo " * Connecting to the TCP listener"
+if ! ( echo "test" | ${CMDNS1} ${OPENCONNECT} ${ADDRESS}:${PORT} -u test --servercert=${PIN} -s ${srcdir}/scripts/vpnc-script --pid-file=${CLIPID} --passwd-on-stdin -b ); then
+	cat ${LOGFILE}
+	fail $PID "FAIL: client could not connect to the TCP fallback listener"
+fi
+
+exit 0

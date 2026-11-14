@@ -269,6 +269,7 @@ struct static_cfg_st {
 	char *listen_netns_name; /* [scope: global (non-reloadable)] */
 	unsigned int port; /* [scope: global (non-reloadable)] */
 	unsigned int udp_port; /* [scope: global (non-reloadable)] */
+	unsigned int listen_mptcp; /* [scope: global (non-reloadable)] */
 
 	unsigned int sec_mod_scale; /* [scope: global (non-reloadable)] */
 
